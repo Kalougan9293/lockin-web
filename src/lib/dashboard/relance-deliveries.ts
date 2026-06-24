@@ -1,0 +1,245 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import { formatAmountForDisplay } from "@/lib/preferences/currency-format";
+import {
+  formatDateForDisplay,
+  parseDateInputToIso,
+} from "@/lib/preferences/date-format";
+import type { Database, RelanceDeliveryRow } from "@/types/database";
+import type { ClientRow, ColumnDef, RelanceStep, TableData } from "@/types/tableau";
+import { formatRelanceTiming, isRowPaid } from "@/types/tableau";
+
+import { getRowFieldValue } from "./recovery";
+import {
+  buildRelanceScheduleForRow,
+  startOfDay,
+} from "./relance-schedule";
+import { mapTableauToTableData } from "./tableau-db";
+
+type Supabase = SupabaseClient<Database>;
+
+export type CronRelanceItem = {
+  deliveryId: string;
+  ligneId: string;
+  stepId: string;
+  tableauId: string;
+  to: string;
+  subject: string;
+  body: string;
+  scheduledFor: string;
+};
+
+function normalizeLabel(label: string) {
+  return label
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "");
+}
+
+function formatIsoDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function buildRelanceIdempotencyKey(
+  ligneId: string,
+  stepId: string,
+  scheduledFor: string,
+): string {
+  return `${ligneId}:${stepId}:${scheduledFor}`;
+}
+
+function formatFieldForTemplate(label: string, raw: string): string {
+  if (!raw.trim()) return "—";
+
+  const normalized = normalizeLabel(label);
+  if (normalized.includes("montant")) {
+    return formatAmountForDisplay(raw);
+  }
+
+  if (normalized.includes("date") || normalized.includes("echeance")) {
+    const iso = parseDateInputToIso(raw, "fr");
+    if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+      return formatDateForDisplay(iso, "fr");
+    }
+  }
+
+  return raw.trim();
+}
+
+export function resolveRelanceMessageTemplate(
+  template: string,
+  row: ClientRow,
+  columns: ColumnDef[],
+): string {
+  const replacements = new Map<string, string>();
+
+  for (const column of columns) {
+    const raw = row.values[column.id]?.trim() ?? "";
+    replacements.set(column.label, formatFieldForTemplate(column.label, raw));
+  }
+
+  const standardFields: Array<[string, string[]]> = [
+    ["Nom", ["Nom", "nom", "Client"]],
+    ["Montant", ["Montant", "montant"]],
+    ["Échéance", ["Échéance", "Echeance"]],
+    ["Date", ["Date", "date"]],
+    ["Mail", ["Mail", "Email"]],
+  ];
+
+  for (const [label, aliases] of standardFields) {
+    if (replacements.has(label)) continue;
+    const raw = getRowFieldValue(row, columns, ...aliases);
+    replacements.set(label, formatFieldForTemplate(label, raw));
+  }
+
+  let resolved = template;
+  for (const [label, value] of replacements) {
+    resolved = resolved.replaceAll(`[${label}]`, value);
+    if (label === "Échéance") {
+      resolved = resolved.replaceAll("[Echeance]", value);
+    }
+  }
+
+  return resolved;
+}
+
+function buildRelanceSubject(step: RelanceStep): string {
+  return `Relance ${formatRelanceTiming(step.days)} — ${step.name}`;
+}
+
+function getAllColumns(table: TableData): ColumnDef[] {
+  return [...table.leftColumns, ...table.hiddenLeftColumns];
+}
+
+function isDueOnOrBeforeToday(scheduledDate: Date, referenceDate: Date): boolean {
+  return startOfDay(scheduledDate).getTime() <= startOfDay(referenceDate).getTime();
+}
+
+async function queueDelivery(
+  supabase: Supabase,
+  payload: {
+    ligneId: string;
+    stepId: string;
+    tableauId: string;
+    scheduledFor: string;
+  },
+): Promise<RelanceDeliveryRow | null> {
+  const idempotencyKey = buildRelanceIdempotencyKey(
+    payload.ligneId,
+    payload.stepId,
+    payload.scheduledFor,
+  );
+
+  const { error: insertError } = await supabase.from("relance_deliveries").insert({
+    ligne_id: payload.ligneId,
+    step_id: payload.stepId,
+    tableau_id: payload.tableauId,
+    scheduled_for: payload.scheduledFor,
+    status: "queued",
+    idempotency_key: idempotencyKey,
+  });
+
+  if (insertError && insertError.code !== "23505") {
+    throw insertError;
+  }
+
+  const { data: existing, error: selectError } = await supabase
+    .from("relance_deliveries")
+    .select("*")
+    .eq("idempotency_key", idempotencyKey)
+    .maybeSingle();
+
+  if (selectError) throw selectError;
+  if (!existing) return null;
+
+  if (existing.status === "sent") {
+    return existing;
+  }
+
+  if (existing.status === "failed" || existing.status === "pending" || existing.status === "cancelled") {
+    const { data: updated, error: updateError } = await supabase
+      .from("relance_deliveries")
+      .update({ status: "queued" })
+      .eq("id", existing.id)
+      .select("*")
+      .single();
+
+    if (updateError) throw updateError;
+    return updated;
+  }
+
+  return existing;
+}
+
+export async function collectDueRelancesForCron(
+  supabase: Supabase,
+  referenceDate: Date = new Date(),
+): Promise<CronRelanceItem[]> {
+  const { data, error } = await supabase
+    .from("tableaux")
+    .select("*, relance_steps(*), lignes_factures(*)")
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+  if (!data?.length) return [];
+
+  const items: CronRelanceItem[] = [];
+
+  for (const rawTableau of data) {
+    const table = mapTableauToTableData(rawTableau);
+    const columns = getAllColumns(table);
+    const relanceSteps = [...table.relanceSteps].sort((a, b) => {
+      const ordreA =
+        rawTableau.relance_steps?.find((step) => step.id === a.id)?.ordre ?? 0;
+      const ordreB =
+        rawTableau.relance_steps?.find((step) => step.id === b.id)?.ordre ?? 0;
+      return ordreA - ordreB;
+    });
+
+    for (const row of table.rows) {
+      if (isRowPaid(row)) continue;
+
+      const to = getRowFieldValue(row, columns, "Mail", "Email");
+      if (!to) continue;
+
+      const schedule = buildRelanceScheduleForRow(
+        row,
+        columns,
+        relanceSteps,
+        referenceDate,
+      );
+
+      for (const step of relanceSteps) {
+        const scheduled = schedule.get(step.id);
+        if (!scheduled) continue;
+        if (!isDueOnOrBeforeToday(scheduled.scheduledDate, referenceDate)) continue;
+
+        const scheduledFor = formatIsoDate(scheduled.scheduledDate);
+        const delivery = await queueDelivery(supabase, {
+          ligneId: row.id,
+          stepId: step.id,
+          tableauId: table.id,
+          scheduledFor,
+        });
+
+        if (!delivery || delivery.status === "sent") continue;
+
+        items.push({
+          deliveryId: delivery.id,
+          ligneId: row.id,
+          stepId: step.id,
+          tableauId: table.id,
+          to,
+          subject: buildRelanceSubject(step),
+          body: resolveRelanceMessageTemplate(step.messageTemplate, row, columns),
+          scheduledFor,
+        });
+      }
+    }
+  }
+
+  return items;
+}

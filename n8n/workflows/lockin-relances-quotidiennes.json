@@ -1,0 +1,220 @@
+{
+  "name": "LockIn — Relances quotidiennes",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## LockIn × n8n\n\n**Variables d'environnement n8n** (Settings → Variables) :\n- `CRON_SECRET` — identique à Vercel / lockin-web\n- `LOCKIN_API_URL` — URL prod (ex. `https://app.lockin.app` ou `https://xxx.vercel.app`)\n- `LOCKIN_FROM_EMAIL` — expéditeur (ex. `relances@votredomaine.com`)\n\n**À configurer après import :**\n1. Credentials SMTP sur le nœud « Envoyer l'email »\n2. Activer le workflow\n3. Tester avec « Execute workflow »\n\n**Flux :** Cron 08h → GET relances → boucle → email → POST ack → relance suivante",
+        "height": 340,
+        "width": 420,
+        "color": 6
+      },
+      "id": "f8a1c2b3-4d5e-6f70-8192-a3b4c5d6e7f0",
+      "name": "Note de configuration",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-200, 80]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        },
+        "timezone": "Europe/Paris"
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567801",
+      "name": "1. Tous les jours 08h00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.LOCKIN_API_URL.replace(/\\/$/, '') + '/api/cron/relances-du-jour' }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.CRON_SECRET }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false,
+              "neverError": false
+            }
+          }
+        }
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567802",
+      "name": "2. Récupérer relances du jour",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 300]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "items",
+        "options": {}
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567803",
+      "name": "3. Parcourir chaque relance",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [800, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567804",
+      "name": "4. Une relance à la fois",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1080, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.LOCKIN_FROM_EMAIL }}",
+        "toEmail": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.body }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567805",
+      "name": "5. Envoyer l'email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1360, 300],
+      "onError": "continueErrorOutput",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.LOCKIN_API_URL.replace(/\\/$/, '') + '/api/cron/relances/ack' }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.CRON_SECRET }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => {\n  const relance = $('4. Une relance à la fois').item.json;\n  const input = $input.item;\n  const failed = Boolean(input.error);\n\n  if (failed) {\n    return {\n      deliveryId: relance.deliveryId,\n      status: 'failed',\n      errorMessage: String(input.error?.message || input.error?.description || 'Échec envoi email'),\n    };\n  }\n\n  return {\n    deliveryId: relance.deliveryId,\n    status: 'sent',\n    providerMessageId: String($execution.id),\n    provider: 'smtp',\n    sentAt: new Date().toISOString(),\n  };\n})() }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567806",
+      "name": "6. Accuser réception (ack)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1640, 300]
+    }
+  ],
+  "connections": {
+    "1. Tous les jours 08h00": {
+      "main": [
+        [
+          {
+            "node": "2. Récupérer relances du jour",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Récupérer relances du jour": {
+      "main": [
+        [
+          {
+            "node": "3. Parcourir chaque relance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. Parcourir chaque relance": {
+      "main": [
+        [
+          {
+            "node": "4. Une relance à la fois",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. Une relance à la fois": {
+      "main": [
+        [
+          {
+            "node": "5. Envoyer l'email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "5. Envoyer l'email": {
+      "main": [
+        [
+          {
+            "node": "6. Accuser réception (ack)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "6. Accuser réception (ack)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6. Accuser réception (ack)": {
+      "main": [
+        [
+          {
+            "node": "4. Une relance à la fois",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Paris"
+  },
+  "staticData": null,
+  "tags": [],
+  "active": false,
+  "versionId": "lockin-relances-v1"
+}

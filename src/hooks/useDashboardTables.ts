@@ -1,0 +1,423 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+
+import { fetchRelanceDeliveriesForTableaux } from "@/lib/dashboard/fetch-relance-deliveries";
+import {
+  handlePaidLigneSideEffects,
+  markDeliveriesCancelledLocally,
+} from "@/lib/dashboard/cancel-queued-deliveries";
+import {
+  deleteLigne,
+  deleteTable,
+  fetchAllTables,
+  getAddedRows,
+  getRemovedRows,
+  getUpdatedRows,
+  insertFullTable,
+  isPaymentStatusOnlyChange,
+  insertLigne,
+  relanceStepsChanged,
+  syncRelanceSteps,
+  tableMetaChanged,
+  updateLigne,
+  updateTableMeta,
+} from "@/lib/dashboard/tableau-db";
+import { createClient } from "@/lib/supabase/client";
+import type { RelanceDeliveryRow } from "@/types/database";
+import type { ClientRow, TableData } from "@/types/tableau";
+import { createTableData, isRowPaid } from "@/types/tableau";
+
+const ROW_PERSIST_DEBOUNCE_MS = 450;
+
+async function apiFetchDashboard(): Promise<{
+  tables: TableData[];
+  deliveries: RelanceDeliveryRow[];
+}> {
+  const response = await fetch("/api/dashboard/tableaux");
+  const data = (await response.json()) as {
+    tables?: TableData[];
+    deliveries?: RelanceDeliveryRow[];
+    error?: string;
+  };
+  if (!response.ok) {
+    throw new Error(data.error ?? "Impossible de charger les tableaux.");
+  }
+  return {
+    tables: data.tables ?? [],
+    deliveries: data.deliveries ?? [],
+  };
+}
+
+async function apiPersistTableDiff(prev: TableData, next: TableData) {
+  const response = await fetch("/api/dashboard/tableaux", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prev, next }),
+  });
+  const data = (await response.json()) as { error?: string };
+  if (!response.ok) {
+    throw new Error(data.error ?? "Impossible d'enregistrer le tableau.");
+  }
+}
+
+async function apiPersistRow(row: ClientRow) {
+  const response = await fetch("/api/dashboard/tableaux", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ row }),
+  });
+  const data = (await response.json()) as { error?: string };
+  if (!response.ok) {
+    throw new Error(data.error ?? "Impossible d'enregistrer la ligne.");
+  }
+}
+
+async function apiInsertTable(table: TableData) {
+  const response = await fetch("/api/dashboard/tableaux", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ table }),
+  });
+  const data = (await response.json()) as { error?: string };
+  if (!response.ok) {
+    throw new Error(data.error ?? "Impossible de créer le tableau.");
+  }
+}
+
+async function apiDeleteTable(tableId: string) {
+  const response = await fetch("/api/dashboard/tableaux", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "deleteTable", tableId }),
+  });
+  const data = (await response.json()) as { error?: string };
+  if (!response.ok) {
+    throw new Error(data.error ?? "Impossible de supprimer le tableau.");
+  }
+}
+
+export function useDashboardTables(
+  impersonationMode = false,
+  demoMode = false,
+  demoSessionKey = "default",
+) {
+  const [tables, setTables] = useState<TableData[]>([]);
+  const [deliveries, setDeliveries] = useState<RelanceDeliveryRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [persistError, setPersistError] = useState<string | null>(null);
+
+  const persistEnabledRef = useRef(false);
+  const useApiRef = useRef(impersonationMode);
+  const rowTimersRef = useRef(
+    new Map<string, ReturnType<typeof setTimeout>>(),
+  );
+  const supabaseRef = useRef(createClient());
+
+  useApiRef.current = impersonationMode;
+
+  const reportPersistError = useCallback((message: string) => {
+    setPersistError(message);
+    console.error("[dashboard persist]", message);
+  }, []);
+
+  const persistRowNow = useCallback(
+    async (row: ClientRow, previous?: ClientRow) => {
+      if (!persistEnabledRef.current) return;
+
+      try {
+        if (useApiRef.current) {
+          await apiPersistRow(row);
+          if (isRowPaid(row) && !(previous && isRowPaid(previous))) {
+            setDeliveries((current) =>
+              markDeliveriesCancelledLocally(current, row.id),
+            );
+          }
+        } else {
+          await updateLigne(supabaseRef.current, row, previous);
+          if (isRowPaid(row) && !(previous && isRowPaid(previous))) {
+            setDeliveries((current) =>
+              markDeliveriesCancelledLocally(current, row.id),
+            );
+          }
+        }
+      } catch (error) {
+        reportPersistError(
+          error instanceof Error
+            ? error.message
+            : "Impossible d'enregistrer la ligne.",
+        );
+      }
+    },
+    [reportPersistError],
+  );
+
+  const scheduleRowPersist = useCallback(
+    (row: ClientRow) => {
+      if (!persistEnabledRef.current) return;
+
+      const timers = rowTimersRef.current;
+      const existing = timers.get(row.id);
+      if (existing) clearTimeout(existing);
+
+      timers.set(
+        row.id,
+        setTimeout(() => {
+          timers.delete(row.id);
+          void persistRowNow(row);
+        }, ROW_PERSIST_DEBOUNCE_MS),
+      );
+    },
+    [persistRowNow],
+  );
+
+  const persistTableDiff = useCallback(
+    async (prev: TableData, next: TableData) => {
+      if (!persistEnabledRef.current) return;
+
+      try {
+        if (useApiRef.current) {
+          await apiPersistTableDiff(prev, next);
+          return;
+        }
+
+        if (tableMetaChanged(prev, next)) {
+          await updateTableMeta(supabaseRef.current, next);
+        }
+
+        if (relanceStepsChanged(prev, next)) {
+          await syncRelanceSteps(
+            supabaseRef.current,
+            next.id,
+            next.relanceSteps,
+          );
+        }
+
+        for (const row of getRemovedRows(prev.rows, next.rows)) {
+          await deleteLigne(supabaseRef.current, row.id);
+        }
+
+        for (const row of getAddedRows(prev.rows, next.rows)) {
+          await insertLigne(supabaseRef.current, next.id, row);
+        }
+
+        for (const row of getUpdatedRows(prev.rows, next.rows)) {
+          const previous = prev.rows.find((entry) => entry.id === row.id);
+          if (previous && isPaymentStatusOnlyChange(previous, row)) {
+            void persistRowNow(row, previous);
+          } else {
+            scheduleRowPersist(row);
+          }
+        }
+      } catch (error) {
+        reportPersistError(
+          error instanceof Error
+            ? error.message
+            : "Impossible d'enregistrer le tableau.",
+        );
+      }
+    },
+    [reportPersistError, scheduleRowPersist],
+  );
+
+  const updateTable = useCallback(
+    (id: string, updater: (table: TableData) => TableData) => {
+      setTables((current) => {
+        let previous: TableData | undefined;
+        let next: TableData | undefined;
+
+        const updated = current.map((table) => {
+          if (table.id !== id) return table;
+          previous = table;
+          next = updater(table);
+          return next;
+        });
+
+        if (previous && next) {
+          void persistTableDiff(previous, next);
+        }
+
+        return updated;
+      });
+    },
+    [persistTableDiff],
+  );
+
+  const addTableAfter = useCallback(
+    async (index: number, currentLength: number) => {
+      const newTable = createTableData(currentLength + 1);
+
+      setTables((current) => {
+        const updated = [...current];
+        updated.splice(index + 1, 0, newTable);
+        return updated;
+      });
+
+      if (!persistEnabledRef.current) return;
+
+      try {
+        if (useApiRef.current) {
+          await apiInsertTable(newTable);
+          return;
+        }
+
+        const {
+          data: { user },
+        } = await supabaseRef.current.auth.getUser();
+        if (!user) return;
+
+        await insertFullTable(supabaseRef.current, user.id, newTable);
+      } catch (error) {
+        reportPersistError(
+          error instanceof Error
+            ? error.message
+            : "Impossible de créer le tableau.",
+        );
+      }
+    },
+    [reportPersistError],
+  );
+
+  const removeTable = useCallback(
+    async (tableId: string) => {
+      setTables((current) => {
+        if (current.length <= 1) return current;
+        return current.filter((table) => table.id !== tableId);
+      });
+
+      if (!persistEnabledRef.current) return;
+
+      try {
+        if (useApiRef.current) {
+          await apiDeleteTable(tableId);
+          return;
+        }
+
+        await deleteTable(supabaseRef.current, tableId);
+      } catch (error) {
+        reportPersistError(
+          error instanceof Error
+            ? error.message
+            : "Impossible de supprimer le tableau.",
+        );
+      }
+    },
+    [reportPersistError],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      if (demoMode) {
+        persistEnabledRef.current = false;
+        if (!cancelled) {
+          setLoadError(null);
+          setPersistError(null);
+          setDeliveries([]);
+          setTables([createTableData()]);
+          setLoading(false);
+        }
+        return;
+      }
+
+      setLoading(true);
+      setLoadError(null);
+
+      try {
+        if (useApiRef.current) {
+          persistEnabledRef.current = true;
+          const { tables: loaded, deliveries: loadedDeliveries } =
+            await apiFetchDashboard();
+
+          if (cancelled) return;
+
+          setDeliveries(loadedDeliveries);
+
+          if (loaded.length === 0) {
+            const initial = createTableData();
+            await apiInsertTable(initial);
+            setTables([initial]);
+            setDeliveries([]);
+          } else {
+            setTables(loaded);
+          }
+          return;
+        }
+
+        const supabase = supabaseRef.current;
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          persistEnabledRef.current = false;
+          if (!cancelled) {
+            setDeliveries([]);
+            setTables([createTableData()]);
+            setLoading(false);
+          }
+          return;
+        }
+
+        persistEnabledRef.current = true;
+        const loaded = await fetchAllTables(supabase);
+
+        if (cancelled) return;
+
+        const tableauIds = loaded.map((table) => table.id);
+        const loadedDeliveries = await fetchRelanceDeliveriesForTableaux(
+          supabase,
+          tableauIds,
+        );
+
+        if (cancelled) return;
+
+        setDeliveries(loadedDeliveries);
+
+        if (loaded.length === 0) {
+          const initial = createTableData();
+          await insertFullTable(supabase, user.id, initial);
+          setTables([initial]);
+          setDeliveries([]);
+        } else {
+          setTables(loaded);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setLoadError(
+            error instanceof Error
+              ? error.message
+              : "Impossible de charger vos tableaux.",
+          );
+          setTables([createTableData()]);
+          persistEnabledRef.current = false;
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void load();
+
+    return () => {
+      cancelled = true;
+      for (const timer of rowTimersRef.current.values()) {
+        clearTimeout(timer);
+      }
+      rowTimersRef.current.clear();
+    };
+  }, [impersonationMode, demoMode, demoSessionKey]);
+
+  return {
+    tables,
+    deliveries,
+    loading,
+    loadError,
+    persistError,
+    updateTable,
+    addTableAfter,
+    removeTable,
+  };
+}

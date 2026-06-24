@@ -1,0 +1,4 @@
+-- Référence schéma — géré dans le SQL Editor Supabase (ne pas exécuter si déjà en place)
+-- Table : clients_lockin
+-- Clé primaire : id_client (référence auth.users)
+-- Métadonnées inscription : raw_user_meta_data.prenom_client, nom_societe, pays
