@@ -22,7 +22,11 @@ import {
 } from "@/lib/preferences/date-format";
 import type { RelanceDeliveryRow } from "@/types/database";
 import type { ClientRow, ColumnDef, PaymentStatus, RelanceStep, RightColumnDef } from "@/types/tableau";
-import { isRowPaid, LEFT_COLUMN_PRESETS, STATUT_COLUMN_ID } from "@/types/tableau";
+import {
+  getAddableColumnLabels,
+  isRowPaid,
+  STATUT_COLUMN_ID,
+} from "@/types/tableau";
 
 import { RecoveryBadge } from "./RecoveryBadge";
 import { RelanceScheduleCell } from "./RelanceScheduleCell";
@@ -289,6 +293,7 @@ type RightTableColumnProps = {
   allLeftColumns: ColumnDef[];
   relanceSteps: RelanceStep[];
   deliveries: RelanceDeliveryRow[];
+  simulateRelances: boolean;
   onStatusChange: (rowIndex: number, status: PaymentStatus) => void;
   expandForRecovery?: boolean;
 };
@@ -300,6 +305,7 @@ function RightTableColumn({
   allLeftColumns,
   relanceSteps,
   deliveries,
+  simulateRelances,
   onStatusChange,
   expandForRecovery = false,
 }: RightTableColumnProps) {
@@ -370,6 +376,8 @@ function RightTableColumn({
                       allLeftColumns,
                       relanceSteps,
                       filterDeliveriesForLigne(deliveries, row.id),
+                      new Date(),
+                      { simulateFromDates: simulateRelances },
                     ).get(column.id) ?? null
                   }
                 />
@@ -506,14 +514,14 @@ function TableColumn({
 }
 
 type AddColumnButtonProps = {
-  presets: string[];
+  availableLabels: string[];
   onAdd: (label: string) => void;
   accentClass: string;
   totalRows: number;
 };
 
 function AddColumnButton({
-  presets,
+  availableLabels,
   onAdd,
   accentClass,
   totalRows,
@@ -608,18 +616,20 @@ function AddColumnButton({
                 style={{ top: menuPosition.top, left: menuPosition.left }}
                 className="fixed z-[101] min-w-[10rem] overflow-hidden rounded-xl border border-white/10 bg-brand-card py-1 shadow-xl shadow-black/50"
               >
-                {presets.map((preset) => (
+                {availableLabels.map((label) => (
                   <button
-                    key={preset}
+                    key={label}
                     type="button"
                     role="menuitem"
-                    onClick={() => handlePreset(preset)}
+                    onClick={() => handlePreset(label)}
                     className="block w-full px-3 py-2 text-left text-sm text-brand-muted transition-colors hover:bg-white/5 hover:text-white"
                   >
-                    {preset}
+                    {label}
                   </button>
                 ))}
-                <div className="my-1 border-t border-white/10" />
+                {availableLabels.length > 0 ? (
+                  <div className="my-1 border-t border-white/10" />
+                ) : null}
                 <button
                   type="button"
                   role="menuitem"
@@ -654,6 +664,7 @@ type TableauGridProps = {
   onDeleteRow: (rowIndex: number) => void;
   onConfigure: () => void;
   onRecoveryClick: (rowIndex: number) => void;
+  simulateRelances?: boolean;
 };
 
 export function TableauGrid({
@@ -673,10 +684,15 @@ export function TableauGrid({
   onDeleteRow,
   onConfigure,
   onRecoveryClick,
+  simulateRelances = false,
 }: TableauGridProps) {
   const { dateFormat } = useUserPreferences();
   const totalRows = Math.max(MIN_EMPTY_ROWS, rows.length + 1);
   const allLeftColumns = [...leftColumns, ...hiddenLeftColumns];
+  const addableColumnLabels = getAddableColumnLabels(
+    leftColumns,
+    hiddenLeftColumns,
+  );
   const relanceColumns = rightColumns.filter((column) => column.variant === "relance");
   const statutColumns = rightColumns.filter((column) => column.variant === "statut");
   const hasRecoveryRows = rows.some((row) =>
@@ -785,7 +801,7 @@ export function TableauGrid({
             />
           ))}
           <AddColumnButton
-            presets={LEFT_COLUMN_PRESETS}
+            availableLabels={addableColumnLabels}
             accentClass="bg-violet-500/16"
             totalRows={totalRows}
             onAdd={(label) => onAddLeftColumn(label)}
@@ -817,6 +833,7 @@ export function TableauGrid({
                 allLeftColumns={allLeftColumns}
                 relanceSteps={relanceSteps}
                 deliveries={deliveries}
+                simulateRelances={simulateRelances}
                 expandForRecovery={hasRecoveryRows}
                 onStatusChange={handleStatusChange}
               />
@@ -838,6 +855,7 @@ export function TableauGrid({
               allLeftColumns={allLeftColumns}
               relanceSteps={relanceSteps}
               deliveries={deliveries}
+              simulateRelances={simulateRelances}
               onStatusChange={handleStatusChange}
             />
           ))}

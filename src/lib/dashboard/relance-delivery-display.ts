@@ -24,6 +24,14 @@ export type RelanceDisplayItem = {
   status: RelanceDisplayStatus;
 };
 
+export type RelanceDisplayOptions = {
+  /**
+   * Mode démo (`?demo=1`) : ignore N8N / relance_deliveries.
+   * Date passée ou atteinte → « envoyé » (vert), future → « prévu » (orange).
+   */
+  simulateFromDates?: boolean;
+};
+
 function formatIsoDate(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -59,8 +67,9 @@ export function buildRelanceDisplayForRow(
   row: ClientRow,
   columns: ColumnDef[],
   relanceSteps: RelanceStep[],
-  deliveries: RelanceDeliveryRow[],
+  deliveries: RelanceDeliveryRow[] = [],
   referenceDate: Date = new Date(),
+  options?: RelanceDisplayOptions,
 ): Map<string, RelanceDisplayItem> {
   const schedule = buildRelanceScheduleForRow(
     row,
@@ -70,41 +79,46 @@ export function buildRelanceDisplayForRow(
   );
   const result = new Map<string, RelanceDisplayItem>();
   const today = startOfDay(referenceDate).getTime();
+  const simulateFromDates = options?.simulateFromDates === true;
 
   for (const step of relanceSteps) {
     const scheduled = schedule.get(step.id);
     if (!scheduled) continue;
 
-    const scheduledFor = formatIsoDate(scheduled.scheduledDate);
-    const delivery = findDeliveryForStep(
-      deliveries,
-      row.id,
-      step.id,
-      scheduledFor,
-    );
-    const activeDelivery =
-      delivery?.status === "cancelled" ? undefined : delivery;
     const scheduledDay = startOfDay(scheduled.scheduledDate).getTime();
-
     let status: RelanceDisplayStatus;
     let displayDate = scheduled.scheduledDate;
 
-    if (activeDelivery?.status === "sent") {
-      status = "sent";
-      if (activeDelivery.sent_at) {
-        displayDate = new Date(activeDelivery.sent_at);
-      }
-    } else if (activeDelivery?.status === "failed") {
-      status = "failed";
-    } else if (
-      activeDelivery?.status === "queued" ||
-      activeDelivery?.status === "pending"
-    ) {
-      status = "queued";
-    } else if (scheduledDay > today) {
-      status = "scheduled";
+    if (simulateFromDates) {
+      status = scheduledDay > today ? "scheduled" : "sent";
     } else {
-      status = "overdue";
+      const scheduledFor = formatIsoDate(scheduled.scheduledDate);
+      const delivery = findDeliveryForStep(
+        deliveries,
+        row.id,
+        step.id,
+        scheduledFor,
+      );
+      const activeDelivery =
+        delivery?.status === "cancelled" ? undefined : delivery;
+
+      if (activeDelivery?.status === "sent") {
+        status = "sent";
+        if (activeDelivery.sent_at) {
+          displayDate = new Date(activeDelivery.sent_at);
+        }
+      } else if (activeDelivery?.status === "failed") {
+        status = "failed";
+      } else if (
+        activeDelivery?.status === "queued" ||
+        activeDelivery?.status === "pending"
+      ) {
+        status = "queued";
+      } else if (scheduledDay > today) {
+        status = "scheduled";
+      } else {
+        status = "overdue";
+      }
     }
 
     result.set(step.id, {

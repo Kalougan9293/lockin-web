@@ -23,6 +23,7 @@ type RecoveryDrawerProps = {
   columns: ColumnDef[];
   relanceSteps: RelanceStep[];
   deliveries?: RelanceDeliveryRow[];
+  simulateRelances?: boolean;
 };
 
 const STEPS = [
@@ -134,6 +135,7 @@ export function RecoveryDrawer({
   columns,
   relanceSteps,
   deliveries = [],
+  simulateRelances = false,
 }: RecoveryDrawerProps) {
   const fields = extractRecoveryFields(row, columns);
   const callScript = buildCallScript(fields);
@@ -142,6 +144,8 @@ export function RecoveryDrawer({
     columns,
     relanceSteps,
     deliveries,
+    new Date(),
+    simulateRelances,
   );
 
   const [letterDraft, setLetterDraft] = useState("");

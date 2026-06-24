@@ -156,6 +156,7 @@ export const OPTIONAL_CLIENT_BUBBLES = [
 /** @deprecated Utiliser DEFAULT_MODAL_FIELDS + OPTIONAL_CLIENT_BUBBLES */
 export const ADD_CLIENT_BUBBLES = [...OPTIONAL_CLIENT_BUBBLES, "Autres"] as const;
 
+/** @deprecated Préférer getAddableColumnLabels() — liste dynamique selon colonnes visibles/masquées. */
 export const LEFT_COLUMN_PRESETS = [
   "Date",
   "Numéro",
@@ -163,6 +164,46 @@ export const LEFT_COLUMN_PRESETS = [
   "Montant",
   "Référence",
 ];
+
+function isColumnLabelPresent(columns: ColumnDef[], label: string) {
+  return columns.some((column) => labelsMatch(column.label, label));
+}
+
+/**
+ * Libellés proposés dans le menu « + » : colonnes masquées (restaurables)
+ * puis champs standards pas encore dans le tableau.
+ */
+export function getAddableColumnLabels(
+  leftColumns: ColumnDef[],
+  hiddenLeftColumns: ColumnDef[],
+): string[] {
+  const result: string[] = [];
+  const seen = new Set<string>();
+
+  const addLabel = (label: string) => {
+    const trimmed = label.trim();
+    const key = trimmed.toLowerCase();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    result.push(trimmed);
+  };
+
+  for (const column of hiddenLeftColumns) {
+    addLabel(column.label);
+  }
+
+  for (const label of STANDARD_TEMPLATE_LABELS) {
+    if (
+      isColumnLabelPresent(leftColumns, label) ||
+      isColumnLabelPresent(hiddenLeftColumns, label)
+    ) {
+      continue;
+    }
+    addLabel(label);
+  }
+
+  return result;
+}
 
 export type RightColumnDef = ColumnDef & {
   accent: RightColumnAccent;

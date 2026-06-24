@@ -131,6 +131,7 @@ export function buildRelanceProofHistory(
   relanceSteps: RelanceStep[],
   deliveries: RelanceDeliveryRow[] = [],
   referenceDate: Date = new Date(),
+  simulateFromDates = false,
 ): RelanceProofEntry[] {
   const display = buildRelanceDisplayForRow(
     row,
@@ -138,6 +139,7 @@ export function buildRelanceProofHistory(
     relanceSteps,
     deliveries,
     referenceDate,
+    { simulateFromDates },
   );
 
   return relanceSteps

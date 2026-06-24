@@ -181,7 +181,8 @@ export function DashboardWorkspace({
     <>
       {isEphemeralDemo ? (
         <p className="mb-4 text-center text-sm font-semibold text-red-500">
-          Ceci est une démo : rien n&apos;est enregistré
+          Mode démo : rien n&apos;est enregistré, les relances sont simulées
+          selon les dates (aucun envoi réel).
         </p>
       ) : null}
 
@@ -243,6 +244,7 @@ export function DashboardWorkspace({
                   onRecoveryClick={(rowIndex) =>
                     setRecoveryTarget({ tableId: table.id, rowIndex })
                   }
+                  simulateRelances={isEphemeralDemo}
                 />
 
                 <div className="mt-4 flex min-h-10 w-full items-center justify-between">
@@ -328,6 +330,7 @@ export function DashboardWorkspace({
           ]}
           relanceSteps={recoveryTable.relanceSteps}
           deliveries={filterDeliveriesForLigne(deliveries, recoveryRow.id)}
+          simulateRelances={isEphemeralDemo}
           onClose={() => setRecoveryTarget(null)}
         />
       ) : null}
