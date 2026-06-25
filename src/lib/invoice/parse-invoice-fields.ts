@@ -52,6 +52,80 @@ function parseDateToIso(raw: string): string | null {
   return null;
 }
 
+function addDaysToIso(isoDate: string, days: number): string | null {
+  const match = isoDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+  if (Number.isNaN(date.getTime())) return null;
+
+  date.setDate(date.getDate() + days);
+
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+const DATE_VALUE_PATTERN =
+  "([\\d]{1,2}[\\/\\-.][\\d]{1,2}[\\/\\-.][\\d]{2,4}|\\d{4}[\\/\\-.][\\d]{1,2}[\\/\\-.][\\d]{1,2})";
+
+function extractLabeledDate(text: string, labels: string[]): string | null {
+  for (const label of labels) {
+    const pattern = new RegExp(`${label}[:\\s]*${DATE_VALUE_PATTERN}`, "i");
+    const match = text.match(pattern);
+    if (match?.[1]) {
+      const iso = parseDateToIso(match[1]);
+      if (iso) return iso;
+    }
+  }
+  return null;
+}
+
+/** Délai de paiement en jours (« 40 jours pour payer », « net 30 », etc.). */
+function extractPaymentTermDays(text: string): number | null {
+  const normalized = text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "");
+
+  const patterns = [
+    /(?:paiement|payable|reglement)\s*(?:a|dans|sous|within|in)?\s*(\d{1,3})\s*jours?/i,
+    /(\d{1,3})\s*jours?\s*(?:pour\s*)?payer/i,
+    /(\d{1,3})\s*jours?\s*net\b/i,
+    /(?:net|delai(?:\s*de\s*paiement)?)\s*[:\s]*(\d{1,3})\s*jours?/i,
+    /(?:echeance|échéance)\s*[:\s]*(\d{1,3})\s*jours?/i,
+    /(?:within|in)\s*(\d{1,3})\s*days?/i,
+    /(\d{1,3})\s*days?\s*net\b/i,
+    /(?:terms?|payment)\s*[:\s]*(\d{1,3})\s*days?/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = normalized.match(pattern);
+    const days = match?.[1] ? Number.parseInt(match[1], 10) : Number.NaN;
+    if (Number.isFinite(days) && days >= 1 && days <= 180) {
+      return days;
+    }
+  }
+
+  return null;
+}
+
+function computeDueDateFromTerms(
+  text: string,
+  invoiceDate: string | null,
+): string | null {
+  if (!invoiceDate) return null;
+
+  const paymentDays = extractPaymentTermDays(text);
+  if (paymentDays === null) return null;
+
+  return addDaysToIso(invoiceDate, paymentDays);
+}
+
 function firstMatch(text: string, patterns: RegExp[]): string | null {
   for (const pattern of patterns) {
     const match = text.match(pattern);
@@ -234,17 +308,8 @@ function extractAmount(text: string) {
 }
 
 function extractDate(text: string, labels: string[]) {
-  for (const label of labels) {
-    const pattern = new RegExp(
-      `${label}[:\\s]*([\\d]{1,2}[\\/\\-.][\\d]{1,2}[\\/\\-.][\\d]{2,4}|\\d{4}[\\/\\-.][\\d]{1,2}[\\/\\-.][\\d]{1,2})`,
-      "i",
-    );
-    const match = text.match(pattern);
-    if (match?.[1]) {
-      const iso = parseDateToIso(match[1]);
-      if (iso) return iso;
-    }
-  }
+  const labeled = extractLabeledDate(text, labels);
+  if (labeled) return labeled;
 
   const fallback = text.match(
     /(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{4}|\d{4}[\/\-.]\d{1,2}[\/\-.]\d{1,2})/,
@@ -272,20 +337,28 @@ export function parseInvoiceFields(rawText: string): ParsedInvoiceFields {
   const montant = extractAmount(text);
   if (montant) fields.Montant = montant;
 
-  const date = extractDate(text, [
-    "date(?:\\s*(?:de\\s*)?facture)?",
-    "factur[ée]\\s*le",
-    "invoice\\s*date",
-    "date",
-  ]);
+  const date =
+    extractLabeledDate(text, [
+      "date\\s*(?:de\\s*)?(?:facture|émission|emission)",
+      "factur[ée]\\s*le",
+      "émise?\\s*le",
+      "invoice\\s*date",
+      "date\\s*facture",
+    ]) ??
+    extractDate(text, ["date(?:\\s*(?:de\\s*)?facture)?", "date"]);
   if (date) fields.Date = date;
 
-  const echeance = extractDate(text, [
+  let echeance = extractLabeledDate(text, [
     "échéance",
     "echeance",
     "due\\s*date",
     "date\\s*limite",
   ]);
+
+  if (!echeance) {
+    echeance = computeDueDateFromTerms(text, date);
+  }
+
   if (echeance && echeance !== date) fields.Échéance = echeance;
 
   const reference = extractInvoiceReference(rawText);
