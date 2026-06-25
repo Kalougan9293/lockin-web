@@ -12,6 +12,10 @@ import {
 } from "@/lib/dashboard/tableau-db";
 import { fetchRelanceDeliveriesForTableaux } from "@/lib/dashboard/fetch-relance-deliveries";
 import { cancelQueuedDeliveriesForPaidLigne } from "@/lib/dashboard/cancel-queued-deliveries";
+import {
+  canAddTable,
+  isTableRowsWithinLimits,
+} from "@/lib/dashboard/plan-limits";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { TableData } from "@/types/tableau";
 
@@ -63,6 +67,11 @@ export async function POST(request: Request) {
     }
 
     const admin = createAdminClient();
+    const existingTables = await fetchAllTablesForUser(admin, userId);
+    if (!canAddTable(existingTables)) {
+      return NextResponse.json({ ok: true });
+    }
+
     await insertFullTable(admin, userId, body.table);
 
     return NextResponse.json({ ok: true });
@@ -122,6 +131,11 @@ export async function PATCH(request: Request) {
 
     if (!owner || owner.user_id !== userId) {
       return NextResponse.json({ error: "Accès refusé." }, { status: 403 });
+    }
+
+    const allTables = await fetchAllTablesForUser(admin, userId);
+    if (!isTableRowsWithinLimits(allTables, body.next.id, body.next.rows)) {
+      return NextResponse.json({ error: "Données invalides." }, { status: 400 });
     }
 
     await applyTableDiff(admin, body.prev, body.next);

@@ -11,9 +11,12 @@ type ImportPromptProps = {
   selectedTableId: string;
   onSelectedTableIdChange: (tableId: string) => void;
   onAddManual: () => void;
-  onPdfSelected: (file: File) => void;
+  onFilesSelected: (files: File[]) => void;
+  onAddTable?: () => void;
+  canAddTable?: boolean;
   isProcessing?: boolean;
   error?: string | null;
+  addManualDisabled?: boolean;
 };
 
 export function ImportPrompt({
@@ -21,19 +24,22 @@ export function ImportPrompt({
   selectedTableId,
   onSelectedTableIdChange,
   onAddManual,
-  onPdfSelected,
+  onFilesSelected,
+  onAddTable,
+  canAddTable = true,
   isProcessing = false,
   error = null,
+  addManualDisabled = false,
 }: ImportPromptProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  const handleFile = useCallback(
-    (file: File | null | undefined) => {
-      if (!file) return;
-      onPdfSelected(file);
+  const handleFiles = useCallback(
+    (fileList: FileList | File[] | null | undefined) => {
+      if (!fileList?.length) return;
+      onFilesSelected([...fileList]);
     },
-    [onPdfSelected],
+    [onFilesSelected],
   );
 
   function handleDragOver(event: React.DragEvent) {
@@ -53,9 +59,7 @@ export function ImportPrompt({
     event.stopPropagation();
     setIsDragging(false);
     if (isProcessing) return;
-
-    const file = event.dataTransfer.files[0];
-    handleFile(file);
+    handleFiles(event.dataTransfer.files);
   }
 
   function openFilePicker() {
@@ -68,10 +72,11 @@ export function ImportPrompt({
       <input
         ref={inputRef}
         type="file"
-        accept="application/pdf,.pdf"
+        accept=".pdf,application/pdf,.csv,text/csv"
+        multiple
         className="hidden"
         onChange={(event) => {
-          handleFile(event.target.files?.[0]);
+          handleFiles(event.target.files);
           event.target.value = "";
         }}
       />
@@ -90,7 +95,7 @@ export function ImportPrompt({
           type="button"
           onClick={openFilePicker}
           disabled={isProcessing}
-          aria-label="Glisser une facture PDF ou cliquer pour parcourir"
+          aria-label="Glisser des factures PDF, un CSV, ou cliquer pour parcourir"
           className="flex w-full flex-col items-center gap-3 disabled:cursor-not-allowed"
         >
           <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-brand-card/80 transition-colors group-hover:border-violet-400/25 group-hover:bg-violet-400/10">
@@ -121,10 +126,10 @@ export function ImportPrompt({
 
           <p className="max-w-sm text-base font-light leading-snug text-brand-muted transition-colors group-hover:text-white/90 sm:text-lg">
             {isProcessing ? (
-              "Lecture de la facture…"
+              "Lecture des fichiers…"
             ) : (
               <>
-                Glisser une facture PDF ou{" "}
+                Glisser un ou plusieurs PDF, un CSV, ou{" "}
                 <span className="text-violet-300/90 group-hover:text-violet-200">
                   cliquer pour parcourir
                 </span>
@@ -142,15 +147,18 @@ export function ImportPrompt({
             tables={tables}
             value={selectedTableId}
             onChange={onSelectedTableIdChange}
+            onAddTable={onAddTable}
+            canAddTable={canAddTable}
           />
         </div>
 
         <button
           type="button"
           onClick={onAddManual}
-          className="text-sm text-brand-muted underline-offset-2 transition-colors hover:text-violet-200 hover:underline"
+          disabled={addManualDisabled}
+          className="text-sm text-brand-muted underline-offset-2 transition-colors hover:text-violet-200 hover:underline disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-brand-muted disabled:hover:no-underline"
         >
-          Ajouter manuellement sans PDF
+          Ajouter manuellement sans fichier
         </button>
       </div>
 

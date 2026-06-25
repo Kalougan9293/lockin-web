@@ -24,6 +24,11 @@ import {
   updateTableMeta,
 } from "@/lib/dashboard/tableau-db";
 import { createClient } from "@/lib/supabase/client";
+import {
+  canAddTable,
+  clampRowsForTable,
+  isTableRowsWithinLimits,
+} from "@/lib/dashboard/plan-limits";
 import type { RelanceDeliveryRow } from "@/types/database";
 import type { ClientRow, TableData } from "@/types/tableau";
 import { createTableData, isRowPaid } from "@/types/tableau";
@@ -230,7 +235,11 @@ export function useDashboardTables(
         const updated = current.map((table) => {
           if (table.id !== id) return table;
           previous = table;
-          next = updater(table);
+          const candidate = updater(table);
+          const rows = isTableRowsWithinLimits(current, id, candidate.rows)
+            ? candidate.rows
+            : clampRowsForTable(current, id, candidate.rows);
+          next = rows === candidate.rows ? candidate : { ...candidate, rows };
           return next;
         });
 
@@ -245,35 +254,43 @@ export function useDashboardTables(
   );
 
   const addTableAfter = useCallback(
-    async (index: number, currentLength: number) => {
+    async (index: number, currentLength: number): Promise<string | null> => {
       const newTable = createTableData(currentLength + 1);
+      let createdId: string | null = null;
 
       setTables((current) => {
+        if (!canAddTable(current)) return current;
+
+        createdId = newTable.id;
         const updated = [...current];
         updated.splice(index + 1, 0, newTable);
         return updated;
       });
 
-      if (!persistEnabledRef.current) return;
+      if (!createdId) return null;
+
+      if (!persistEnabledRef.current) return createdId;
 
       try {
         if (useApiRef.current) {
           await apiInsertTable(newTable);
-          return;
+          return createdId;
         }
 
         const {
           data: { user },
         } = await supabaseRef.current.auth.getUser();
-        if (!user) return;
+        if (!user) return createdId;
 
         await insertFullTable(supabaseRef.current, user.id, newTable);
+        return createdId;
       } catch (error) {
         reportPersistError(
           error instanceof Error
             ? error.message
             : "Impossible de créer le tableau.",
         );
+        return createdId;
       }
     },
     [reportPersistError],

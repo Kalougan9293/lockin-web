@@ -49,12 +49,14 @@ type RowNumberColumnProps = {
   rows: ClientRow[];
   totalRows: number;
   onAddClient?: () => void;
+  addRowDisabled?: boolean;
 };
 
 function RowNumberColumn({
   rows,
   totalRows,
   onAddClient,
+  addRowDisabled = false,
   showHeader = true,
 }: RowNumberColumnProps & { showHeader?: boolean }) {
   return (
@@ -77,8 +79,9 @@ function RowNumberColumn({
               <button
                 type="button"
                 onClick={onAddClient}
+                disabled={addRowDisabled}
                 aria-label="Ajouter un client"
-                className="flex h-5 w-5 items-center justify-center rounded-full border border-violet-400/20 bg-violet-500/10 text-xs text-violet-300/80 transition-all hover:border-violet-400/40 hover:bg-violet-500/20 hover:text-violet-200"
+                className="flex h-5 w-5 items-center justify-center rounded-full border border-violet-400/20 bg-violet-500/10 text-xs text-violet-300/80 transition-all hover:border-violet-400/40 hover:bg-violet-500/20 hover:text-violet-200 disabled:cursor-not-allowed disabled:opacity-30"
               >
                 +
               </button>
@@ -661,6 +664,7 @@ type TableauGridProps = {
   rows: ClientRow[];
   onRowsChange: (rows: ClientRow[]) => void;
   onAddClient: () => void;
+  addRowDisabled?: boolean;
   onDeleteRow: (rowIndex: number) => void;
   onConfigure: () => void;
   onRecoveryClick: (rowIndex: number) => void;
@@ -681,6 +685,7 @@ export function TableauGrid({
   rows,
   onRowsChange,
   onAddClient,
+  addRowDisabled = false,
   onDeleteRow,
   onConfigure,
   onRecoveryClick,
@@ -781,6 +786,7 @@ export function TableauGrid({
             rows={rows}
             totalRows={totalRows}
             onAddClient={onAddClient}
+            addRowDisabled={addRowDisabled}
           />
           {leftColumns.map((column) => (
             <TableColumn

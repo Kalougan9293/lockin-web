@@ -8,13 +8,12 @@ import { PreferenceDateField } from "@/components/dashboard/PreferenceDateField"
 import { useUserPreferences } from "@/contexts/UserPreferencesContext";
 import {
   isAmountColumnLabel,
-  parseAmountToStorage,
 } from "@/lib/preferences/currency-format";
 import {
   isDateColumnLabel,
-  parseDateInputToIso,
 } from "@/lib/preferences/date-format";
 import type { ParsedInvoiceFields } from "@/lib/invoice/parse-invoice-fields";
+import { normalizeImportFields } from "@/lib/invoice/normalize-import-fields";
 import { getColumnInputType } from "@/types/tableau";
 import type { TableSummary } from "@/types/tableau";
 
@@ -40,6 +39,8 @@ type InvoiceImportModalProps = {
   tables: TableSummary[];
   targetTableId: string;
   onTargetTableIdChange: (tableId: string) => void;
+  onAddTable?: () => void;
+  canAddTable?: boolean;
   onClose: () => void;
   onSubmit: (valuesByLabel: Record<string, string>) => void;
 };
@@ -51,6 +52,8 @@ export function InvoiceImportModal({
   tables,
   targetTableId,
   onTargetTableIdChange,
+  onAddTable,
+  canAddTable = true,
   onClose,
   onSubmit,
 }: InvoiceImportModalProps) {
@@ -87,16 +90,7 @@ export function InvoiceImportModal({
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
 
-    const payload: Record<string, string> = {};
-    for (const label of visibleFields) {
-      const raw = values[label]?.trim() ?? "";
-      if (!raw) continue;
-      payload[label] = isDateColumnLabel(label)
-        ? parseDateInputToIso(raw, dateFormat)
-        : isAmountColumnLabel(label)
-          ? parseAmountToStorage(raw)
-          : raw;
-    }
+    const payload = normalizeImportFields(values, dateFormat);
 
     if (Object.keys(payload).length === 0) {
       setError("Corrigez ou complétez au moins un champ.");
@@ -195,6 +189,8 @@ export function InvoiceImportModal({
             tables={tables}
             value={targetTableId}
             onChange={onTargetTableIdChange}
+            onAddTable={onAddTable}
+            canAddTable={canAddTable}
           />
 
           {error ? (

@@ -5,26 +5,44 @@ import { useEffect, useState } from "react";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useDashboardTables } from "@/hooks/useDashboardTables";
 import { useDemoSession } from "@/hooks/useDemoSession";
+import { validatePdfFile } from "@/lib/dashboard/import-limits";
+import {
+  canAddRowToTable,
+  canAddTable,
+  getImportRowCapacity,
+} from "@/lib/dashboard/plan-limits";
+import { filterDeliveriesForLigne, filterDeliveriesForTableau } from "@/lib/dashboard/relance-delivery-display";
 import {
   hasUsableInvoiceFields,
   parseInvoiceFields,
   type ParsedInvoiceFields,
 } from "@/lib/invoice/parse-invoice-fields";
-import { fredoka } from "@/lib/fonts/fredoka";
+import {
+  isSinglePdfImport,
+  processImportFiles,
+  type BulkImportEntry,
+} from "@/lib/invoice/process-import-files";
 import {
   getRightColumns,
   hideLeftColumn,
   addOrRestoreLeftColumn,
   mergeClientValuesIntoTable,
+  mergeMultipleClientsIntoTable,
 } from "@/types/tableau";
-import { filterDeliveriesForLigne, filterDeliveriesForTableau } from "@/lib/dashboard/relance-delivery-display";
 
 import { AddClientModal } from "./AddClientModal";
+import { BulkImportModal } from "./BulkImportModal";
 import { ImportPrompt } from "./ImportPrompt";
 import { InvoiceImportModal } from "./InvoiceImportModal";
 import { TableauConfigModal } from "./TableauConfigModal";
 import { TableauGrid } from "./TableauGrid";
 import { RecoveryDrawer } from "./RecoveryDrawer";
+
+type PendingBulkImport = {
+  tableId: string;
+  sourceLabel: string;
+  entries: BulkImportEntry[];
+};
 
 type PendingImport = {
   tableId: string;
@@ -51,6 +69,7 @@ export function DashboardWorkspace({
     removeTable,
   } = useDashboardTables(impersonationActive, isEphemeralDemo, demoSessionKey);
 
+  const [activeTableId, setActiveTableId] = useState("");
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleteRowTarget, setDeleteRowTarget] = useState<{
     tableId: string;
@@ -63,68 +82,108 @@ export function DashboardWorkspace({
     rowIndex: number;
   } | null>(null);
   const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
+  const [pendingBulkImport, setPendingBulkImport] =
+    useState<PendingBulkImport | null>(null);
   const [importLoading, setImportLoading] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
-  const [importTargetTableId, setImportTargetTableId] = useState("");
 
   const tableSummaries = tables.map((table) => ({
     id: table.id,
     name: table.name,
   }));
 
+  const activeTableIndex = tables.findIndex((table) => table.id === activeTableId);
+  const activeTable = activeTableIndex >= 0 ? tables[activeTableIndex] : tables[0];
+  const canCreateTable = canAddTable(tables);
+  const canAddRowToActiveTable = activeTable
+    ? canAddRowToTable(tables, activeTable.id)
+    : false;
+
   useEffect(() => {
     if (!tables.length) return;
-    if (tables.some((table) => table.id === importTargetTableId)) return;
-    setImportTargetTableId(tables[0].id);
-  }, [tables, importTargetTableId]);
+    if (tables.some((table) => table.id === activeTableId)) return;
+    setActiveTableId(tables[0].id);
+  }, [tables, activeTableId]);
 
   function openAddClient(tableId: string) {
+    if (!canAddRowToTable(tables, tableId)) return;
     setAddClientTargetId(tableId);
   }
 
   function handleAddClient(valuesByLabel: Record<string, string>) {
     if (!addClientTargetId) return;
+    if (!canAddRowToTable(tables, addClientTargetId)) return;
 
     updateTable(addClientTargetId, (table) =>
       mergeClientValuesIntoTable(table, valuesByLabel),
     );
   }
 
-  async function handlePdfSelected(file: File) {
-    const tableId = importTargetTableId || tables[0]?.id;
-    if (!tableId) return;
+  async function handleFilesSelected(files: File[]) {
+    const tableId = activeTableId || tables[0]?.id;
+    if (!tableId || files.length === 0) return;
 
     setImportError(null);
 
-    const isPdf =
-      file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
-    if (!isPdf) {
-      setImportError("Seuls les fichiers PDF sont acceptés.");
+    if (getImportRowCapacity(tables, tableId) === 0) return;
+
+    if (isSinglePdfImport(files)) {
+      const file = files[0];
+      const validationError = validatePdfFile(file);
+      if (validationError) {
+        setImportError(validationError);
+        return;
+      }
+
+      if (!canAddRowToTable(tables, tableId)) return;
+
+      setImportLoading(true);
+      try {
+        const { extractTextFromPdf } = await import("@/lib/invoice/extract-pdf-text");
+        const text = await extractTextFromPdf(file);
+        if (!text.trim()) {
+          setImportError(
+            "Aucun texte lisible dans ce PDF. Les scans (images) ne sont pas encore supportés.",
+          );
+          return;
+        }
+
+        const fields = parseInvoiceFields(text);
+        if (!hasUsableInvoiceFields(fields)) {
+          setImportError(
+            "Impossible de détecter des informations dans cette facture. Ajoutez la ligne manuellement.",
+          );
+          return;
+        }
+
+        setPendingImport({ tableId, fileName: file.name, fields });
+      } catch {
+        setImportError("Erreur lors de la lecture du PDF. Réessayez avec un autre fichier.");
+      } finally {
+        setImportLoading(false);
+      }
       return;
     }
 
     setImportLoading(true);
     try {
-      const { extractTextFromPdf } = await import("@/lib/invoice/extract-pdf-text");
-      const text = await extractTextFromPdf(file);
-      if (!text.trim()) {
-        setImportError(
-          "Aucun texte lisible dans ce PDF. Les scans (images) ne sont pas encore supportés.",
-        );
-        return;
+      const { entries, errors } = await processImportFiles(files);
+
+      if (errors.length > 0) {
+        setImportError(errors.slice(0, 3).join(" "));
       }
 
-      const fields = parseInvoiceFields(text);
-      if (!hasUsableInvoiceFields(fields)) {
-        setImportError(
-          "Impossible de détecter des informations dans cette facture. Ajoutez la ligne manuellement.",
-        );
-        return;
-      }
+      if (entries.length === 0) return;
 
-      setPendingImport({ tableId, fileName: file.name, fields });
-    } catch {
-      setImportError("Erreur lors de la lecture du PDF. Réessayez avec un autre fichier.");
+      const pdfCount = files.filter((f) =>
+        f.name.toLowerCase().endsWith(".pdf"),
+      ).length;
+      const sourceLabel =
+        pdfCount > 0
+          ? `${pdfCount} facture${pdfCount > 1 ? "s" : ""} PDF`
+          : files[0]?.name ?? "Import CSV";
+
+      setPendingBulkImport({ tableId, sourceLabel, entries });
     } finally {
       setImportLoading(false);
     }
@@ -132,6 +191,10 @@ export function DashboardWorkspace({
 
   function handleConfirmImport(valuesByLabel: Record<string, string>) {
     if (!pendingImport) return;
+    if (!canAddRowToTable(tables, pendingImport.tableId)) {
+      setPendingImport(null);
+      return;
+    }
 
     updateTable(pendingImport.tableId, (table) =>
       mergeClientValuesIntoTable(table, valuesByLabel),
@@ -139,9 +202,26 @@ export function DashboardWorkspace({
     setPendingImport(null);
   }
 
+  function handleConfirmBulkImport(
+    tableId: string,
+    rows: Record<string, string>[],
+  ) {
+    if (rows.length === 0) return;
+
+    updateTable(tableId, (table) => mergeMultipleClientsIntoTable(table, rows));
+    setPendingBulkImport(null);
+  }
+
   function confirmDelete() {
     if (!deleteTargetId) return;
+
+    const remaining = tables.filter((table) => table.id !== deleteTargetId);
     void removeTable(deleteTargetId);
+
+    if (deleteTargetId === activeTableId && remaining[0]) {
+      setActiveTableId(remaining[0].id);
+    }
+
     setDeleteTargetId(null);
   }
 
@@ -155,6 +235,22 @@ export function DashboardWorkspace({
     setDeleteRowTarget(null);
   }
 
+  async function handleAddTable() {
+    if (!canCreateTable || !activeTable) return;
+
+    const newTableId = await addTableAfter(activeTableIndex, tables.length);
+    if (newTableId) {
+      setActiveTableId(newTableId);
+    }
+  }
+
+  function handleActiveTableChange(tableId: string) {
+    setActiveTableId(tableId);
+    setPendingImport((current) =>
+      current ? { ...current, tableId } : current,
+    );
+  }
+
   const configTable = tables.find((table) => table.id === configTargetId);
   const recoveryTable = tables.find((table) => table.id === recoveryTarget?.tableId);
   const recoveryRow =
@@ -162,19 +258,16 @@ export function DashboardWorkspace({
       ? recoveryTable.rows[recoveryTarget.rowIndex]
       : undefined;
 
-  function handleImportTargetTableChange(tableId: string) {
-    setImportTargetTableId(tableId);
-    setPendingImport((current) =>
-      current ? { ...current, tableId } : current,
-    );
-  }
-
   if (loading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center text-sm text-brand-muted">
         Chargement de vos tableaux…
       </div>
     );
+  }
+
+  if (!activeTable) {
+    return null;
   }
 
   return (
@@ -200,95 +293,86 @@ export function DashboardWorkspace({
 
       <ImportPrompt
         tables={tableSummaries}
-        selectedTableId={importTargetTableId}
-        onSelectedTableIdChange={setImportTargetTableId}
-        onAddManual={() => importTargetTableId && openAddClient(importTargetTableId)}
-        onPdfSelected={handlePdfSelected}
+        selectedTableId={activeTableId}
+        onSelectedTableIdChange={handleActiveTableChange}
+        onAddManual={() => openAddClient(activeTableId)}
+        onFilesSelected={handleFilesSelected}
+        onAddTable={() => void handleAddTable()}
+        canAddTable={canCreateTable}
         isProcessing={importLoading}
         error={importError}
+        addManualDisabled={!canAddRowToActiveTable}
       />
 
-      <div className="space-y-10">
-        {tables.map((table, index) => (
-          <section key={table.id} className="w-full">
-            <div className="w-full overflow-x-auto">
-              <div className="mx-auto w-max min-w-0 max-w-none">
-                <TableauGrid
-                  tableName={table.name}
-                  onTableRename={(name) =>
-                    updateTable(table.id, (current) => ({ ...current, name }))
-                  }
-                  leftColumns={table.leftColumns}
-                  hiddenLeftColumns={table.hiddenLeftColumns}
-                  relanceSteps={table.relanceSteps}
-                  deliveries={filterDeliveriesForTableau(deliveries, table.id)}
-                  rightColumns={getRightColumns(table.relanceSteps)}
-                  onLeftColumnsChange={(leftColumns) =>
-                    updateTable(table.id, (current) => ({ ...current, leftColumns }))
-                  }
-                  onHideLeftColumn={(columnId) =>
-                    updateTable(table.id, (current) => hideLeftColumn(current, columnId))
-                  }
-                  onAddLeftColumn={(label) =>
-                    updateTable(table.id, (current) => addOrRestoreLeftColumn(current, label))
-                  }
-                  rows={table.rows}
-                  onRowsChange={(rows) =>
-                    updateTable(table.id, (current) => ({ ...current, rows }))
-                  }
-                  onAddClient={() => openAddClient(table.id)}
-                  onDeleteRow={(rowIndex) =>
-                    setDeleteRowTarget({ tableId: table.id, rowIndex })
-                  }
-                  onConfigure={() => setConfigTargetId(table.id)}
-                  onRecoveryClick={(rowIndex) =>
-                    setRecoveryTarget({ tableId: table.id, rowIndex })
-                  }
-                  simulateRelances={isEphemeralDemo}
-                />
+      <section className="w-full">
+        <div className="w-full overflow-x-auto">
+          <div className="mx-auto w-max min-w-0 max-w-none">
+            <TableauGrid
+              tableName={activeTable.name}
+              onTableRename={(name) =>
+                updateTable(activeTable.id, (current) => ({ ...current, name }))
+              }
+              leftColumns={activeTable.leftColumns}
+              hiddenLeftColumns={activeTable.hiddenLeftColumns}
+              relanceSteps={activeTable.relanceSteps}
+              deliveries={filterDeliveriesForTableau(deliveries, activeTable.id)}
+              rightColumns={getRightColumns(activeTable.relanceSteps)}
+              onLeftColumnsChange={(leftColumns) =>
+                updateTable(activeTable.id, (current) => ({ ...current, leftColumns }))
+              }
+              onHideLeftColumn={(columnId) =>
+                updateTable(activeTable.id, (current) =>
+                  hideLeftColumn(current, columnId),
+                )
+              }
+              onAddLeftColumn={(label) =>
+                updateTable(activeTable.id, (current) =>
+                  addOrRestoreLeftColumn(current, label),
+                )
+              }
+              rows={activeTable.rows}
+              onRowsChange={(rows) =>
+                updateTable(activeTable.id, (current) => ({ ...current, rows }))
+              }
+              onAddClient={() => openAddClient(activeTable.id)}
+              addRowDisabled={!canAddRowToActiveTable}
+              onDeleteRow={(rowIndex) =>
+                setDeleteRowTarget({ tableId: activeTable.id, rowIndex })
+              }
+              onConfigure={() => setConfigTargetId(activeTable.id)}
+              onRecoveryClick={(rowIndex) =>
+                setRecoveryTarget({ tableId: activeTable.id, rowIndex })
+              }
+              simulateRelances={isEphemeralDemo}
+            />
 
-                <div className="mt-4 flex min-h-10 w-full items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => void addTableAfter(index, tables.length)}
-                  aria-label="Ajouter un tableau"
-                  className="flex h-9 w-9 items-center justify-center rounded-full border border-violet-400/30 bg-gradient-to-br from-violet-500/25 to-fuchsia-500/20 shadow-sm shadow-violet-900/20 transition-transform hover:scale-105"
+            <div className="mt-4 flex min-h-10 w-full items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setDeleteTargetId(activeTable.id)}
+                aria-label="Effacer le tableau"
+                disabled={tables.length <= 1}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 transition-colors hover:bg-red-500/10 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                <svg
+                  className="h-4 w-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  aria-hidden="true"
                 >
-                  <span
-                    className={`${fredoka.className} text-2xl font-bold leading-none text-violet-100`}
-                  >
-                    +
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setDeleteTargetId(table.id)}
-                  aria-label="Effacer le tableau"
-                  disabled={tables.length <= 1}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 transition-colors hover:bg-red-500/10 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                  <svg
-                    className="h-4 w-4"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.75"
-                    aria-hidden="true"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                    />
-                  </svg>
-                </button>
-              </div>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  />
+                </svg>
+              </button>
             </div>
-            </div>
-          </section>
-        ))}
-      </div>
+          </div>
+        </div>
+      </section>
 
       <AddClientModal
         open={addClientTargetId !== null}
@@ -301,11 +385,33 @@ export function DashboardWorkspace({
         fileName={pendingImport?.fileName ?? ""}
         initialFields={pendingImport?.fields ?? {}}
         tables={tableSummaries}
-        targetTableId={pendingImport?.tableId ?? importTargetTableId}
-        onTargetTableIdChange={handleImportTargetTableChange}
+        targetTableId={pendingImport?.tableId ?? activeTableId}
+        onTargetTableIdChange={handleActiveTableChange}
+        onAddTable={() => void handleAddTable()}
+        canAddTable={canCreateTable}
         onClose={() => setPendingImport(null)}
         onSubmit={handleConfirmImport}
       />
+
+      {pendingBulkImport ? (
+        <BulkImportModal
+          open
+          sourceLabel={pendingBulkImport.sourceLabel}
+          entries={pendingBulkImport.entries}
+          tables={tableSummaries}
+          allTables={tables}
+          targetTableId={pendingBulkImport.tableId}
+          onTargetTableIdChange={(tableId) =>
+            setPendingBulkImport((current) =>
+              current ? { ...current, tableId } : current,
+            )
+          }
+          onAddTable={() => void handleAddTable()}
+          canAddTable={canCreateTable}
+          onClose={() => setPendingBulkImport(null)}
+          onSubmit={handleConfirmBulkImport}
+        />
+      ) : null}
 
       {configTable ? (
         <TableauConfigModal

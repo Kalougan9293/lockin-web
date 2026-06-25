@@ -519,6 +519,16 @@ export function mergeClientValuesIntoTable(
   };
 }
 
+export function mergeMultipleClientsIntoTable(
+  table: TableData,
+  rows: Record<string, string>[],
+): TableData {
+  return rows.reduce(
+    (current, valuesByLabel) => mergeClientValuesIntoTable(current, valuesByLabel),
+    table,
+  );
+}
+
 export function createClientRow(
   leftColumns: ColumnDef[],
   values: Record<string, string>,
