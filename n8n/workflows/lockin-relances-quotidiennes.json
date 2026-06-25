@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## LockIn × n8n\n\n**Variables d'environnement n8n** (Settings → Variables) :\n- `CRON_SECRET` — identique à Vercel / lockin-web\n- `LOCKIN_API_URL` — URL prod (ex. `https://app.lockin.app` ou `https://xxx.vercel.app`)\n- `LOCKIN_FROM_EMAIL` — expéditeur (ex. `relances@votredomaine.com`)\n\n**À configurer après import :**\n1. Credentials SMTP sur le nœud « Envoyer l'email »\n2. Activer le workflow\n3. Tester avec « Execute workflow »\n\n**Flux :** Cron 08h → GET relances → boucle → email → POST ack → relance suivante",
+        "content": "## LockIn × n8n\n\n**Variables d'environnement n8n** (Settings → Variables) :\n- `CRON_SECRET` — identique à Vercel / lockin-web\n- `LOCKIN_API_URL` — URL prod (ex. `https://app.lockin.app` ou `https://xxx.vercel.app`)\n- `LOCKIN_FROM_EMAIL` — expéditeur (ex. `relances@votredomaine.com`)\n\n**À configurer après import :**\n1. Credentials SMTP sur le nœud « Envoyer l'email »\n2. Activer le workflow\n3. Tester avec « Execute workflow »\n\n**Flux :** Cron 08h → GET relances (fusion anti-spam par client/email) → boucle → email → POST ack (deliveryIds) → relance suivante",
         "height": 340,
         "width": 420,
         "color": 6
@@ -120,7 +120,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ (() => {\n  const relance = $('4. Une relance à la fois').item.json;\n  const input = $input.item;\n  const failed = Boolean(input.error);\n\n  if (failed) {\n    return {\n      deliveryId: relance.deliveryId,\n      status: 'failed',\n      errorMessage: String(input.error?.message || input.error?.description || 'Échec envoi email'),\n    };\n  }\n\n  return {\n    deliveryId: relance.deliveryId,\n    status: 'sent',\n    providerMessageId: String($execution.id),\n    provider: 'smtp',\n    sentAt: new Date().toISOString(),\n  };\n})() }}",
+        "jsonBody": "={{ (() => {\n  const relance = $('4. Une relance à la fois').item.json;\n  const input = $input.item;\n  const failed = Boolean(input.error);\n  const deliveryIds = Array.isArray(relance.deliveryIds) && relance.deliveryIds.length\n    ? relance.deliveryIds\n    : [relance.deliveryId];\n\n  if (failed) {\n    return {\n      deliveryIds,\n      deliveryId: relance.deliveryId,\n      status: 'failed',\n      errorMessage: String(input.error?.message || input.error?.description || 'Échec envoi email'),\n    };\n  }\n\n  return {\n    deliveryIds,\n    deliveryId: relance.deliveryId,\n    status: 'sent',\n    providerMessageId: String($execution.id),\n    provider: 'smtp',\n    sentAt: new Date().toISOString(),\n  };\n})() }}",
         "options": {}
       },
       "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567806",

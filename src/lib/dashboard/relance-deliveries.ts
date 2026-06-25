@@ -14,16 +14,22 @@ import {
   buildRelanceScheduleForRow,
   startOfDay,
 } from "./relance-schedule";
+import { consolidateRelanceCronItems } from "./consolidate-relance-cron-items";
 import { mapTableauToTableData } from "./tableau-db";
 
 type Supabase = SupabaseClient<Database>;
 
 export type CronRelanceItem = {
   deliveryId: string;
+  /** Toutes les deliveries concernées (fusion anti-spam). */
+  deliveryIds?: string[];
   ligneId: string;
+  ligneIds?: string[];
   stepId: string;
   tableauId: string;
+  userId: string;
   to: string;
+  clientName?: string;
   subject: string;
   body: string;
   scheduledFor: string;
@@ -190,6 +196,7 @@ export async function collectDueRelancesForCron(
 
   for (const rawTableau of data) {
     const table = mapTableauToTableData(rawTableau);
+    const userId = rawTableau.user_id;
     const columns = getAllColumns(table);
     const relanceSteps = [...table.relanceSteps].sort((a, b) => {
       const ordreA =
@@ -204,6 +211,8 @@ export async function collectDueRelancesForCron(
 
       const to = getRowFieldValue(row, columns, "Mail", "Email");
       if (!to) continue;
+
+      const clientName = getRowFieldValue(row, columns, "Nom", "nom", "Client");
 
       const schedule = buildRelanceScheduleForRow(
         row,
@@ -229,10 +238,14 @@ export async function collectDueRelancesForCron(
 
         items.push({
           deliveryId: delivery.id,
+          deliveryIds: [delivery.id],
           ligneId: row.id,
+          ligneIds: [row.id],
           stepId: step.id,
           tableauId: table.id,
+          userId,
           to,
+          clientName: clientName || undefined,
           subject: buildRelanceSubject(step),
           body: resolveRelanceMessageTemplate(step.messageTemplate, row, columns),
           scheduledFor,
@@ -241,5 +254,5 @@ export async function collectDueRelancesForCron(
     }
   }
 
-  return items;
+  return consolidateRelanceCronItems(items);
 }

@@ -6,6 +6,7 @@ import type { RelanceDeliveryStatus } from "@/types/database";
 
 type AckPayload = {
   deliveryId?: string;
+  deliveryIds?: string[];
   status?: RelanceDeliveryStatus;
   provider?: string;
   providerMessageId?: string;
@@ -20,6 +21,19 @@ function isAckStatus(value: unknown): value is "sent" | "failed" {
   return value === "sent" || value === "failed";
 }
 
+function resolveDeliveryIds(body: AckPayload): string[] {
+  const fromArray = (body.deliveryIds ?? [])
+    .map((id) => id?.trim())
+    .filter((id): id is string => Boolean(id));
+
+  if (fromArray.length > 0) {
+    return [...new Set(fromArray)];
+  }
+
+  const single = body.deliveryId?.trim();
+  return single ? [single] : [];
+}
+
 export async function POST(request: Request) {
   const unauthorized = verifyCronSecret(request);
   if (unauthorized) return unauthorized;
@@ -32,11 +46,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Corps JSON invalide." }, { status: 400 });
   }
 
-  const deliveryId = body.deliveryId?.trim();
+  const deliveryIds = resolveDeliveryIds(body);
   const status = body.status;
 
-  if (!deliveryId) {
-    return NextResponse.json({ error: "deliveryId manquant." }, { status: 400 });
+  if (deliveryIds.length === 0) {
+    return NextResponse.json(
+      { error: "deliveryId ou deliveryIds manquant." },
+      { status: 400 },
+    );
   }
 
   if (!isAckStatus(status)) {
@@ -83,13 +100,21 @@ export async function POST(request: Request) {
     const { data: existing, error: fetchError } = await admin
       .from("relance_deliveries")
       .select("id")
-      .eq("id", deliveryId)
-      .maybeSingle();
+      .in("id", deliveryIds);
 
     if (fetchError) throw fetchError;
 
-    if (!existing) {
+    if (!existing?.length) {
       return NextResponse.json({ error: "Relance introuvable." }, { status: 404 });
+    }
+
+    const foundIds = new Set(existing.map((row) => row.id));
+    const missingIds = deliveryIds.filter((id) => !foundIds.has(id));
+    if (missingIds.length > 0) {
+      return NextResponse.json(
+        { error: `Relance(s) introuvable(s) : ${missingIds.join(", ")}` },
+        { status: 404 },
+      );
     }
 
     const { error: updateError } = await admin
@@ -101,11 +126,11 @@ export async function POST(request: Request) {
         provider_message_id: status === "sent" ? providerMessageId : null,
         error_message: status === "failed" ? errorMessage : null,
       })
-      .eq("id", deliveryId);
+      .in("id", deliveryIds);
 
     if (updateError) throw updateError;
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, updated: deliveryIds.length });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Erreur lors de la mise à jour.";
