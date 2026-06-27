@@ -7,9 +7,11 @@ import { ClientShell } from "@/components/layout/ClientShell";
 import {
   getImpersonatedUserId,
   getImpersonationDisplayContext,
+  resolveDashboardUserId,
 } from "@/lib/admin/impersonation";
 import { isAdminEmail } from "@/lib/auth/redirect";
 import { getCurrentUser } from "@/lib/auth/session";
+import { loadDashboardDataForUser } from "@/lib/dashboard/load-dashboard-data";
 import { DEMO_SEARCH_PARAM, isMvpDemoMode } from "@/lib/mvp-demo";
 
 export const dynamic = "force-dynamic";
@@ -25,11 +27,16 @@ export default async function ClientDashboardPage({
   const demoParam = params[DEMO_SEARCH_PARAM];
   const isDemo = demoParam === "1" || demoParam?.[0] === "1";
 
+  let initialDisplayName: string | null = null;
+
   if (!isDemo && !isMvpDemoMode()) {
     const user = await getCurrentUser();
     if (!user) {
       redirect("/login");
     }
+
+    initialDisplayName =
+      String(user.user_metadata?.prenom_client ?? "").trim() || null;
 
     const impersonatedId = await getImpersonatedUserId();
     if (isAdminEmail(user.email) && !impersonatedId) {
@@ -38,9 +45,15 @@ export default async function ClientDashboardPage({
   }
 
   const impersonation = isDemo ? null : await getImpersonationDisplayContext();
+  const dashboardUserId =
+    isDemo || isMvpDemoMode() ? null : await resolveDashboardUserId();
+
+  const initialDashboardData = dashboardUserId
+    ? await loadDashboardDataForUser(dashboardUserId)
+    : null;
 
   return (
-    <ClientShell>
+    <ClientShell initialDisplayName={initialDisplayName}>
       {impersonation ? <ImpersonationBanner context={impersonation} /> : null}
       <Suspense
         fallback={
@@ -49,7 +62,10 @@ export default async function ClientDashboardPage({
           </div>
         }
       >
-        <DashboardWorkspace impersonationActive={Boolean(impersonation)} />
+        <DashboardWorkspace
+          impersonationActive={Boolean(impersonation)}
+          initialDashboardData={initialDashboardData}
+        />
       </Suspense>
     </ClientShell>
   );

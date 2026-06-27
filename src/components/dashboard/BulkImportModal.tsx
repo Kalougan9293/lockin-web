@@ -10,6 +10,7 @@ import {
 } from "@/lib/invoice/parse-invoice-fields";
 import { normalizeImportFields } from "@/lib/invoice/normalize-import-fields";
 import type { BulkImportEntry } from "@/lib/invoice/process-import-files";
+import { getColumnAutocomplete, getColumnFieldName } from "@/types/tableau";
 import type { TableData, TableSummary } from "@/types/tableau";
 
 import { TableTargetSelect } from "./TableTargetSelect";
@@ -155,7 +156,7 @@ export function BulkImportModal({
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col" autoComplete="off">
           <div className="min-h-0 flex-1 overflow-auto px-4 py-4 sm:px-6">
             <div className="overflow-x-auto rounded-xl border border-white/10">
               <table className="w-full min-w-[44rem] text-left text-sm">
@@ -185,6 +186,8 @@ export function BulkImportModal({
                             <input
                               type="text"
                               value={entry.fields[field] ?? ""}
+                              name={getColumnFieldName(field)}
+                              autoComplete={getColumnAutocomplete(field)}
                               onChange={(event) =>
                                 updateField(entry.id, field, event.target.value)
                               }

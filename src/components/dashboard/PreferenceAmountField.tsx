@@ -9,6 +9,7 @@ import {
   formatAmountInputAsYouType,
   parseAmountToStorage,
 } from "@/lib/preferences/currency-format";
+import { getColumnFieldName } from "@/types/tableau";
 
 type PreferenceAmountFieldProps = {
   id: string;
@@ -43,7 +44,7 @@ export function PreferenceAmountField({
     <AuthField
       id={id}
       label=""
-      name={name}
+      name={getColumnFieldName(name)}
       type="text"
       inputMode="decimal"
       autoComplete="off"

@@ -8,6 +8,7 @@ import {
 type RelanceScheduleCellProps = {
   item: RelanceDisplayItem | null;
   paid?: boolean;
+  missingDueDate?: boolean;
 };
 
 const STATUS_STYLES = {
@@ -38,7 +39,18 @@ const STATUS_STYLES = {
   },
 } as const;
 
-export function RelanceScheduleCell({ item, paid = false }: RelanceScheduleCellProps) {
+export function RelanceScheduleCell({ item, paid = false, missingDueDate = false }: RelanceScheduleCellProps) {
+  if (missingDueDate) {
+    return (
+      <span
+        className="text-center text-[11px] font-medium leading-tight text-rose-400/90"
+        title="Renseignez la date d'échéance pour planifier les relances"
+      >
+        Échéance ?
+      </span>
+    );
+  }
+
   if (!item) {
     return (
       <span className="text-xs text-brand-muted/40" aria-hidden>

@@ -10,6 +10,7 @@ import {
   getDatePlaceholder,
   parseDateInputToIso,
 } from "@/lib/preferences/date-format";
+import { getColumnFieldName } from "@/types/tableau";
 
 type PreferenceDateFieldProps = {
   id: string;
@@ -45,7 +46,7 @@ export function PreferenceDateField({
     <AuthField
       id={id}
       label=""
-      name={name}
+      name={getColumnFieldName(name)}
       type="text"
       inputMode="numeric"
       autoComplete="off"

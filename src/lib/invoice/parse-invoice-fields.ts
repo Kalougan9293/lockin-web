@@ -4,7 +4,7 @@ const EMAIL_PATTERN = /[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g;
 const PHONE_PATTERN = /(?:\+33\s*|0)[1-9](?:[\s.\-]*\d{2}){4}/g;
 
 const CLIENT_BLOCK_START =
-  /(?:factur[ée]\s*[àa]|client|destinataire|adresse\s+de\s+facturation|bill\s+to)\s*:?\s*/i;
+  /(?:factur[ée]e?\s*[àa]|facturer\s*[àa]|facturé\s*à|client(?!èle)\b|destinataire|adresse\s+de\s+facturation|bill\s+to|invoice\s+to)\s*:?\s*/i;
 
 const CLIENT_BLOCK_STOP =
   /^(?:d[ée]tail|d[ée]signation|prestation|description|total|montant|tva|iban|bic|conditions|mode\s+de\s+paiement|paiement|objet|quantit[ée])/i;
@@ -167,7 +167,7 @@ function extractClientBlock(rawText: string): string | null {
 
   if (!located) {
     const blockMatch = normalized.match(
-      /(?:factur[ée]\s*[àa]|client|destinataire|adresse\s+de\s+facturation|bill\s+to)\s*:?\s*\n([\s\S]{8,500}?)(?:\n\s*\n|d[ée]tail|d[ée]signation|total\s|montant\s)/i,
+      /(?:factur[ée]e?\s*[àa]|facturer\s*[àa]|client|destinataire|adresse\s+de\s+facturation|bill\s+to)\s*:?\s*\n([\s\S]{8,500}?)(?:\n\s*\n|d[ée]tail|d[ée]signation|total\s|montant\s)/i,
     );
     return blockMatch?.[1]?.trim() ?? null;
   }
@@ -205,7 +205,52 @@ function extractIssuerSection(rawText: string): string {
   return normalized.slice(0, Math.min(normalized.length, 900));
 }
 
-function pickClientContact<T extends string>(
+function normalizePhone(phone: string): string {
+  return phone.replace(/\s+/g, " ").trim();
+}
+
+function phoneDigits(phone: string): string {
+  return phone.replace(/\D/g, "");
+}
+
+/** Exclut SIREN/SIRET, numéros de facture, etc. */
+function isPlausibleFrenchPhone(phone: string): boolean {
+  const digits = phoneDigits(phone);
+  if (digits.length === 9 || digits.length === 14) return false;
+  if (digits.length === 10 && digits.startsWith("0")) {
+    return /^0[1-9]/.test(digits);
+  }
+  if (digits.length === 11 && digits.startsWith("33")) {
+    return /^33[1-9]/.test(digits);
+  }
+  return false;
+}
+
+function simplifyCompanyLine(text: string): string {
+  let result = cleanClientNameLine(text);
+
+  result = result.split(/\s*\|/)[0]?.trim() ?? result;
+  result = result.replace(/\s+au\s+capital\s+(?:social\s+)?de\s+[\d\s.,€]+.*$/i, "").trim();
+  result = result.replace(/\s*-\s*(?:sarl|sas|eurl|sa|sci|sasu)\b.*$/i, "").trim();
+  result = result.replace(
+    /\s+(?:SARL|SASU?|EURL|SA|SCI|GmbH|Ltd|Inc)\.?(?:\s+au\s+capital.*)?$/i,
+    "",
+  ).trim();
+  result = result.replace(/\s{2,}/g, " ").trim();
+
+  return result;
+}
+
+function finalizeClientName(nameParts: string[]): string | null {
+  const cleaned = nameParts
+    .map((part) => simplifyCompanyLine(part))
+    .filter((part) => part.length >= 2);
+
+  if (cleaned.length === 0) return null;
+  return cleaned.join(" ");
+}
+
+function pickClientContactFallback<T extends string>(
   clientBlock: string | null,
   fullText: string,
   issuerSection: string,
@@ -227,6 +272,82 @@ function pickClientContact<T extends string>(
     return allContacts[allContacts.length - 1];
   }
 
+  return allContacts[0] ?? null;
+}
+
+function isIssuerContactLine(line: string): boolean {
+  return /siret|siren|tva|capital|facture|n[°º]|iban|bic|rcs|siret|ape\b|rcs\b/i.test(
+    line,
+  );
+}
+
+function pickClientEmail(
+  clientBlock: string | null,
+  issuerSection: string,
+  fullText: string,
+): string | null {
+  if (clientBlock) {
+    const clientEmails = findAllEmails(clientBlock);
+    if (clientEmails.length > 0) {
+      const issuerEmails = new Set(findAllEmails(issuerSection));
+      const clientOnly = clientEmails.filter((email) => !issuerEmails.has(email));
+      if (clientOnly[0]) return clientOnly[0];
+      if (clientEmails.length === 1) return clientEmails[0];
+      return null;
+    }
+    return null;
+  }
+
+  return pickClientContactFallback(
+    clientBlock,
+    fullText,
+    issuerSection,
+    findAllEmails,
+  );
+}
+
+function pickClientPhone(
+  clientBlock: string | null,
+  issuerSection: string,
+): string | null {
+  if (!clientBlock) return null;
+
+  const issuerPhoneDigits = new Set(
+    findAllPhones(issuerSection).map((phone) => phoneDigits(phone)),
+  );
+
+  const labeled = clientBlock.match(
+    /(?:t[ée]l(?:[ée]phone)?|phone|mobile|portable|gsm)\s*:?\s*((?:\+33\s*|0)[1-9](?:[\s.\-]*\d{2}){4})/i,
+  );
+  if (labeled?.[1] && isPlausibleFrenchPhone(labeled[1])) {
+    const phone = normalizePhone(labeled[1]);
+    if (!issuerPhoneDigits.has(phoneDigits(phone))) return phone;
+  }
+
+  const lines = clientBlock.split("\n").map((line) => line.trim()).filter(Boolean);
+
+  for (const line of lines) {
+    if (isIssuerContactLine(line) || looksLikeAddressLine(line)) continue;
+    if (!/(?:t[ée]l|phone|mobile|portable|gsm)/i.test(line)) continue;
+
+    for (const raw of findAllPhones(line)) {
+      if (!isPlausibleFrenchPhone(raw)) continue;
+      const phone = normalizePhone(raw);
+      if (!issuerPhoneDigits.has(phoneDigits(phone))) return phone;
+    }
+  }
+
+  for (const line of lines) {
+    if (isIssuerContactLine(line) || looksLikeAddressLine(line)) continue;
+    if (/@/.test(line)) continue;
+
+    for (const raw of findAllPhones(line)) {
+      if (!isPlausibleFrenchPhone(raw)) continue;
+      const phone = normalizePhone(raw);
+      if (!issuerPhoneDigits.has(phoneDigits(phone))) return phone;
+    }
+  }
+
   return null;
 }
 
@@ -236,37 +357,186 @@ function looksLikePersonName(line: string): boolean {
   if (/@|www\.|https?:|siret|siren|tva|iban|bic|tel|phone|facture/i.test(trimmed)) {
     return false;
   }
+  if (looksLikeAddressLine(trimmed)) return false;
   if (COMPANY_PATTERN.test(trimmed)) return false;
   if (/^\d/.test(trimmed) || /^[\d\s.,€+\-()]+$/.test(trimmed)) return false;
 
   return PERSON_NAME_PATTERN.test(trimmed);
 }
 
-function extractClientName(rawText: string, clientBlock: string | null): string | null {
-  const searchBlocks = [clientBlock, rawText.replace(/\r/g, "\n")].filter(
-    (block): block is string => Boolean(block),
+function looksLikeAddressLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed) return false;
+
+  if (
+    /^(rue|avenue|av\.|bd|boulevard|chemin|impasse|all[ée]e|route|place|lotissement|zi|zac|cs\s+\d)/i.test(
+      trimmed,
+    )
+  ) {
+    return true;
+  }
+
+  if (
+    /^\d{1,4}\s*,?\s*(rue|avenue|av\.|bd|boulevard|chemin|impasse|all[ée]e|route|place)\b/i.test(
+      trimmed,
+    )
+  ) {
+    return true;
+  }
+
+  if (/^\d{5}\s+[A-Za-zÀ-ÿ'’\-\s]{2,}$/i.test(trimmed)) {
+    return true;
+  }
+
+  if (
+    /\b\d{5}\b/.test(trimmed) &&
+    /(?:rue|avenue|av\.|bd|boulevard|chemin|impasse|all[ée]e|route|place|c[ée]dex|france)/i.test(
+      trimmed,
+    )
+  ) {
+    return true;
+  }
+
+  if (/^\d{1,4}\s+[A-Za-zÀ-ÿ'’\-\s]{4,}$/.test(trimmed) && /\d{5}/.test(trimmed)) {
+    return true;
+  }
+
+  return false;
+}
+
+function looksLikeCompanyName(line: string): boolean {
+  const simplified = simplifyCompanyLine(line);
+  if (simplified.length < 2 || simplified.length > 80) return false;
+  if (looksLikeAddressLine(simplified)) return false;
+  if (/@|www\.|https?:|siret|siren|tva|iban|bic|tel|phone|facture/i.test(simplified)) {
+    return false;
+  }
+  if (/^\d/.test(simplified)) return false;
+
+  if (COMPANY_PATTERN.test(line) || COMPANY_PATTERN.test(simplified)) return true;
+
+  return /^[A-ZÀ-ÖØ-Ý0-9][A-ZÀ-ÖØ-Ý0-9\s&'.-]{2,45}$/.test(simplified);
+}
+
+function cleanClientNameLine(text: string): string {
+  let result = text.trim();
+
+  const cutPatterns = [
+    /\s+adresse(?:\s+de\s+(?:facturation|livraison|postale))?\s*:?.*$/i,
+    /\s+address\s*:?.*$/i,
+    /\s+(?:t[ée]l(?:[ée]phone)?|phone|mobile|fax)\s*:?.*$/i,
+    /\s+(?:e-?mail|courriel)\s*:?.*$/i,
+    /\s+(?:siret|siren|n°?\s*tva)\s*:?.*$/i,
+    /\s+\d{1,4}\s*,?\s*(rue|avenue|av\.|bd|boulevard|chemin|impasse|all[ée]e|route|place)\b.*/i,
+    /\s*,\s*\d{5}\s+[A-Za-zÀ-ÿ].*$/i,
+    /\s+\b\d{5}\s+[A-Za-zÀ-ÿ].*$/i,
+    /\s+\d{5}\b.*$/,
+  ];
+
+  for (const pattern of cutPatterns) {
+    result = result.replace(pattern, "").trim();
+  }
+
+  return result;
+}
+
+function isAddressFieldLabel(line: string): boolean {
+  const trimmed = line.trim();
+  return /^(?:adresse(?:\s+de\s+(?:facturation|livraison|postale))?|address|billing\s+address)\s*:?\s*$/i.test(
+    trimmed,
   );
+}
 
-  for (const block of searchBlocks) {
-    const lines = block.split("\n").map((line) => line.trim()).filter(Boolean);
+function extractClientNameFromBlock(block: string): string | null {
+  const lines = block
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 
-    for (const line of lines) {
-      const afterLabel = line
-        .replace(CLIENT_BLOCK_START, "")
-        .trim();
-      if (looksLikePersonName(afterLabel)) return afterLabel;
-      if (looksLikePersonName(line)) return line;
+  const nameParts: string[] = [];
+
+  for (const line of lines) {
+    if (isAddressFieldLabel(line)) break;
+
+    const cleaned = simplifyCompanyLine(
+      cleanClientNameLine(line.replace(CLIENT_BLOCK_START, "").trim()),
+    );
+    if (!cleaned) continue;
+
+    if (CLIENT_BLOCK_STOP.test(cleaned)) break;
+    if (looksLikeAddressLine(cleaned)) break;
+    if (/@/.test(cleaned) || PHONE_PATTERN.test(cleaned)) break;
+    if (/^\d/.test(cleaned)) break;
+    if (/capital\s+(?:social\s+)?de/i.test(cleaned)) break;
+
+    if (
+      looksLikePersonName(cleaned) ||
+      looksLikeCompanyName(cleaned) ||
+      (nameParts.length === 0 &&
+        cleaned.length >= 2 &&
+        cleaned.length <= 60 &&
+        /^[A-Za-zÀ-ÿ]/.test(cleaned))
+    ) {
+      if (!nameParts.includes(cleaned)) {
+        nameParts.push(cleaned);
+      }
+      continue;
     }
 
-    const labeled = firstMatch(block, [
-      /(?:factur[ée]\s*[àa]|client|destinataire|bill\s*to)\s*:?\s*([A-ZÀ-ÖØ-Ý][^\n@]{2,60})/i,
-    ]);
-    if (labeled) {
-      const candidate = labeled.split(/\s{2,}|,/)[0]?.trim() ?? labeled;
-      if (looksLikePersonName(candidate)) return candidate;
-      if (candidate.length >= 3 && candidate.length <= 60 && !/@/.test(candidate)) {
-        return candidate;
-      }
+    if (nameParts.length > 0) break;
+  }
+
+  return finalizeClientName(nameParts);
+}
+
+function extractClientName(rawText: string, clientBlock: string | null): string | null {
+  if (clientBlock) {
+    const fromBlock = extractClientNameFromBlock(clientBlock);
+    if (fromBlock) return fromBlock;
+  }
+
+  const normalized = rawText.replace(/\r/g, "\n");
+  const clientMarker = normalized.match(CLIENT_BLOCK_START);
+  if (!clientMarker || clientMarker.index == null) {
+    return null;
+  }
+
+  const searchText = normalized.slice(clientMarker.index);
+
+  const labeledBlock = searchText.match(
+    /(?:factur[ée]e?\s*[àa]|facturer\s*[àa]|client(?!èle)\b|destinataire|bill\s*to)\s*:?\s*\n([\s\S]{3,400}?)(?:\n\s*\n|d[ée]tail|d[ée]signation|total\s|montant\s)/i,
+  );
+
+  if (labeledBlock?.[1]) {
+    const fromLabeled = extractClientNameFromBlock(labeledBlock[1].trim());
+    if (fromLabeled) return fromLabeled;
+  }
+
+  const lines = searchText.split("\n").map((line) => line.trim()).filter(Boolean);
+
+  for (const line of lines) {
+    const candidate = simplifyCompanyLine(
+      cleanClientNameLine(line.replace(CLIENT_BLOCK_START, "").trim()),
+    );
+    if (looksLikePersonName(candidate)) return candidate;
+    if (looksLikeCompanyName(candidate)) return candidate;
+  }
+
+  const labeled = firstMatch(searchText, [
+    /(?:factur[ée]e?\s*[àa]|facturer\s*[àa]|client(?!èle)\b|destinataire|bill\s*to)\s*:?\s*([A-ZÀ-ÖØ-Ý][^\n@]{2,80})/i,
+  ]);
+  if (labeled) {
+    const candidate = simplifyCompanyLine(
+      cleanClientNameLine(labeled.split(/\s{2,}|,/)[0]?.trim() ?? labeled),
+    );
+    if (looksLikePersonName(candidate)) return candidate;
+    if (
+      candidate.length >= 3 &&
+      candidate.length <= 60 &&
+      !/@/.test(candidate) &&
+      !looksLikeAddressLine(candidate)
+    ) {
+      return candidate;
     }
   }
 
@@ -328,10 +598,10 @@ export function parseInvoiceFields(rawText: string): ParsedInvoiceFields {
   const nom = extractClientName(rawText, clientBlock);
   if (nom) fields.Nom = nom;
 
-  const mail = pickClientContact(clientBlock, rawText, issuerSection, findAllEmails);
+  const mail = pickClientEmail(clientBlock, issuerSection, rawText);
   if (mail) fields.Mail = mail;
 
-  const phone = pickClientContact(clientBlock, rawText, issuerSection, findAllPhones);
+  const phone = pickClientPhone(clientBlock, issuerSection);
   if (phone) fields.Numéro = phone;
 
   const montant = extractAmount(text);

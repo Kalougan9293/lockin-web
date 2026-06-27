@@ -4,16 +4,17 @@ import { UserPreferencesProvider } from "@/contexts/UserPreferencesContext";
 
 type ClientShellProps = {
   children: React.ReactNode;
+  initialDisplayName?: string | null;
 };
 
-export function ClientShell({ children }: ClientShellProps) {
+export function ClientShell({ children, initialDisplayName = null }: ClientShellProps) {
   return (
     <UserPreferencesProvider>
       <div className="flex min-h-screen flex-col">
         <header className="sticky top-0 z-50 border-b border-white/10 bg-brand-dark/90 backdrop-blur-md">
           <div className="mx-auto flex h-16 w-full max-w-[88rem] items-center justify-between px-4 sm:px-6 lg:px-8">
             <LockInLogo />
-            <AuthenticatedProfileMenu />
+            <AuthenticatedProfileMenu initialDisplayName={initialDisplayName} />
           </div>
         </header>
 

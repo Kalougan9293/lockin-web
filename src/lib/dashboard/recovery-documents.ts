@@ -553,7 +553,7 @@ function buildAttestationPage(
             (entry) => `
         <tr>
           <td>${escapeHtml(entry.sentDate)}</td>
-          <td>${escapeHtml(entry.stepName)}<br /><small style="color:#9ca3af">${escapeHtml(entry.timing)}</small></td>
+          <td>${escapeHtml(entry.stepName)}</td>
           <td>${escapeHtml(entry.channel)}</td>
           <td>${escapeHtml(debtorEmail)}</td>
           <td><span class="status-ok">Délivré</span></td>

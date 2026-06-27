@@ -9,9 +9,9 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "LockIn | Suivez & relancez vos clients",
+  title: "LockIn | Suivez & relancez vos factures",
   description:
-    "Importez vos contacts, configurez cadence, ton et rythme — vous gardez le contrôle.",
+    "Importez. Configurez. Automatisez. Choisissez la cadence, le ton et le rythme de vos relances.",
   icons: {
     icon: "/favicon.svg",
   },

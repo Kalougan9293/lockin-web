@@ -10,6 +10,7 @@ import {
   filterDeliveriesForLigne,
 } from "@/lib/dashboard/relance-delivery-display";
 import { isRecoveryRequired } from "@/lib/dashboard/recovery";
+import { rowMissingDueDate } from "@/lib/dashboard/relance-schedule";
 import { fredoka } from "@/lib/fonts/fredoka";
 import {
   formatAmountForDisplay,
@@ -24,6 +25,9 @@ import type { RelanceDeliveryRow } from "@/types/database";
 import type { ClientRow, ColumnDef, PaymentStatus, RelanceStep, RightColumnDef } from "@/types/tableau";
 import {
   getAddableColumnLabels,
+  getColumnAutocomplete,
+  getColumnFieldName,
+  getColumnInputType,
   isRowPaid,
   STATUT_COLUMN_ID,
 } from "@/types/tableau";
@@ -347,6 +351,8 @@ function RightTableColumn({
           isDataRow && row
             ? isRecoveryRequired(row, allLeftColumns, relanceSteps)
             : false;
+        const missingDueDate =
+          isDataRow && row ? rowMissingDueDate(row, allLeftColumns) : false;
 
         return (
           <div
@@ -373,15 +379,18 @@ function RightTableColumn({
               recovery ? null : (
                 <RelanceScheduleCell
                   paid={paid}
+                  missingDueDate={missingDueDate}
                   item={
-                    buildRelanceDisplayForRow(
-                      row,
-                      allLeftColumns,
-                      relanceSteps,
-                      filterDeliveriesForLigne(deliveries, row.id),
-                      new Date(),
-                      { simulateFromDates: simulateRelances },
-                    ).get(column.id) ?? null
+                    missingDueDate
+                      ? null
+                      : buildRelanceDisplayForRow(
+                          row,
+                          allLeftColumns,
+                          relanceSteps,
+                          filterDeliveriesForLigne(deliveries, row.id),
+                          new Date(),
+                          { simulateFromDates: simulateRelances },
+                        ).get(column.id) ?? null
                   }
                 />
               )
@@ -476,6 +485,7 @@ function TableColumn({
               isDateColumn ? (
                 <TableDateCell
                   value={getCellRawValue!(rowIndex, column.id)}
+                  columnLabel={column.label}
                   dateFormat={dateFormat}
                   ariaLabel={`${column.label}, ligne ${rowIndex + 1}`}
                   onChange={(isoValue) =>
@@ -485,6 +495,7 @@ function TableColumn({
               ) : isAmountColumn ? (
                 <TableAmountCell
                   value={getCellRawValue!(rowIndex, column.id)}
+                  columnLabel={column.label}
                   ariaLabel={`${column.label}, ligne ${rowIndex + 1}`}
                   onChange={(storedValue) =>
                     onCellChange!(rowIndex, column.id, storedValue)
@@ -492,11 +503,13 @@ function TableColumn({
                 />
               ) : (
               <input
-                type="text"
+                type={getColumnInputType(column)}
                 value={getCellRawValue!(rowIndex, column.id)}
                 onChange={(event) =>
                   onCellChange!(rowIndex, column.id, event.target.value)
                 }
+                name={getColumnFieldName(column.label)}
+                autoComplete={getColumnAutocomplete(column.label)}
                 aria-label={`${column.label}, ligne ${rowIndex + 1}`}
                 className="w-full min-w-[3ch] bg-transparent text-center text-sm text-white/90 outline-none placeholder:text-brand-muted/40 focus:text-white"
                 placeholder="—"
@@ -772,9 +785,28 @@ export function TableauGrid({
             <button
               type="button"
               onClick={onConfigure}
-              className={`${tableTitleTextClassName} ${tableTitleGradientClassName} cursor-pointer transition-opacity hover:opacity-85`}
+              className={`${tableTitleTextClassName} inline-flex items-center gap-2 ${tableTitleGradientClassName} cursor-pointer transition-opacity hover:opacity-85`}
             >
               Configurer
+              <svg
+                className="h-5 w-5 shrink-0 text-violet-300/35 sm:h-6 sm:w-6"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.75"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+              </svg>
             </button>
           </div>
 

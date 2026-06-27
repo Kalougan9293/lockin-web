@@ -1,7 +1,7 @@
 import { formatAmountForDisplay } from "@/lib/preferences/currency-format";
 import { formatDateForDisplay } from "@/lib/preferences/date-format";
 import type { ClientRow, ColumnDef, RelanceStep } from "@/types/tableau";
-import { formatRelanceTiming, isRowPaid } from "@/types/tableau";
+import { formatRelanceStepNumber, formatRelanceTiming, isRowPaid } from "@/types/tableau";
 import type { RelanceDeliveryRow } from "@/types/database";
 
 import {
@@ -143,16 +143,19 @@ export function buildRelanceProofHistory(
   );
 
   return relanceSteps
-    .map((step) => {
+    .map((step, index) => {
       const item = display.get(step.id);
       if (!item || item.status !== "sent") return null;
 
+      const stepName = formatRelanceStepNumber(index);
+      const timing = formatRelanceTiming(step.days);
+
       return {
-        stepName: step.name,
-        timing: formatRelanceTiming(step.days),
+        stepName,
+        timing,
         sentDate: formatRelanceDisplayDate(item.displayDate),
         channel: "Email automatique LockIn",
-        subject: `Relance ${formatRelanceTiming(step.days)} — ${step.name}`,
+        subject: `${stepName} — ${timing}`,
       };
     })
     .filter((entry): entry is RelanceProofEntry => entry !== null);

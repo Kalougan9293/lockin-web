@@ -153,6 +153,31 @@ export const OPTIONAL_CLIENT_BUBBLES = [
   "Référence",
 ] as const;
 
+/** Ordre d'affichage des champs dans les modales d'ajout client / import. */
+export const MODAL_FIELD_POOL = [
+  ...DEFAULT_MODAL_FIELDS,
+  ...OPTIONAL_CLIENT_BUBBLES,
+].filter(
+  (label, index, labels) =>
+    labels.findIndex(
+      (entry) => entry.toLowerCase() === label.toLowerCase(),
+    ) === index,
+);
+
+export function resolveActiveFieldsFromImport(
+  fields: Record<string, string>,
+): string[] {
+  const active = MODAL_FIELD_POOL.filter((label) => fields[label]?.trim());
+  const customs = Object.keys(fields).filter(
+    (key) =>
+      fields[key]?.trim() &&
+      !MODAL_FIELD_POOL.some(
+        (label) => label.toLowerCase() === key.toLowerCase(),
+      ),
+  );
+  return [...active, ...customs];
+}
+
 /** @deprecated Utiliser DEFAULT_MODAL_FIELDS + OPTIONAL_CLIENT_BUBBLES */
 export const ADD_CLIENT_BUBBLES = [...OPTIONAL_CLIENT_BUBBLES, "Autres"] as const;
 
@@ -245,9 +270,22 @@ export function formatRelanceColumnLabel(days: number): string {
   return "0 jours";
 }
 
-export function relanceDaysHint(index: number): string {
-  if (index === 0) return "par rapport à la date client";
-  return `après la relance n°${index}`;
+export function relanceDaysHint(): string {
+  return "par rapport à la date d'échéance";
+}
+
+export function formatRelanceStepNumber(index: number): string {
+  return `Relance #${index + 1}`;
+}
+
+/** Chaque relance doit être strictement après la précédente (délais croissants vs échéance). */
+export function validateRelanceStepsOrder(steps: RelanceStep[]): string | null {
+  for (let index = 1; index < steps.length; index += 1) {
+    if (steps[index].days <= steps[index - 1].days) {
+      return `La relance n°${index + 1} doit être après la relance n°${index} (délais croissants par rapport à l'échéance).`;
+    }
+  }
+  return null;
 }
 
 export function createRelanceStep(
@@ -541,13 +579,55 @@ export function createClientRow(
   return { id: crypto.randomUUID(), values: rowValues };
 }
 
-function guessInputType(label: string): "text" | "email" | "date" {
-  const normalized = label.toLowerCase();
+function guessInputType(label: string): "text" | "email" | "date" | "tel" {
+  const normalized = label
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "");
   if (normalized.includes("mail")) return "email";
-  if (normalized.includes("date") || normalized.includes("échéance") || normalized.includes("echeance")) {
+  if (
+    normalized.includes("date") ||
+    normalized.includes("echeance")
+  ) {
     return "date";
   }
+  if (isPhoneColumnLabel(label)) return "tel";
   return "text";
+}
+
+export function isPhoneColumnLabel(label: string): boolean {
+  const normalized = label
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "");
+  return (
+    normalized.includes("numero") ||
+    normalized.includes("telephone") ||
+    normalized.includes("phone") ||
+    normalized === "tel"
+  );
+}
+
+/** Évite que le navigateur associe « Numéro » / « Montant » à un formulaire de paiement. */
+export function getColumnFieldName(label: string): string {
+  const slug = label
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  return `lockin-${slug || "field"}`;
+}
+
+export function getColumnAutocomplete(label: string): string {
+  const normalized = label
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "");
+
+  if (normalized.includes("mail")) return "email";
+  if (isPhoneColumnLabel(label)) return "tel";
+  return "off";
 }
 
 export function getColumnInputType(column: ColumnDef) {

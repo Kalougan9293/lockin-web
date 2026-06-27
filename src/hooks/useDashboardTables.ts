@@ -33,6 +33,8 @@ import type { RelanceDeliveryRow } from "@/types/database";
 import type { ClientRow, TableData } from "@/types/tableau";
 import { createTableData, isRowPaid } from "@/types/tableau";
 
+import type { DashboardInitialData } from "@/types/dashboard";
+
 const ROW_PERSIST_DEBOUNCE_MS = 450;
 
 async function apiFetchDashboard(): Promise<{
@@ -106,14 +108,20 @@ export function useDashboardTables(
   impersonationMode = false,
   demoMode = false,
   demoSessionKey = "default",
+  initialData: DashboardInitialData | null = null,
 ) {
-  const [tables, setTables] = useState<TableData[]>([]);
-  const [deliveries, setDeliveries] = useState<RelanceDeliveryRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const hasInitialData = initialData !== null;
+  const [tables, setTables] = useState<TableData[]>(
+    () => initialData?.tables ?? (demoMode ? [createTableData()] : []),
+  );
+  const [deliveries, setDeliveries] = useState<RelanceDeliveryRow[]>(
+    () => initialData?.deliveries ?? [],
+  );
+  const [loading, setLoading] = useState(() => !hasInitialData && !demoMode);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [persistError, setPersistError] = useState<string | null>(null);
 
-  const persistEnabledRef = useRef(false);
+  const persistEnabledRef = useRef(hasInitialData);
   const useApiRef = useRef(impersonationMode);
   const rowTimersRef = useRef(
     new Map<string, ReturnType<typeof setTimeout>>(),
@@ -339,6 +347,16 @@ export function useDashboardTables(
         return;
       }
 
+      if (hasInitialData && initialData) {
+        persistEnabledRef.current = true;
+        if (!cancelled) {
+          setTables(initialData.tables);
+          setDeliveries(initialData.deliveries);
+          setLoading(false);
+        }
+        return;
+      }
+
       setLoading(true);
       setLoadError(null);
 
@@ -425,7 +443,7 @@ export function useDashboardTables(
       }
       rowTimersRef.current.clear();
     };
-  }, [impersonationMode, demoMode, demoSessionKey]);
+  }, [impersonationMode, demoMode, demoSessionKey, hasInitialData, initialData]);
 
   return {
     tables,

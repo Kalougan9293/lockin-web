@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -12,16 +13,9 @@ import {
   getImportRowCapacity,
 } from "@/lib/dashboard/plan-limits";
 import { filterDeliveriesForLigne, filterDeliveriesForTableau } from "@/lib/dashboard/relance-delivery-display";
-import {
-  hasUsableInvoiceFields,
-  parseInvoiceFields,
-  type ParsedInvoiceFields,
-} from "@/lib/invoice/parse-invoice-fields";
-import {
-  isSinglePdfImport,
-  processImportFiles,
-  type BulkImportEntry,
-} from "@/lib/invoice/process-import-files";
+import type { ParsedInvoiceFields } from "@/lib/invoice/parse-invoice-fields";
+import type { BulkImportEntry } from "@/lib/invoice/process-import-files";
+import type { DashboardInitialData } from "@/types/dashboard";
 import {
   getRightColumns,
   hideLeftColumn,
@@ -30,13 +24,28 @@ import {
   mergeMultipleClientsIntoTable,
 } from "@/types/tableau";
 
-import { AddClientModal } from "./AddClientModal";
-import { BulkImportModal } from "./BulkImportModal";
 import { ImportPrompt } from "./ImportPrompt";
-import { InvoiceImportModal } from "./InvoiceImportModal";
-import { TableauConfigModal } from "./TableauConfigModal";
 import { TableauGrid } from "./TableauGrid";
-import { RecoveryDrawer } from "./RecoveryDrawer";
+
+const AddClientModal = dynamic(
+  () => import("./AddClientModal").then((mod) => mod.AddClientModal),
+  { ssr: false },
+);
+
+const BulkImportModal = dynamic(
+  () => import("./BulkImportModal").then((mod) => mod.BulkImportModal),
+  { ssr: false },
+);
+
+const TableauConfigModal = dynamic(
+  () => import("./TableauConfigModal").then((mod) => mod.TableauConfigModal),
+  { ssr: false },
+);
+
+const RecoveryDrawer = dynamic(
+  () => import("./RecoveryDrawer").then((mod) => mod.RecoveryDrawer),
+  { ssr: false },
+);
 
 type PendingBulkImport = {
   tableId: string;
@@ -52,10 +61,12 @@ type PendingImport = {
 
 type DashboardWorkspaceProps = {
   impersonationActive?: boolean;
+  initialDashboardData?: DashboardInitialData | null;
 };
 
 export function DashboardWorkspace({
   impersonationActive = false,
+  initialDashboardData = null,
 }: DashboardWorkspaceProps) {
   const { fromUrl: isEphemeralDemo, sessionKey: demoSessionKey } = useDemoSession();
   const {
@@ -67,9 +78,16 @@ export function DashboardWorkspace({
     updateTable,
     addTableAfter,
     removeTable,
-  } = useDashboardTables(impersonationActive, isEphemeralDemo, demoSessionKey);
+  } = useDashboardTables(
+    impersonationActive,
+    isEphemeralDemo,
+    demoSessionKey,
+    initialDashboardData,
+  );
 
-  const [activeTableId, setActiveTableId] = useState("");
+  const [activeTableId, setActiveTableId] = useState(
+    () => initialDashboardData?.tables[0]?.id ?? "",
+  );
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleteRowTarget, setDeleteRowTarget] = useState<{
     tableId: string;
@@ -81,7 +99,7 @@ export function DashboardWorkspace({
     tableId: string;
     rowIndex: number;
   } | null>(null);
-  const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
+  const [importQueue, setImportQueue] = useState<PendingImport[]>([]);
   const [pendingBulkImport, setPendingBulkImport] =
     useState<PendingBulkImport | null>(null);
   const [importLoading, setImportLoading] = useState(false);
@@ -127,79 +145,135 @@ export function DashboardWorkspace({
 
     if (getImportRowCapacity(tables, tableId) === 0) return;
 
-    if (isSinglePdfImport(files)) {
-      const file = files[0];
-      const validationError = validatePdfFile(file);
-      if (validationError) {
-        setImportError(validationError);
-        return;
-      }
+    const { classifyImportFiles, processImportFiles } = await import(
+      "@/lib/invoice/process-import-files"
+    );
+    const { pdfs, csvs, invalid } = classifyImportFiles(files);
 
-      if (!canAddRowToTable(tables, tableId)) return;
+    if (invalid.length > 0) {
+      setImportError("Formats acceptés : PDF et CSV.");
+      return;
+    }
 
+    if (pdfs.length > 0 && csvs.length > 0) {
+      setImportError("Importez soit un fichier CSV, soit des PDF — pas les deux.");
+      return;
+    }
+
+    if (csvs.length > 1) {
+      setImportError("Un seul fichier CSV à la fois.");
+      return;
+    }
+
+    if (csvs.length === 1) {
       setImportLoading(true);
       try {
-        const { extractTextFromPdf } = await import("@/lib/invoice/extract-pdf-text");
-        const text = await extractTextFromPdf(file);
-        if (!text.trim()) {
-          setImportError(
-            "Aucun texte lisible dans ce PDF. Les scans (images) ne sont pas encore supportés.",
-          );
-          return;
+        const { entries, errors } = await processImportFiles(files);
+        if (errors.length > 0) {
+          setImportError(errors.slice(0, 3).join(" "));
         }
+        if (entries.length === 0) return;
 
-        const fields = parseInvoiceFields(text);
-        if (!hasUsableInvoiceFields(fields)) {
-          setImportError(
-            "Impossible de détecter des informations dans cette facture. Ajoutez la ligne manuellement.",
-          );
-          return;
-        }
-
-        setPendingImport({ tableId, fileName: file.name, fields });
-      } catch {
-        setImportError("Erreur lors de la lecture du PDF. Réessayez avec un autre fichier.");
+        setPendingBulkImport({
+          tableId,
+          sourceLabel: files[0]?.name ?? "Import CSV",
+          entries,
+        });
       } finally {
         setImportLoading(false);
       }
       return;
     }
 
+    if (pdfs.length === 0) return;
+
+    const { IMPORT_LIMITS } = await import("@/lib/dashboard/import-limits");
+    if (pdfs.length > IMPORT_LIMITS.MAX_PDF_FILES) {
+      setImportError(`Maximum ${IMPORT_LIMITS.MAX_PDF_FILES} PDF par import.`);
+      return;
+    }
+
     setImportLoading(true);
     try {
-      const { entries, errors } = await processImportFiles(files);
+      const [{ extractTextFromPdf }, { parseInvoiceFields, hasUsableInvoiceFields }] =
+        await Promise.all([
+          import("@/lib/invoice/extract-pdf-text"),
+          import("@/lib/invoice/parse-invoice-fields"),
+        ]);
+
+      const queue: PendingImport[] = [];
+      const errors: string[] = [];
+
+      for (const file of pdfs) {
+        if (!canAddRowToTable(tables, tableId)) {
+          errors.push("Limite de lignes atteinte — import interrompu.");
+          break;
+        }
+
+        const validationError = validatePdfFile(file);
+        if (validationError) {
+          errors.push(`${file.name} : ${validationError}`);
+          continue;
+        }
+
+        try {
+          const text = await extractTextFromPdf(file);
+          if (!text.trim()) {
+            errors.push(
+              `${file.name} : aucun texte lisible (scan non supporté).`,
+            );
+            continue;
+          }
+
+          const fields = parseInvoiceFields(text);
+          if (!hasUsableInvoiceFields(fields)) {
+            errors.push(`${file.name} : informations non détectées.`);
+            continue;
+          }
+
+          queue.push({ tableId, fileName: file.name, fields });
+        } catch {
+          errors.push(`${file.name} : lecture impossible.`);
+        }
+      }
 
       if (errors.length > 0) {
         setImportError(errors.slice(0, 3).join(" "));
       }
 
-      if (entries.length === 0) return;
-
-      const pdfCount = files.filter((f) =>
-        f.name.toLowerCase().endsWith(".pdf"),
-      ).length;
-      const sourceLabel =
-        pdfCount > 0
-          ? `${pdfCount} facture${pdfCount > 1 ? "s" : ""} PDF`
-          : files[0]?.name ?? "Import CSV";
-
-      setPendingBulkImport({ tableId, sourceLabel, entries });
+      if (queue.length > 0) {
+        setImportQueue(queue);
+      }
+    } catch {
+      setImportError("Erreur lors de la lecture des PDF. Réessayez.");
     } finally {
       setImportLoading(false);
     }
   }
 
+  function closeCurrentImport() {
+    setImportQueue((queue) => queue.slice(1));
+  }
+
+  function formatImportFileLabel(fileName: string, queueLength: number) {
+    if (queueLength <= 1) return fileName;
+    const remaining = queueLength - 1;
+    return `${fileName} — encore ${remaining} facture${remaining > 1 ? "s" : ""}`;
+  }
+
   function handleConfirmImport(valuesByLabel: Record<string, string>) {
-    if (!pendingImport) return;
-    if (!canAddRowToTable(tables, pendingImport.tableId)) {
-      setPendingImport(null);
+    const current = importQueue[0];
+    if (!current) return;
+
+    if (!canAddRowToTable(tables, current.tableId)) {
+      closeCurrentImport();
       return;
     }
 
-    updateTable(pendingImport.tableId, (table) =>
+    updateTable(current.tableId, (table) =>
       mergeClientValuesIntoTable(table, valuesByLabel),
     );
-    setPendingImport(null);
+    closeCurrentImport();
   }
 
   function handleConfirmBulkImport(
@@ -246,8 +320,8 @@ export function DashboardWorkspace({
 
   function handleActiveTableChange(tableId: string) {
     setActiveTableId(tableId);
-    setPendingImport((current) =>
-      current ? { ...current, tableId } : current,
+    setImportQueue((queue) =>
+      queue.length > 0 ? [{ ...queue[0], tableId }, ...queue.slice(1)] : queue,
     );
   }
 
@@ -274,8 +348,8 @@ export function DashboardWorkspace({
     <>
       {isEphemeralDemo ? (
         <p className="mb-4 text-center text-sm font-semibold text-red-500">
-          Mode démo : rien n&apos;est enregistré, les relances sont simulées
-          selon les dates (aucun envoi réel).
+          Mode démo : rien n&apos;est enregistré, aucun e-mail n&apos;est
+          envoyé. Créez un compte pour envoyer des relances.
         </p>
       ) : null}
 
@@ -374,24 +448,33 @@ export function DashboardWorkspace({
         </div>
       </section>
 
-      <AddClientModal
-        open={addClientTargetId !== null}
-        onClose={() => setAddClientTargetId(null)}
-        onSubmit={handleAddClient}
-      />
+      {addClientTargetId !== null ? (
+        <AddClientModal
+          open
+          onClose={() => setAddClientTargetId(null)}
+          onSubmit={handleAddClient}
+        />
+      ) : null}
 
-      <InvoiceImportModal
-        open={pendingImport !== null}
-        fileName={pendingImport?.fileName ?? ""}
-        initialFields={pendingImport?.fields ?? {}}
-        tables={tableSummaries}
-        targetTableId={pendingImport?.tableId ?? activeTableId}
-        onTargetTableIdChange={handleActiveTableChange}
-        onAddTable={() => void handleAddTable()}
-        canAddTable={canCreateTable}
-        onClose={() => setPendingImport(null)}
-        onSubmit={handleConfirmImport}
-      />
+      {importQueue[0] ? (
+        <AddClientModal
+          open
+          importedFields={importQueue[0].fields}
+          sourceFileName={formatImportFileLabel(
+            importQueue[0].fileName,
+            importQueue.length,
+          )}
+          targetTable={{
+            tables: tableSummaries,
+            value: importQueue[0].tableId,
+            onChange: handleActiveTableChange,
+            onAddTable: () => void handleAddTable(),
+            canAddTable: canCreateTable,
+          }}
+          onClose={closeCurrentImport}
+          onSubmit={handleConfirmImport}
+        />
+      ) : null}
 
       {pendingBulkImport ? (
         <BulkImportModal

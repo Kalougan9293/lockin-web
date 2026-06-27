@@ -9,9 +9,9 @@ export function DemoEntryLink() {
       onClick={() => {
         window.location.href = buildDemoDashboardUrl();
       }}
-      className="flex w-full transform items-center justify-center rounded-xl bg-brand-accent px-8 py-4 font-semibold shadow-lg shadow-brand-accent/20 transition-all hover:-translate-y-0.5 hover:bg-indigo-500 sm:w-auto"
+      className="demo-cta-btn demo-cta-pulse flex w-full items-center justify-center rounded-xl bg-brand-accent px-8 py-4 font-semibold sm:w-auto"
     >
-      Voir démo
+      Commencer la démo
     </button>
   );
 }

@@ -69,6 +69,12 @@ export function resolveDueDateValue(
   return row.values[dueColumn.id]?.trim() ?? "";
 }
 
+export function rowMissingDueDate(row: ClientRow, columns: ColumnDef[]): boolean {
+  const dueRaw = resolveDueDateValue(row, columns);
+  if (!dueRaw) return true;
+  return parseFlexibleDate(dueRaw) === null;
+}
+
 export function buildRelanceScheduleForRow(
   row: ClientRow,
   columns: ColumnDef[],

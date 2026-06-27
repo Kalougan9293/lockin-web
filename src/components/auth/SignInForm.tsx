@@ -16,7 +16,6 @@ export function SignInForm() {
   return (
     <AuthCard
       title="Connexion"
-      description="Accédez à votre espace LockIn."
       footer={
         <span className="text-brand-muted">
           Pas encore de compte ?{" "}
@@ -53,7 +52,7 @@ export function SignInForm() {
         <button
           type="submit"
           disabled={isPending}
-          className="w-full rounded-xl bg-brand-accent px-4 py-3 text-sm font-semibold transition-all hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+          className="btn-hover-grow w-full rounded-xl bg-brand-accent px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isPending ? "Connexion…" : "Se connecter"}
         </button>

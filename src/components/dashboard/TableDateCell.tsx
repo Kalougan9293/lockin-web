@@ -9,10 +9,12 @@ import {
   getDatePlaceholder,
   parseDateInputToIso,
 } from "@/lib/preferences/date-format";
+import { getColumnFieldName } from "@/types/tableau";
 
 type TableDateCellProps = {
   /** Valeur stockée (ISO de préférence). */
   value: string;
+  columnLabel: string;
   dateFormat: DateFormatPreference;
   ariaLabel: string;
   onChange: (isoValue: string) => void;
@@ -20,6 +22,7 @@ type TableDateCellProps = {
 
 export function TableDateCell({
   value,
+  columnLabel,
   dateFormat,
   ariaLabel,
   onChange,
@@ -39,6 +42,7 @@ export function TableDateCell({
     <input
       type="text"
       inputMode="numeric"
+      name={getColumnFieldName(columnLabel)}
       autoComplete="off"
       value={draft}
       placeholder={getDatePlaceholder(dateFormat)}

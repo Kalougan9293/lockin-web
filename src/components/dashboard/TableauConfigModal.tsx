@@ -9,6 +9,7 @@ import {
   createRelanceStep,
   getTemplateBubbles,
   relanceDaysHint,
+  validateRelanceStepsOrder,
 } from "@/types/tableau";
 
 type TableauConfigModalProps = {
@@ -34,6 +35,7 @@ function insertAtCursor(
 }
 
 const CONFIG_ROW_HEIGHT = "h-[5.5rem]";
+const FLASH_ERROR_MS = 4500;
 
 export function TableauConfigModal({
   open,
@@ -44,9 +46,26 @@ export function TableauConfigModal({
 }: TableauConfigModalProps) {
   const [steps, setSteps] = useState<RelanceStep[]>(initialSteps);
   const [activeStepId, setActiveStepId] = useState<string | null>(null);
+  const [flashError, setFlashError] = useState<string | null>(null);
   const messageRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const templateBubbles = getTemplateBubbles(leftColumns);
+
+  function showFlashError(message: string) {
+    setFlashError(message);
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+    flashTimerRef.current = setTimeout(() => {
+      setFlashError(null);
+      flashTimerRef.current = null;
+    }, FLASH_ERROR_MS);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -54,6 +73,7 @@ export function TableauConfigModal({
     const next = initialSteps.map((step) => ({ ...step }));
     setSteps(next);
     setActiveStepId(next[0]?.id ?? null);
+    setFlashError(null);
   }, [open, initialSteps]);
 
   useEffect(() => {
@@ -81,15 +101,26 @@ export function TableauConfigModal({
   }
 
   function handleDaysChange(id: string, raw: string) {
-    if (raw === "" || raw === "-") {
-      updateStep(id, { days: 0 });
-      return;
-    }
+    const parsed =
+      raw === "" || raw === "-"
+        ? 0
+        : Number.isNaN(Number.parseInt(raw, 10))
+          ? null
+          : Number.parseInt(raw, 10);
 
-    const parsed = Number.parseInt(raw, 10);
-    if (!Number.isNaN(parsed)) {
-      updateStep(id, { days: parsed });
-    }
+    if (parsed === null) return;
+
+    setSteps((current) => {
+      const next = current.map((step) =>
+        step.id === id ? { ...step, days: parsed } : step,
+      );
+      const orderError = validateRelanceStepsOrder(next);
+      if (orderError) {
+        showFlashError(orderError);
+        return current;
+      }
+      return next;
+    });
   }
 
   function removeStep(id: string) {
@@ -106,7 +137,11 @@ export function TableauConfigModal({
   function addStep() {
     setSteps((current) => {
       if (current.length >= MAX_RELANCES) return current;
-      const next = [...current, createRelanceStep()];
+      const lastDays = current[current.length - 1]?.days ?? 0;
+      const next = [
+        ...current,
+        createRelanceStep({ days: lastDays + 7 }),
+      ];
       setActiveStepId(next[next.length - 1].id);
       return next;
     });
@@ -135,6 +170,12 @@ export function TableauConfigModal({
   }
 
   function handleSave() {
+    const orderError = validateRelanceStepsOrder(steps);
+    if (orderError) {
+      showFlashError(orderError);
+      return;
+    }
+
     onSubmit(steps);
     onClose();
   }
@@ -178,13 +219,21 @@ export function TableauConfigModal({
           </div>
         </header>
 
+        {flashError ? (
+          <div
+            role="alert"
+            className="shrink-0 border-b border-rose-400/25 bg-rose-500/15 px-5 py-2.5 text-center text-sm text-rose-100 sm:px-6"
+          >
+            {flashError}
+          </div>
+        ) : null}
+
         <div className="min-h-0 flex-1 overflow-auto">
-          <table className="w-full min-w-[40rem] border-collapse text-sm">
+          <table className="w-full min-w-[32rem] border-collapse text-sm">
             <thead className="sticky top-0 z-[1] bg-brand-surface/95 backdrop-blur-sm">
               <tr className="border-b border-white/10 text-xs font-semibold uppercase tracking-wide">
-                <th className="w-10 px-3 py-3 text-left text-brand-muted sm:px-4">#</th>
-                <th className="w-[11rem] border-l border-white/[0.08] bg-violet-500/[0.08] px-4 py-3 text-center text-violet-200 sm:w-[12rem]">
-                  Nom
+                <th className="w-28 px-3 py-3 text-center text-brand-muted sm:px-4">
+                  Relance
                 </th>
                 <th className="w-[10.5rem] border-l border-white/[0.08] bg-amber-500/[0.07] px-4 py-3 text-center text-amber-100 sm:w-[11.5rem]">
                   Délai
@@ -209,25 +258,11 @@ export function TableauConfigModal({
                   >
                     <td className="p-0 align-middle sm:px-0">
                       <div
-                        className={`flex ${CONFIG_ROW_HEIGHT} items-center justify-center px-3 tabular-nums text-brand-muted sm:px-4`}
+                        className={`flex ${CONFIG_ROW_HEIGHT} items-center justify-center px-3 sm:px-4`}
                       >
-                        {index + 1}
-                      </div>
-                    </td>
-                    <td className="border-l border-white/[0.08] bg-violet-500/[0.04] p-0 align-middle">
-                      <div
-                        className={`flex ${CONFIG_ROW_HEIGHT} items-center justify-center px-4`}
-                      >
-                        <input
-                          type="text"
-                          value={step.name}
-                          onChange={(event) =>
-                            updateStep(step.id, { name: event.target.value })
-                          }
-                          onFocus={() => setActiveStepId(step.id)}
-                          aria-label={`Nom de la relance n°${index + 1}`}
-                          className={`${inputClass} border-violet-400/15 text-center focus:border-violet-400/35 focus:ring-violet-400/15`}
-                        />
+                        <span className="text-sm font-medium text-violet-100/90">
+                          Relance {index + 1}
+                        </span>
                       </div>
                     </td>
                     <td className="border-l border-white/[0.08] bg-amber-500/[0.04] p-0 align-middle">
@@ -249,7 +284,7 @@ export function TableauConfigModal({
                           <span className="text-xs text-amber-100/70">j</span>
                         </div>
                         <p className="mt-1 text-center text-[10px] leading-tight text-amber-100/50">
-                          {relanceDaysHint(index)}
+                          {relanceDaysHint()}
                         </p>
                       </div>
                     </td>
@@ -281,7 +316,7 @@ export function TableauConfigModal({
                           <button
                             type="button"
                             onClick={() => removeStep(step.id)}
-                            aria-label={`Supprimer ${step.name}`}
+                            aria-label={`Supprimer la relance ${index + 1}`}
                             className="flex h-9 w-9 items-center justify-center rounded-lg text-xl font-medium leading-none text-red-500 transition-colors hover:bg-red-500/15 hover:text-red-400"
                           >
                             ×
@@ -328,6 +363,11 @@ export function TableauConfigModal({
               Maximum {MAX_RELANCES} relances atteint.
             </p>
           )}
+
+          <p className="text-center text-xs text-brand-muted/80">
+            Chaque délai est calculé par rapport à la date d&apos;échéance du client.
+            Sans échéance renseignée, les relances ne peuvent pas être planifiées.
+          </p>
 
           <p className="text-center text-xs tabular-nums text-brand-muted">
             {steps.length} / {MAX_RELANCES}

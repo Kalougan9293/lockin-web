@@ -8,15 +8,18 @@ import {
   formatAmountInputAsYouType,
   parseAmountToStorage,
 } from "@/lib/preferences/currency-format";
+import { getColumnFieldName } from "@/types/tableau";
 
 type TableAmountCellProps = {
   value: string;
+  columnLabel: string;
   ariaLabel: string;
   onChange: (storedValue: string) => void;
 };
 
 export function TableAmountCell({
   value,
+  columnLabel,
   ariaLabel,
   onChange,
 }: TableAmountCellProps) {
@@ -36,6 +39,7 @@ export function TableAmountCell({
     <input
       type="text"
       inputMode="decimal"
+      name={getColumnFieldName(columnLabel)}
       autoComplete="off"
       value={draft}
       placeholder={AMOUNT_PLACEHOLDER}

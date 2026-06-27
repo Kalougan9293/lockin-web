@@ -1,24 +1,46 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 
 import { signOutAction } from "@/app/actions/auth";
 import { getProfileAction } from "@/app/actions/profile";
-import { ProfileMenuPanel } from "@/components/dashboard/ProfileMenuPanel";
-import { SettingsMenuPanel } from "@/components/dashboard/SettingsMenuPanel";
 import { useDemoSession } from "@/hooks/useDemoSession";
 
-export function AuthenticatedProfileMenu() {
+const ProfileMenuPanel = dynamic(
+  () => import("@/components/dashboard/ProfileMenuPanel").then((mod) => mod.ProfileMenuPanel),
+  { ssr: false },
+);
+
+const SettingsMenuPanel = dynamic(
+  () => import("@/components/dashboard/SettingsMenuPanel").then((mod) => mod.SettingsMenuPanel),
+  { ssr: false },
+);
+
+type AuthenticatedProfileMenuProps = {
+  initialDisplayName?: string | null;
+};
+
+export function AuthenticatedProfileMenu({
+  initialDisplayName = null,
+}: AuthenticatedProfileMenuProps) {
   const { active: demoMode } = useDemoSession();
   const [open, setOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [displayName, setDisplayName] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState<string | null>(
+    () => (demoMode ? "Démo" : initialDisplayName),
+  );
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (demoMode) {
       setDisplayName("Démo");
+      return;
+    }
+
+    if (initialDisplayName) {
+      setDisplayName(initialDisplayName);
       return;
     }
 
@@ -33,7 +55,7 @@ export function AuthenticatedProfileMenu() {
     return () => {
       cancelled = true;
     };
-  }, [demoMode]);
+  }, [demoMode, initialDisplayName]);
 
   useEffect(() => {
     if (!open || demoMode) return;
