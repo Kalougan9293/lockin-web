@@ -82,6 +82,7 @@ export function ImportPrompt({
       />
 
       <div
+        data-tutorial="import-zone"
         className={`group flex w-full max-w-lg flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-7 text-center transition-all sm:py-8 ${
           isDragging
             ? "border-violet-400/60 bg-violet-400/10"

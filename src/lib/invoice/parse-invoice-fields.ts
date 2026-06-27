@@ -9,6 +9,9 @@ const CLIENT_BLOCK_START =
 const CLIENT_BLOCK_STOP =
   /^(?:d[ée]tail|d[ée]signation|prestation|description|total|montant|tva|iban|bic|conditions|mode\s+de\s+paiement|paiement|objet|quantit[ée])/i;
 
+const CLIENT_BLOCK_INLINE_STOP =
+  /\s+(?:référence|reference|d[ée]tail|d[ée]signation|prestation|description|objet|quantit[ée]|total\s+(?:ht|ttc)|montant\s|sous-total|tva\s*\(|mode\s+de\s+paiement|informations\s+de\s+r[èe]glement)/i;
+
 const PERSON_NAME_PATTERN =
   /^[A-ZÀ-ÖØ-Ý][a-zà-öø-ÿ'’-]+(?:\s+[A-ZÀ-ÖØ-Ý][a-zà-öø-ÿ'’-]+){1,3}$/;
 
@@ -144,14 +147,45 @@ function findAllPhones(text: string): string[] {
   );
 }
 
+function truncateClientBlockInline(text: string): string {
+  const match = CLIENT_BLOCK_INLINE_STOP.exec(text);
+  if (match?.index != null && match.index > 0) {
+    return text.slice(0, match.index).trim();
+  }
+  return text.trim();
+}
+
+function isFalseClientMarker(text: string, index: number): boolean {
+  const before = text.slice(Math.max(0, index - 20), index).toLowerCase();
+  return /(?:siret|siren|n[°º]?\s*tva|tva|rcs|ape)\s*$/i.test(before);
+}
+
+function findFirstClientMarker(
+  text: string,
+): { start: number; end: number } | null {
+  const regex = new RegExp(CLIENT_BLOCK_START.source, "gi");
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index == null) continue;
+    if (isFalseClientMarker(text, match.index)) continue;
+    return { start: match.index, end: match.index + match[0].length };
+  }
+
+  return null;
+}
+
 function locateClientBlock(lines: string[]): { from: number; inlineFirst?: string } | null {
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index].trim();
-    if (!CLIENT_BLOCK_START.test(line)) continue;
+    if (!line) continue;
 
-    const inline = line.replace(CLIENT_BLOCK_START, "").trim();
-    if (inline.length >= 3) {
-      return { from: index, inlineFirst: inline };
+    const marker = findFirstClientMarker(line);
+    if (!marker) continue;
+
+    const inlineFirst = truncateClientBlockInline(line.slice(marker.end).trim());
+    if (inlineFirst.length >= 3) {
+      return { from: index, inlineFirst };
     }
 
     return { from: index + 1 };
@@ -166,8 +200,16 @@ function extractClientBlock(rawText: string): string | null {
   const located = locateClientBlock(lines);
 
   if (!located) {
+    const marker = findFirstClientMarker(normalized);
+    if (marker) {
+      const inline = truncateClientBlockInline(
+        normalized.slice(marker.end).split("\n")[0]?.trim() ?? "",
+      );
+      if (inline.length >= 3) return inline;
+    }
+
     const blockMatch = normalized.match(
-      /(?:factur[ée]e?\s*[àa]|facturer\s*[àa]|client|destinataire|adresse\s+de\s+facturation|bill\s+to)\s*:?\s*\n([\s\S]{8,500}?)(?:\n\s*\n|d[ée]tail|d[ée]signation|total\s|montant\s)/i,
+      /(?:factur[ée]e?\s*[àa]|facturer\s*[àa]|destinataire|adresse\s+de\s+facturation|bill\s+to)\s*:?\s*\n([\s\S]{8,500}?)(?:\n\s*\n|d[ée]tail|d[ée]signation|total\s|montant\s)/i,
     );
     return blockMatch?.[1]?.trim() ?? null;
   }
@@ -187,20 +229,21 @@ function extractClientBlock(rawText: string): string | null {
       if (blockLines.length > 0) break;
       continue;
     }
-    if (CLIENT_BLOCK_START.test(line)) continue;
+    if (index === located.from && located.inlineFirst) continue;
+    if (findFirstClientMarker(line)) continue;
     if (CLIENT_BLOCK_STOP.test(line)) break;
-    if (located.inlineFirst && line === located.inlineFirst) continue;
-    blockLines.push(line);
+    blockLines.push(truncateClientBlockInline(line));
   }
 
-  return blockLines.length > 0 ? blockLines.join("\n") : null;
+  const joined = blockLines.filter(Boolean).join("\n").trim();
+  return joined.length > 0 ? joined : null;
 }
 
 function extractIssuerSection(rawText: string): string {
   const normalized = rawText.replace(/\r/g, "\n");
-  const clientMatch = normalized.match(CLIENT_BLOCK_START);
-  if (clientMatch?.index && clientMatch.index > 0) {
-    return normalized.slice(0, clientMatch.index);
+  const marker = findFirstClientMarker(normalized);
+  if (marker && marker.start > 0) {
+    return normalized.slice(0, marker.start);
   }
   return normalized.slice(0, Math.min(normalized.length, 900));
 }
@@ -250,31 +293,6 @@ function finalizeClientName(nameParts: string[]): string | null {
   return cleaned.join(" ");
 }
 
-function pickClientContactFallback<T extends string>(
-  clientBlock: string | null,
-  fullText: string,
-  issuerSection: string,
-  finder: (text: string) => T[],
-): T | null {
-  if (clientBlock) {
-    const fromClient = finder(clientBlock);
-    if (fromClient[0]) return fromClient[0];
-  }
-
-  const issuerContacts = new Set(finder(issuerSection));
-  const allContacts = finder(fullText);
-
-  for (const contact of allContacts) {
-    if (!issuerContacts.has(contact)) return contact;
-  }
-
-  if (allContacts.length > 1) {
-    return allContacts[allContacts.length - 1];
-  }
-
-  return allContacts[0] ?? null;
-}
-
 function isIssuerContactLine(line: string): boolean {
   return /siret|siren|tva|capital|facture|n[°º]|iban|bic|rcs|siret|ape\b|rcs\b/i.test(
     line,
@@ -284,26 +302,25 @@ function isIssuerContactLine(line: string): boolean {
 function pickClientEmail(
   clientBlock: string | null,
   issuerSection: string,
-  fullText: string,
 ): string | null {
-  if (clientBlock) {
-    const clientEmails = findAllEmails(clientBlock);
-    if (clientEmails.length > 0) {
-      const issuerEmails = new Set(findAllEmails(issuerSection));
-      const clientOnly = clientEmails.filter((email) => !issuerEmails.has(email));
-      if (clientOnly[0]) return clientOnly[0];
-      if (clientEmails.length === 1) return clientEmails[0];
-      return null;
-    }
-    return null;
+  if (!clientBlock) return null;
+
+  const issuerEmails = new Set(
+    findAllEmails(issuerSection).map((email) => email.toLowerCase()),
+  );
+
+  const labeled = clientBlock.match(
+    /(?:e-?mail|courriel)\s*:?\s*([\w.+-]+@[\w.-]+\.[A-Za-z]{2,})/i,
+  );
+  if (labeled?.[1]) {
+    const email = labeled[1];
+    if (!issuerEmails.has(email.toLowerCase())) return email;
   }
 
-  return pickClientContactFallback(
-    clientBlock,
-    fullText,
-    issuerSection,
-    findAllEmails,
+  const clientOnly = findAllEmails(clientBlock).filter(
+    (email) => !issuerEmails.has(email.toLowerCase()),
   );
+  return clientOnly[0] ?? null;
 }
 
 function pickClientPhone(
@@ -598,7 +615,7 @@ export function parseInvoiceFields(rawText: string): ParsedInvoiceFields {
   const nom = extractClientName(rawText, clientBlock);
   if (nom) fields.Nom = nom;
 
-  const mail = pickClientEmail(clientBlock, issuerSection, rawText);
+  const mail = pickClientEmail(clientBlock, issuerSection);
   if (mail) fields.Mail = mail;
 
   const phone = pickClientPhone(clientBlock, issuerSection);

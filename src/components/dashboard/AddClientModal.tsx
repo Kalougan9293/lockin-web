@@ -29,6 +29,8 @@ type AddClientModalProps = {
   /** Préremplissage après import PDF — seuls les champs détectés sont ouverts. */
   importedFields?: Record<string, string>;
   sourceFileName?: string;
+  /** Nombre de factures PDF encore en attente après celle-ci. */
+  remainingImportCount?: number;
   targetTable?: {
     tables: TableSummary[];
     value: string;
@@ -96,6 +98,7 @@ export function AddClientModal({
   onSubmit,
   importedFields,
   sourceFileName,
+  remainingImportCount = 0,
   targetTable,
 }: AddClientModalProps) {
   const { dateFormat } = useUserPreferences();
@@ -256,9 +259,20 @@ export function AddClientModal({
           </h2>
 
           {sourceFileName ? (
-            <p className="mt-1 truncate text-center text-sm text-brand-muted">
-              {sourceFileName}
-            </p>
+            <div className="mt-2 space-y-2.5 text-center">
+              <p className="truncate px-1 text-sm font-medium text-white/90">
+                {sourceFileName}
+              </p>
+              {remainingImportCount > 0 ? (
+                <p
+                  className="w-full rounded-xl border border-amber-400/55 bg-amber-500/20 px-4 py-2.5 text-center text-sm font-semibold text-amber-50 shadow-md shadow-amber-950/35 ring-1 ring-amber-300/30"
+                  role="status"
+                >
+                  Encore {remainingImportCount} facture
+                  {remainingImportCount > 1 ? "s" : ""}
+                </p>
+              ) : null}
+            </div>
           ) : null}
 
           {isImportMode ? (

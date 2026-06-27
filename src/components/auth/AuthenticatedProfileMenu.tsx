@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { signOutAction } from "@/app/actions/auth";
 import { getProfileAction } from "@/app/actions/profile";
 import { useDemoSession } from "@/hooks/useDemoSession";
+import { useTutorial } from "@/contexts/TutorialContext";
 
 const ProfileMenuPanel = dynamic(
   () => import("@/components/dashboard/ProfileMenuPanel").then((mod) => mod.ProfileMenuPanel),
@@ -25,6 +26,7 @@ export function AuthenticatedProfileMenu({
   initialDisplayName = null,
 }: AuthenticatedProfileMenuProps) {
   const { active: demoMode } = useDemoSession();
+  const { requestTutorial } = useTutorial();
   const [open, setOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -196,6 +198,18 @@ export function AuthenticatedProfileMenu({
             >
               Contact
             </a>
+
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                requestTutorial();
+              }}
+              className="block w-full px-4 py-2.5 text-left text-sm text-brand-muted transition-colors hover:bg-white/5 hover:text-white"
+            >
+              Tutoriel
+            </button>
 
             <form action={signOutAction}>
               <button

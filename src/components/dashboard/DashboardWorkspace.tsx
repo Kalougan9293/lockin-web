@@ -26,6 +26,7 @@ import {
 
 import { ImportPrompt } from "./ImportPrompt";
 import { TableauGrid } from "./TableauGrid";
+import { DashboardTutorial } from "./tutorial/DashboardTutorial";
 
 const AddClientModal = dynamic(
   () => import("./AddClientModal").then((mod) => mod.AddClientModal),
@@ -255,12 +256,6 @@ export function DashboardWorkspace({
     setImportQueue((queue) => queue.slice(1));
   }
 
-  function formatImportFileLabel(fileName: string, queueLength: number) {
-    if (queueLength <= 1) return fileName;
-    const remaining = queueLength - 1;
-    return `${fileName} — encore ${remaining} facture${remaining > 1 ? "s" : ""}`;
-  }
-
   function handleConfirmImport(valuesByLabel: Record<string, string>) {
     const current = importQueue[0];
     if (!current) return;
@@ -460,10 +455,8 @@ export function DashboardWorkspace({
         <AddClientModal
           open
           importedFields={importQueue[0].fields}
-          sourceFileName={formatImportFileLabel(
-            importQueue[0].fileName,
-            importQueue.length,
-          )}
+          sourceFileName={importQueue[0].fileName}
+          remainingImportCount={importQueue.length - 1}
           targetTable={{
             tables: tableSummaries,
             value: importQueue[0].tableId,
@@ -543,6 +536,8 @@ export function DashboardWorkspace({
         onConfirm={confirmDeleteRow}
         onCancel={() => setDeleteRowTarget(null)}
       />
+
+      <DashboardTutorial />
     </>
   );
 }

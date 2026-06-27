@@ -777,13 +777,14 @@ export function TableauGrid({
       {DragPreview}
       <div className="w-max">
         <div className="grid w-max grid-cols-[auto_3px_auto]">
-          <div className="mb-4 min-w-0 self-end overflow-hidden">
+          <div className="mb-4 min-w-0 self-end overflow-hidden" data-tutorial="table-title">
             <EditableTableTitle name={tableName} onRename={onTableRename} />
           </div>
           <div className="mb-4" aria-hidden />
           <div className="mb-4 flex w-full justify-start self-end">
             <button
               type="button"
+              data-tutorial="configure-btn"
               onClick={onConfigure}
               className={`${tableTitleTextClassName} inline-flex items-center gap-2 ${tableTitleGradientClassName} cursor-pointer transition-opacity hover:opacity-85`}
             >
@@ -811,6 +812,7 @@ export function TableauGrid({
           </div>
 
           <div
+            data-tutorial="table-left"
             className={`rounded-bl-2xl border border-t ${TABLE_BORDER} border-r-0 bg-brand-surface shadow-xl shadow-violet-950/25 ring-1 ring-white/[0.07]`}
           >
             <div className="flex shrink-0 bg-gradient-to-b from-violet-500/[0.12] to-brand-surface/80">
@@ -851,6 +853,7 @@ export function TableauGrid({
 
           <div className="flex items-start">
           <div
+            data-tutorial="table-right"
             className={`rounded-br-2xl border border-t ${TABLE_BORDER} border-l-0 bg-brand-surface shadow-xl shadow-violet-950/25 ring-1 ring-white/[0.07]`}
           >
             <div className="flex shrink-0 bg-gradient-to-b from-fuchsia-500/[0.10] to-brand-surface/80">
