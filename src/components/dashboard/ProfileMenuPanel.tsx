@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 
 import {
+  exportUserDataAction,
   getProfileAction,
   updateProfileAction,
   type ProfileActionState,
@@ -10,10 +11,26 @@ import {
 } from "@/app/actions/profile";
 import { AuthField } from "@/components/auth/AuthField";
 import { PasswordCriteria } from "@/components/auth/PasswordCriteria";
+import { DeleteAccountModal } from "@/components/dashboard/DeleteAccountModal";
 import { MVP_DEMO_PROFILE } from "@/lib/mvp-demo";
 import { useDemoSession } from "@/hooks/useDemoSession";
 
 const initialState: ProfileActionState = {};
+
+function downloadCsvFile(csv: string, filename: string) {
+  const blob = new Blob([`\ufeff${csv}`], {
+    type: "text/csv;charset=utf-8;",
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
 
 export function ProfileMenuPanel() {
   const [state, formAction, isPending] = useActionState(
@@ -24,6 +41,9 @@ export function ProfileMenuPanel() {
   const [loading, setLoading] = useState(true);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [isExporting, startExportTransition] = useTransition();
   const { active: demoMode } = useDemoSession();
 
   useEffect(() => {
@@ -41,6 +61,21 @@ export function ProfileMenuPanel() {
       .then((data) => setProfile(data))
       .finally(() => setLoading(false));
   }, [demoMode]);
+
+  function handleExportData() {
+    if (demoMode) return;
+
+    setExportError(null);
+    startExportTransition(async () => {
+      const result = await exportUserDataAction();
+      if ("error" in result) {
+        setExportError(result.error);
+        return;
+      }
+
+      downloadCsvFile(result.csv, result.filename);
+    });
+  }
 
   return (
     <div className="border-t border-white/10 px-3 py-2.5">
@@ -127,8 +162,39 @@ export function ProfileMenuPanel() {
           >
             {isPending ? "Enregistrement…" : "Enregistrer"}
           </button>
+
+          <div className="space-y-2 border-t border-white/10 pt-3">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-brand-muted/80">
+              Données personnelles
+            </p>
+            <button
+              type="button"
+              onClick={handleExportData}
+              disabled={demoMode || isExporting}
+              className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isExporting ? "Export en cours…" : "Exporter mes données"}
+            </button>
+            {exportError ? (
+              <p className="rounded-lg border border-red-400/20 bg-red-400/10 px-2.5 py-2 text-[11px] text-red-300">
+                {exportError}
+              </p>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setDeleteModalOpen(true)}
+              disabled={demoMode}
+              className="w-full rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-200 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Supprimer mon compte
+            </button>
+          </div>
         </form>
       )}
+      <DeleteAccountModal
+        open={deleteModalOpen && !demoMode}
+        onClose={() => setDeleteModalOpen(false)}
+      />
     </div>
   );
 }

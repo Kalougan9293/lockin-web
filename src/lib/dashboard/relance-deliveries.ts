@@ -7,7 +7,11 @@ import {
 } from "@/lib/preferences/date-format";
 import type { Database, RelanceDeliveryRow } from "@/types/database";
 import type { ClientRow, ColumnDef, RelanceStep, TableData } from "@/types/tableau";
-import { formatRelanceTiming, isRowPaid } from "@/types/tableau";
+import {
+  formatRelanceStepNumber,
+  formatRelanceTiming,
+  isRowPaid,
+} from "@/types/tableau";
 
 import { getRowFieldValue } from "./recovery";
 import {
@@ -112,8 +116,8 @@ export function resolveRelanceMessageTemplate(
   return resolved;
 }
 
-function buildRelanceSubject(step: RelanceStep): string {
-  return `Relance ${formatRelanceTiming(step.days)} — ${step.name}`;
+function buildRelanceSubject(step: RelanceStep, stepIndex: number): string {
+  return `${formatRelanceStepNumber(stepIndex)} — ${formatRelanceTiming(step.days)}`;
 }
 
 function getAllColumns(table: TableData): ColumnDef[] {
@@ -221,7 +225,8 @@ export async function collectDueRelancesForCron(
         referenceDate,
       );
 
-      for (const step of relanceSteps) {
+      for (let stepIndex = 0; stepIndex < relanceSteps.length; stepIndex += 1) {
+        const step = relanceSteps[stepIndex];
         const scheduled = schedule.get(step.id);
         if (!scheduled) continue;
         if (!isDueOnOrBeforeToday(scheduled.scheduledDate, referenceDate)) continue;
@@ -246,7 +251,7 @@ export async function collectDueRelancesForCron(
           userId,
           to,
           clientName: clientName || undefined,
-          subject: buildRelanceSubject(step),
+          subject: buildRelanceSubject(step, stepIndex),
           body: resolveRelanceMessageTemplate(step.messageTemplate, row, columns),
           scheduledFor,
         });

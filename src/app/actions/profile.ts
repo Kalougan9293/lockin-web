@@ -1,8 +1,17 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+
+import { deleteUserAccountData } from "@/lib/auth/delete-user-account";
 import { getCurrentUser } from "@/lib/auth/session";
 import { validatePassword } from "@/lib/auth/validation";
+import {
+  buildUserDataExportCsv,
+  buildUserDataExportFilename,
+} from "@/lib/dashboard/export-user-data-csv";
+import { fetchAllTablesForUser } from "@/lib/dashboard/tableau-db";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 
 export type ProfileData = {
   prenom: string;
@@ -101,4 +110,48 @@ export async function updateProfileAction(
   }
 
   return { success: "Profil mis à jour." };
+}
+
+export type ExportUserDataResult =
+  | { csv: string; filename: string }
+  | { error: string };
+
+export async function exportUserDataAction(): Promise<ExportUserDataResult> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { error: "Session expirée. Reconnectez-vous." };
+  }
+
+  const profile = await getProfileAction();
+  if (!profile) {
+    return { error: "Impossible de charger votre profil." };
+  }
+
+  const supabase = await createClient();
+  const tables = await fetchAllTablesForUser(supabase, user.id);
+
+  return {
+    csv: buildUserDataExportCsv(profile, tables),
+    filename: buildUserDataExportFilename(),
+  };
+}
+
+export type DeleteAccountResult = { error?: string };
+
+export async function deleteAccountAction(): Promise<DeleteAccountResult> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { error: "Session expirée. Reconnectez-vous." };
+  }
+
+  const admin = createAdminClient();
+  const result = await deleteUserAccountData(admin, user.id);
+  if (result.error) {
+    return result;
+  }
+
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+
+  redirect("/login?deleted=1");
 }

@@ -9,6 +9,7 @@ import {
   requireAdminUser,
 } from "@/lib/admin/impersonation";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { deleteUserAccountData } from "@/lib/auth/delete-user-account";
 
 export type AdminActionState = {
   error?: string;
@@ -56,28 +57,9 @@ export async function deleteProviderAction(
 
   const admin = createAdminClient();
 
-  const { error: deleteTablesError } = await admin
-    .from("tableaux")
-    .delete()
-    .eq("user_id", userId);
-
-  if (deleteTablesError) {
-    return { error: `Suppression des tableaux : ${deleteTablesError.message}` };
-  }
-
-  const { error: deleteClientError } = await admin
-    .from("clients_lockin")
-    .delete()
-    .eq("id_client", userId);
-
-  if (deleteClientError) {
-    return { error: `Suppression du profil : ${deleteClientError.message}` };
-  }
-
-  const { error: deleteAuthError } = await admin.auth.admin.deleteUser(userId);
-
-  if (deleteAuthError) {
-    return { error: `Suppression du compte : ${deleteAuthError.message}` };
+  const result = await deleteUserAccountData(admin, userId);
+  if (result.error) {
+    return { error: result.error };
   }
 
   revalidatePath("/admin");

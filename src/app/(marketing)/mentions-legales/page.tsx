@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { LegalPage } from "@/components/legal/LegalPage";
+import { LOCKIN_CONTACT_EMAIL } from "@/lib/contact";
 
 export const metadata: Metadata = {
   title: "Mentions légales — LockIn",
@@ -13,51 +14,101 @@ export default function MentionsLegalesPage() {
       <p>
         Conformément aux dispositions des articles 6-III et 19 de la Loi n°
         2004-575 du 21 juin 2004 pour la confiance dans l&apos;économie
-        numérique (LCEN).
+        numérique (LCEN), les informations suivantes sont portées à la
+        connaissance des utilisateurs du site et du service <strong>LockIn</strong>.
       </p>
 
-      <h2>Éditeur du site</h2>
+      <h2>Éditeur du site et du Service</h2>
       <p>
-        <strong>LockIn</strong>
+        <strong>LockIn</strong> — plateforme de suivi de factures et de relances
+        de paiement à destination des professionnels.
         <br />
-        [Raison sociale / nom à compléter]
         <br />
-        [Forme juridique — ex. SAS, EI]
+        <strong>Jonathan Seroussi</strong>
         <br />
-        [Adresse du siège social]
+        92500 Rueil-Malmaison, France
         <br />
-        [Numéro SIREN / SIRET]
+        SIREN : en cours d&apos;attribution
         <br />
-        [Capital social — le cas échéant]
-        <br />
-        Directeur de la publication : [Nom à compléter]
+        Directeur de la publication : Jonathan Seroussi
         <br />
         Contact :{" "}
-        <a href="mailto:contact@lockin.app" className="text-violet-300 hover:text-violet-200">
-          contact@lockin.app
+        <a
+          href={`mailto:${LOCKIN_CONTACT_EMAIL}`}
+          className="text-violet-300 hover:text-violet-200"
+        >
+          {LOCKIN_CONTACT_EMAIL}
         </a>
+      </p>
+
+      <h2>Nature du Service</h2>
+      <p>
+        LockIn est un service en ligne (SaaS) permettant aux professionnels de
+        gérer des tableaux de factures en attente de paiement, d&apos;importer
+        des données (PDF, CSV), de configurer des relances par e-mail et
+        d&apos;accéder à des documents d&apos;assistance au recouvrement
+        amiable. Le Service est accessible notamment à l&apos;adresse{" "}
+        <strong>lockin.app</strong>.
+      </p>
+      <p>
+        LockIn n&apos;est ni un cabinet d&apos;avocats ni un office
+        d&apos;huissier. Les documents générés sont des modèles à adapter ; ils
+        ne constituent pas un conseil juridique.
       </p>
 
       <h2>Hébergement</h2>
       <p>
-        Données applicatives et authentification hébergées via{" "}
-        <strong>Supabase, Inc.</strong> — infrastructure cloud (localisation des
-        serveurs selon la configuration du projet ; vérifier la région retenue
-        dans le tableau de bord Supabase).
+        <strong>Application web</strong> — hébergée par{" "}
+        <strong>Vercel, Inc.</strong>
+        <br />
+        440 N Barranca Avenue #4133, Covina, CA 91723, États-Unis
+        <br />
+        <a
+          href="https://vercel.com"
+          className="text-violet-300 hover:text-violet-200"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          vercel.com
+        </a>
       </p>
       <p>
-        Le site est déployé sur une infrastructure d&apos;hébergement web
-        [Vercel ou équivalent — à compléter selon le déploiement effectif].
+        <strong>Données applicatives</strong> (comptes, tableaux, journal des
+        relances) et <strong>authentification</strong> — hébergées via{" "}
+        <strong>Supabase, Inc.</strong>
+        <br />
+        Infrastructure cloud — région du projet à vérifier dans le tableau de
+        bord Supabase (région UE recommandée pour les données européennes).
+        <br />
+        <a
+          href="https://supabase.com"
+          className="text-violet-300 hover:text-violet-200"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          supabase.com
+        </a>
+      </p>
+      <p>
+        <strong>Envoi des relances par e-mail</strong> — orchestré par un outil
+        d&apos;automatisation (ex. n8n) et un prestataire de messagerie
+        transactionnelle (SMTP ou API), configurés par l&apos;éditeur du
+        Service.
       </p>
 
       <h2>Propriété intellectuelle</h2>
       <p>
-        L&apos;ensemble des éléments composant le site LockIn (textes, graphismes,
-        logo, structure, logiciels) est protégé par le droit de la propriété
-        intellectuelle. Toute reproduction non autorisée est interdite.
+        L&apos;ensemble des éléments composant le site et le Service LockIn
+        (textes, graphismes, logo, structure, logiciels, modèles de documents)
+        est protégé par le droit de la propriété intellectuelle. Toute
+        reproduction, représentation ou exploitation non autorisée est interdite.
+      </p>
+      <p>
+        Les données et contenus que vous saisissez dans le Service restent votre
+        propriété ; LockIn n&apos;en revendique pas la titularité.
       </p>
 
-      <h2>Données personnelles</h2>
+      <h2>Données personnelles et conditions d&apos;utilisation</h2>
       <p>
         Pour le traitement des données personnelles, consultez notre{" "}
         <a href="/confidentialite" className="text-violet-300 hover:text-violet-200">
@@ -72,11 +123,22 @@ export default function MentionsLegalesPage() {
 
       <h2>Signalement de contenu illicite</h2>
       <p>
-        Pour signaler un contenu contraire à la loi :{" "}
-        <a href="mailto:contact@lockin.app" className="text-violet-300 hover:text-violet-200">
-          contact@lockin.app
+        Conformément à l&apos;article 6-I-5 de la LCEN, pour signaler un contenu
+        illicite hébergé via le Service :{" "}
+        <a
+          href={`mailto:${LOCKIN_CONTACT_EMAIL}`}
+          className="text-violet-300 hover:text-violet-200"
+        >
+          {LOCKIN_CONTACT_EMAIL}
         </a>
-        , en précisant l&apos;URL concernée et les motifs du signalement.
+        , en précisant la date du constat, l&apos;URL ou l&apos;élément concerné,
+        vos coordonnées et les motifs du signalement.
+      </p>
+
+      <h2>Crédits</h2>
+      <p>
+        Interface et développement : LockIn. Extraction PDF : traitement local
+        via bibliothèque PDF.js (Mozilla).
       </p>
     </LegalPage>
   );

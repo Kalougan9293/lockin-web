@@ -11,10 +11,6 @@ export function LegalPage({ title, children }: LegalPageProps) {
   return (
     <article className="relative mx-auto max-w-3xl px-6 py-12 sm:py-16">
       <LegalPageCloseButton />
-      <p className="mb-6 rounded-xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-100/90">
-        Document provisoire à titre informatif — à valider par un conseil juridique
-        avant mise en production commerciale.
-      </p>
 
       <h1 className="mb-2 text-3xl font-bold tracking-tight text-white">{title}</h1>
       <p className="mb-10 text-sm text-brand-muted">
