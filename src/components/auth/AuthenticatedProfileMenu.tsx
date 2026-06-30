@@ -5,8 +5,9 @@ import { useEffect, useRef, useState } from "react";
 
 import { signOutAction } from "@/app/actions/auth";
 import { getProfileAction } from "@/app/actions/profile";
-import { useDemoSession } from "@/hooks/useDemoSession";
+import { ContactModal } from "@/components/dashboard/ContactModal";
 import { useTutorial } from "@/contexts/TutorialContext";
+import { useDemoSession } from "@/hooks/useDemoSession";
 
 const ProfileMenuPanel = dynamic(
   () => import("@/components/dashboard/ProfileMenuPanel").then((mod) => mod.ProfileMenuPanel),
@@ -30,6 +31,7 @@ export function AuthenticatedProfileMenu({
   const [open, setOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
   const [displayName, setDisplayName] = useState<string | null>(
     () => (demoMode ? "Démo" : initialDisplayName),
   );
@@ -74,6 +76,12 @@ export function AuthenticatedProfileMenu({
       cancelled = true;
     };
   }, [open, demoMode]);
+
+  useEffect(() => {
+    if (demoMode) {
+      setProfileOpen(false);
+    }
+  }, [demoMode]);
 
   useEffect(() => {
     if (!open) {
@@ -166,15 +174,23 @@ export function AuthenticatedProfileMenu({
               type="button"
               role="menuitem"
               aria-expanded={profileOpen}
-              onClick={toggleProfile}
-              className={`flex w-full items-center justify-between px-4 py-2.5 text-left text-sm transition-colors hover:bg-white/5 hover:text-white ${
-                profileOpen ? "text-violet-200" : "text-brand-muted"
+              aria-disabled={demoMode}
+              disabled={demoMode}
+              onClick={demoMode ? undefined : toggleProfile}
+              className={`flex w-full items-center justify-between px-4 py-2.5 text-left text-sm transition-colors ${
+                demoMode
+                  ? "cursor-default text-brand-muted/45"
+                  : profileOpen
+                    ? "text-violet-200 hover:bg-white/5 hover:text-white"
+                    : "text-brand-muted hover:bg-white/5 hover:text-white"
               }`}
             >
               Modifier son profil
-              <span className="text-xs text-brand-muted/70">{profileOpen ? "▴" : "▾"}</span>
+              {!demoMode ? (
+                <span className="text-xs text-brand-muted/70">{profileOpen ? "▴" : "▾"}</span>
+              ) : null}
             </button>
-            {profileOpen ? <ProfileMenuPanel /> : null}
+            {profileOpen && !demoMode ? <ProfileMenuPanel /> : null}
 
             <button
               type="button"
@@ -190,14 +206,17 @@ export function AuthenticatedProfileMenu({
             </button>
             {settingsOpen ? <SettingsMenuPanel /> : null}
 
-            <a
-              href="#contact"
+            <button
+              type="button"
               role="menuitem"
-              onClick={() => setOpen(false)}
-              className="block px-4 py-2.5 text-sm text-brand-muted transition-colors hover:bg-white/5 hover:text-white"
+              onClick={() => {
+                setOpen(false);
+                setContactOpen(true);
+              }}
+              className="block w-full px-4 py-2.5 text-left text-sm text-brand-muted transition-colors hover:bg-white/5 hover:text-white"
             >
               Contact
-            </a>
+            </button>
 
             <button
               type="button"
@@ -223,6 +242,8 @@ export function AuthenticatedProfileMenu({
           </div>
         ) : null}
       </div>
+
+      <ContactModal open={contactOpen} onClose={() => setContactOpen(false)} />
     </>
   );
 }

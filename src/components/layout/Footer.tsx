@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { ContactTrigger } from "@/components/layout/ContactTrigger";
+
 const legalLinks = [
   { href: "/mentions-legales", label: "Mentions légales" },
   { href: "/confidentialite", label: "Confidentialité" },
@@ -24,12 +26,7 @@ export function Footer() {
               {link.label}
             </Link>
           ))}
-          <a
-            href="mailto:contact@lockin.app"
-            className="transition-colors hover:text-white"
-          >
-            Contact
-          </a>
+          <ContactTrigger className="transition-colors hover:text-white" />
         </nav>
       </div>
     </footer>

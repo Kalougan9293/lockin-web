@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
 import {
@@ -18,6 +18,10 @@ type SpotlightRect = {
 };
 
 const SPOTLIGHT_PADDING = 6;
+const POPUP_ESTIMATED_HEIGHT = 196;
+const VIEWPORT_MARGIN = 16;
+const TUTORIAL_SCROLL_SPACER_ID = "lockin-tutorial-scroll-spacer";
+const TUTORIAL_SCROLL_SPACER_HEIGHT = "min(42vh, 360px)";
 
 function measureTarget(selector: string): SpotlightRect | null {
   const element = document.querySelector(selector);
@@ -30,6 +34,38 @@ function measureTarget(selector: string): SpotlightRect | null {
     width: rect.width + SPOTLIGHT_PADDING * 2,
     height: rect.height + SPOTLIGHT_PADDING * 2,
   };
+}
+
+function computePopupPosition(rect: SpotlightRect) {
+  const viewportHeight = window.innerHeight;
+  const viewportWidth = window.innerWidth;
+  const popupWidth = Math.min(320, viewportWidth - VIEWPORT_MARGIN * 2);
+
+  const spaceBelow = viewportHeight - (rect.top + rect.height) - VIEWPORT_MARGIN;
+  const spaceAbove = rect.top - VIEWPORT_MARGIN;
+
+  let top: number;
+  if (spaceBelow >= POPUP_ESTIMATED_HEIGHT) {
+    top = rect.top + rect.height + 14;
+  } else if (spaceAbove >= POPUP_ESTIMATED_HEIGHT) {
+    top = rect.top - POPUP_ESTIMATED_HEIGHT - 14;
+  } else {
+    top = viewportHeight - POPUP_ESTIMATED_HEIGHT - VIEWPORT_MARGIN;
+  }
+
+  top = Math.max(
+    VIEWPORT_MARGIN,
+    Math.min(top, viewportHeight - POPUP_ESTIMATED_HEIGHT - VIEWPORT_MARGIN),
+  );
+
+  let left = rect.left + rect.width / 2;
+  const halfWidth = popupWidth / 2;
+  left = Math.max(
+    halfWidth + VIEWPORT_MARGIN,
+    Math.min(left, viewportWidth - halfWidth - VIEWPORT_MARGIN),
+  );
+
+  return { top, left, width: popupWidth };
 }
 
 function TutorialConfirmDialog({
@@ -95,18 +131,15 @@ function TutorialSpotlight({
   onNext: () => void;
   onClose: () => void;
 }) {
-  const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 800;
-  const popupBelow = rect.top + rect.height + 140 < viewportHeight;
-  const popupTop = popupBelow ? rect.top + rect.height + 14 : rect.top - 14;
-  const popupTransform = popupBelow ? "translateY(0)" : "translate(-50%, -100%)";
+  const popupPosition = useMemo(() => computePopupPosition(rect), [rect]);
 
   return createPortal(
-    <div className="fixed inset-0 z-[210]">
+    <div className="fixed inset-0 z-[210] pointer-events-none">
       <button
         type="button"
         aria-label="Quitter le tutoriel"
         onClick={onClose}
-        className="absolute inset-0 bg-black/65"
+        className="pointer-events-auto absolute inset-0 bg-black/65"
       />
 
       <div
@@ -123,11 +156,12 @@ function TutorialSpotlight({
         role="dialog"
         aria-modal="true"
         aria-labelledby="tutorial-step-title"
-        className="absolute z-10 w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-white/15 bg-brand-card p-4 shadow-2xl shadow-black/50"
+        className="pointer-events-auto fixed z-10 rounded-xl border border-white/15 bg-brand-card p-4 shadow-2xl shadow-black/50"
         style={{
-          top: popupTop,
-          left: rect.left + rect.width / 2,
-          transform: `translateX(-50%) ${popupTransform}`,
+          top: popupPosition.top,
+          left: popupPosition.left,
+          width: popupPosition.width,
+          transform: "translateX(-50%)",
         }}
       >
         <p className="text-[11px] font-semibold uppercase tracking-wide text-red-300/90">
@@ -161,6 +195,21 @@ function TutorialSpotlight({
   );
 }
 
+function ensureTutorialScrollSpacer() {
+  if (document.getElementById(TUTORIAL_SCROLL_SPACER_ID)) return;
+
+  const spacer = document.createElement("div");
+  spacer.id = TUTORIAL_SCROLL_SPACER_ID;
+  spacer.setAttribute("aria-hidden", "true");
+  spacer.style.height = TUTORIAL_SCROLL_SPACER_HEIGHT;
+  spacer.style.pointerEvents = "none";
+  document.body.appendChild(spacer);
+}
+
+function removeTutorialScrollSpacer() {
+  document.getElementById(TUTORIAL_SCROLL_SPACER_ID)?.remove();
+}
+
 export function DashboardTutorial() {
   const { phase, stepIndex, confirmTutorial, declineTutorial, nextStep, cancelTutorial } =
     useTutorial();
@@ -174,16 +223,25 @@ export function DashboardTutorial() {
       return;
     }
 
+    ensureTutorialScrollSpacer();
+
     function updateRect() {
       const nextRect = measureTarget(step.target);
       setRect(nextRect);
     }
 
+    function scrollTargetIntoView() {
+      const element = document.querySelector(step.target);
+      if (!element) return;
+
+      const block = stepIndex >= 3 ? "start" : "center";
+      element.scrollIntoView({ behavior: "smooth", block, inline: "nearest" });
+    }
+
     updateRect();
+    scrollTargetIntoView();
 
     const element = document.querySelector(step.target);
-    element?.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
-
     const resizeObserver =
       element && typeof ResizeObserver !== "undefined"
         ? new ResizeObserver(updateRect)
@@ -193,10 +251,16 @@ export function DashboardTutorial() {
     window.addEventListener("resize", updateRect);
     window.addEventListener("scroll", updateRect, true);
 
-    const retryTimer = window.setTimeout(updateRect, 320);
+    const retryTimers = [
+      window.setTimeout(updateRect, 280),
+      window.setTimeout(() => {
+        scrollTargetIntoView();
+        updateRect();
+      }, 520),
+    ];
 
     return () => {
-      window.clearTimeout(retryTimer);
+      for (const timer of retryTimers) window.clearTimeout(timer);
       resizeObserver?.disconnect();
       window.removeEventListener("resize", updateRect);
       window.removeEventListener("scroll", updateRect, true);
@@ -204,19 +268,30 @@ export function DashboardTutorial() {
   }, [phase, step, stepIndex]);
 
   useEffect(() => {
-    if (phase !== "running") return;
+    if (phase === "confirm") {
+      const previousOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
 
-    function handleEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") cancelTutorial();
+      return () => {
+        document.body.style.overflow = previousOverflow;
+      };
     }
 
-    document.body.style.overflow = "hidden";
-    document.addEventListener("keydown", handleEscape);
+    if (phase === "running") {
+      function handleEscape(event: KeyboardEvent) {
+        if (event.key === "Escape") cancelTutorial();
+      }
 
-    return () => {
-      document.body.style.overflow = "";
-      document.removeEventListener("keydown", handleEscape);
-    };
+      document.addEventListener("keydown", handleEscape);
+
+      return () => {
+        document.removeEventListener("keydown", handleEscape);
+        removeTutorialScrollSpacer();
+      };
+    }
+
+    removeTutorialScrollSpacer();
+    return undefined;
   }, [phase, cancelTutorial]);
 
   if (phase === "confirm") {

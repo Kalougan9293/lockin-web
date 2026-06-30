@@ -7,7 +7,7 @@ export const DASHBOARD_TUTORIAL_STEPS: TutorialStep[] = [
   {
     target: '[data-tutorial="import-zone"]',
     message:
-      "Importez vos factures ici : glissez-déposez un ou plusieurs PDF (ou un CSV), ou cliquez pour parcourir. Vous pouvez aussi ajouter un client manuellement.",
+      "Choisissez d'abord le tableau de destination, puis importez un fichier (PDF ou CSV) ou ajoutez un client manuellement avec le bouton en bas.",
   },
   {
     target: '[data-tutorial="table-title"]',

@@ -12,6 +12,8 @@ type TableTargetSelectProps = {
   onChange: (tableId: string) => void;
   onAddTable?: () => void;
   canAddTable?: boolean;
+  /** Teinte légère pour la zone d'import du dashboard. */
+  tinted?: boolean;
 };
 
 export function TableTargetSelect({
@@ -22,6 +24,7 @@ export function TableTargetSelect({
   onChange,
   onAddTable,
   canAddTable = true,
+  tinted = false,
 }: TableTargetSelectProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -85,7 +88,11 @@ export function TableTargetSelect({
           aria-haspopup="listbox"
           aria-expanded={open}
           onClick={() => setOpen((current) => !current)}
-          className="flex w-full items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] px-8 py-2.5 text-center text-sm text-white outline-none transition-colors hover:border-violet-300/30 focus:border-violet-300/40 focus:ring-2 focus:ring-violet-400/20"
+          className={`flex w-full items-center justify-center rounded-xl border px-8 py-2.5 text-center text-sm text-white outline-none transition-colors ${
+            tinted
+              ? "border-sky-400/20 bg-sky-500/[0.08] hover:border-sky-300/35 hover:bg-sky-500/[0.12] focus:border-sky-300/45 focus:ring-2 focus:ring-sky-400/20"
+              : "border-white/10 bg-white/[0.04] hover:border-violet-300/30 focus:border-violet-300/40 focus:ring-2 focus:ring-violet-400/20"
+          }`}
         >
           <span className="truncate">{selectedTable.name}</span>
           <span aria-hidden className="ml-2 text-[10px] text-brand-muted">
