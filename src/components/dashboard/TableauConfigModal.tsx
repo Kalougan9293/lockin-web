@@ -197,21 +197,17 @@ export function TableauConfigModal({
         aria-labelledby="tableau-config-title"
         className="relative z-10 flex max-h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-brand-card shadow-2xl shadow-black/50"
       >
-        <header className="flex shrink-0 flex-col gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <h2 id="tableau-config-title" className="text-base font-semibold text-white sm:text-lg">
+        <header className="flex shrink-0 border-b border-white/10 px-5 py-4 sm:px-6">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+            <h2
+              id="tableau-config-title"
+              className="shrink-0 text-base font-semibold text-white sm:text-lg"
+            >
               Configuration des relances
             </h2>
-            <div className="flex w-full flex-col gap-2 sm:max-w-md sm:items-end">
-              <p
-                role="status"
-                className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100/95 sm:text-right sm:text-xs"
-              >
-                <strong className="font-semibold text-amber-50">Attention !</strong> Si vous
-                modifiez et enregistrez une nouvelle configuration pour ce client, tout
-                l&apos;historique des relances déjà envoyées pour lui sera réinitialisé.
-              </p>
-              <div className="flex shrink-0 justify-end gap-2">
+
+            <div className="flex min-w-0 flex-1 flex-wrap items-center justify-center gap-x-3 gap-y-2">
+              <div className="flex shrink-0 gap-2">
                 <button
                   type="button"
                   onClick={onClose}
@@ -227,6 +223,15 @@ export function TableauConfigModal({
                   Enregistrer
                 </button>
               </div>
+
+              <p
+                role="status"
+                className="min-w-0 max-w-xl text-[11px] leading-snug text-amber-100/95 sm:text-xs"
+              >
+                <strong className="font-semibold text-amber-50">Attention !</strong> Si vous
+                modifiez et enregistrez une nouvelle configuration pour ce client, tout
+                l&apos;historique des relances déjà envoyées sera aussi réinitialisé.
+              </p>
             </div>
           </div>
         </header>

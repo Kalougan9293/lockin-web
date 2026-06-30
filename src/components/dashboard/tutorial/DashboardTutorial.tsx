@@ -234,7 +234,7 @@ export function DashboardTutorial() {
       const element = document.querySelector(step.target);
       if (!element) return;
 
-      const block = stepIndex >= 3 ? "start" : "center";
+      const block = stepIndex === 2 || stepIndex === 4 ? "start" : "center";
       element.scrollIntoView({ behavior: "smooth", block, inline: "nearest" });
     }
 

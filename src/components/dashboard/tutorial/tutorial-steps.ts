@@ -11,22 +11,21 @@ export const DASHBOARD_TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     target: '[data-tutorial="table-title"]',
-    message:
-      "Voici le titre de votre tableau. Cliquez dessus pour le renommer et l'organiser comme vous le souhaitez.",
-  },
-  {
-    target: '[data-tutorial="configure-btn"]',
-    message:
-      "Configurez ici le nombre de relances, le délai de chaque étape et le message envoyé à vos clients.",
+    message: "Ici, le titre de votre tableau que vous pouvez personnaliser.",
   },
   {
     target: '[data-tutorial="table-left"]',
     message:
-      "À gauche : vos colonnes client (nom, mail, montant, échéance…). Ajoutez, masquez ou réorganisez-les selon vos besoins.",
+      "À gauche : vos colonnes client (nom, mail, montant, échéance…). Ajoutez-les, masquez-les et réorganisez-les selon vos besoins.",
+  },
+  {
+    target: '[data-tutorial="configure-btn"]',
+    message:
+      "Configurez ici le nombre de relances, le rythme et le ton de chaque étape, ainsi que le message envoyé à vos clients.",
   },
   {
     target: '[data-tutorial="table-right"]',
     message:
-      "À droite : les dates de relance et le statut de paiement — tout votre suivi en un coup d'œil.",
+      'À droite : les dates de relance en un coup d\'œil. Appuyez sur « PAYE ? » pour arrêter les relances instantanément.',
   },
 ];
