@@ -7,8 +7,6 @@ import { signOutAction } from "@/app/actions/auth";
 import { getProfileAction } from "@/app/actions/profile";
 import { ContactModal } from "@/components/dashboard/ContactModal";
 import { useTutorial } from "@/contexts/TutorialContext";
-import { useDemoSession } from "@/hooks/useDemoSession";
-
 const ProfileMenuPanel = dynamic(
   () => import("@/components/dashboard/ProfileMenuPanel").then((mod) => mod.ProfileMenuPanel),
   { ssr: false },
@@ -21,12 +19,14 @@ const SettingsMenuPanel = dynamic(
 
 type AuthenticatedProfileMenuProps = {
   initialDisplayName?: string | null;
+  isDemoWorkspace?: boolean;
 };
 
 export function AuthenticatedProfileMenu({
   initialDisplayName = null,
+  isDemoWorkspace = false,
 }: AuthenticatedProfileMenuProps) {
-  const { active: demoMode } = useDemoSession();
+  const demoMode = isDemoWorkspace;
   const { requestTutorial } = useTutorial();
   const [open, setOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);

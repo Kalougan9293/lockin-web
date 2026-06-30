@@ -2,6 +2,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { formatSupabaseError } from "@/lib/supabase/errors";
 import { isAdminEmail } from "@/lib/auth/redirect";
 
+import {
+  buildActivityDomainStats,
+  type ActivityDomainStat,
+} from "./activity-domain-stats";
+
 export type AdminKpis = {
   providerCount: number;
   invoiceCount: number;
@@ -22,6 +27,7 @@ export type AdminProviderRow = {
 export type AdminDashboardData = {
   kpis: AdminKpis;
   providers: AdminProviderRow[];
+  activityDomainStats: ActivityDomainStat[];
 };
 
 export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
@@ -84,5 +90,6 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
       relanceCount: 0,
     },
     providers,
+    activityDomainStats: buildActivityDomainStats(clients ?? [], emailById),
   };
 }

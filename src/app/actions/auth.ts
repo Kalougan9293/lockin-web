@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { isActivityDomain } from "@/lib/auth/activity-domains";
 import { ensureClientWithAdmin, ensureClientWithSession } from "@/lib/auth/ensure-client";
 import { getDashboardPathForEmail } from "@/lib/auth/redirect";
 import {
@@ -31,9 +32,12 @@ export async function signUpAction(
   _prevState: AuthActionState,
   formData: FormData,
 ): Promise<AuthActionState> {
+  const domaineActivite = String(formData.get("domaineActivite") ?? "").trim();
+
   const input = {
     prenom: String(formData.get("prenom") ?? ""),
     nomSociete: String(formData.get("nomSociete") ?? ""),
+    domaineActivite,
     email: String(formData.get("email") ?? ""),
     password: String(formData.get("password") ?? ""),
     acceptCgu: formData.get("acceptCgu") === "on",
@@ -50,6 +54,7 @@ export async function signUpAction(
 
   const supabase = await createClient();
   const origin = await getOrigin();
+  const domaine = isActivityDomain(domaineActivite) ? domaineActivite : null;
 
   const { data, error } = await supabase.auth.signUp({
     email: input.email.trim(),
@@ -59,6 +64,7 @@ export async function signUpAction(
       data: {
         prenom_client: input.prenom.trim(),
         nom_societe: input.nomSociete.trim(),
+        domaine_activite: domaine,
         pays: "France",
       },
     },
@@ -74,11 +80,12 @@ export async function signUpAction(
     };
   }
 
-  if (data.user) {
+  if (data.user && domaine) {
     const clientPayload = {
       idClient: data.user.id,
       prenomClient: input.prenom.trim(),
       nomSociete: input.nomSociete.trim(),
+      domaineActivite: domaine,
     };
 
     const clientError = await ensureClientWithAdmin(clientPayload);
@@ -88,9 +95,19 @@ export async function signUpAction(
     }
   }
 
+  if (data.session && data.user?.email && domaine) {
+    await ensureClientWithSession(supabase, {
+      idClient: data.user.id,
+      prenomClient: input.prenom.trim(),
+      nomSociete: input.nomSociete.trim(),
+      domaineActivite: domaine,
+    });
+
+    redirect(getDashboardPathForEmail(data.user.email));
+  }
+
   return {
-    success:
-      "Inscription enregistrée. Consultez votre boîte mail pour confirmer votre adresse avant de vous connecter.",
+    success: "Merci pour votre inscription ! Vous pouvez maintenant vous connecter.",
   };
 }
 
@@ -129,10 +146,12 @@ export async function signInAction(
   }
 
   const metadata = user.user_metadata ?? {};
+  const domaineRaw = String(metadata.domaine_activite ?? "");
   await ensureClientWithSession(supabase, {
     idClient: user.id,
     prenomClient: String(metadata.prenom_client ?? ""),
     nomSociete: String(metadata.nom_societe ?? ""),
+    ...(isActivityDomain(domaineRaw) ? { domaineActivite: domaineRaw } : {}),
   });
 
   redirect(getDashboardPathForEmail(user.email));

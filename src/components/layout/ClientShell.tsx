@@ -6,9 +6,14 @@ import { TutorialProvider } from "@/contexts/TutorialContext";
 type ClientShellProps = {
   children: React.ReactNode;
   initialDisplayName?: string | null;
+  isDemoWorkspace?: boolean;
 };
 
-export function ClientShell({ children, initialDisplayName = null }: ClientShellProps) {
+export function ClientShell({
+  children,
+  initialDisplayName = null,
+  isDemoWorkspace = false,
+}: ClientShellProps) {
   return (
     <UserPreferencesProvider>
       <TutorialProvider>
@@ -16,7 +21,10 @@ export function ClientShell({ children, initialDisplayName = null }: ClientShell
           <header className="sticky top-0 z-50 border-b border-white/10 bg-brand-dark/90 backdrop-blur-md">
             <div className="mx-auto flex h-16 w-full max-w-[88rem] items-center justify-between px-4 sm:px-6 lg:px-8">
               <LockInLogo />
-              <AuthenticatedProfileMenu initialDisplayName={initialDisplayName} />
+              <AuthenticatedProfileMenu
+                initialDisplayName={initialDisplayName}
+                isDemoWorkspace={isDemoWorkspace}
+              />
             </div>
           </header>
 

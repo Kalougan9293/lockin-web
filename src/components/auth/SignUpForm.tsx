@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 
 import { signUpAction, type AuthActionState } from "@/app/actions/auth";
+import { ACTIVITY_DOMAINS } from "@/lib/auth/activity-domains";
 
 import { AuthCard } from "./AuthCard";
 import { AuthField } from "./AuthField";
+import { AuthSelect } from "./AuthSelect";
 import { PasswordCriteria } from "./PasswordCriteria";
 
 const initialState: AuthActionState = {};
@@ -17,7 +19,7 @@ export function SignUpForm() {
 
   if (state.success) {
     return (
-      <AuthCard title="Vérifiez votre email">
+      <AuthCard title="Inscription réussie">
         <p className="text-center text-sm leading-relaxed text-brand-muted">
           {state.success}
         </p>
@@ -59,6 +61,18 @@ export function SignUpForm() {
           autoComplete="organization"
           required
           error={state.fieldErrors?.nomSociete}
+        />
+        <AuthSelect
+          label="Domaine d'activité"
+          name="domaineActivite"
+          required
+          defaultValue=""
+          options={ACTIVITY_DOMAINS.map((domain) => ({
+            value: domain,
+            label: domain,
+          }))}
+          placeholder="Choisissez votre secteur"
+          error={state.fieldErrors?.domaineActivite}
         />
         <AuthField
           label="Mail"

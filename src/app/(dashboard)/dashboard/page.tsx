@@ -25,16 +25,15 @@ export default async function ClientDashboardPage({
 }: ClientDashboardPageProps) {
   const params = await searchParams;
   const demoParam = params[DEMO_SEARCH_PARAM];
-  const isDemo = demoParam === "1" || demoParam?.[0] === "1";
+  const isEphemeralDemo = demoParam === "1" || demoParam?.[0] === "1";
+
+  const user = await getCurrentUser();
+  const isDemoWorkspace =
+    !user && (isEphemeralDemo || isMvpDemoMode());
 
   let initialDisplayName: string | null = null;
 
-  if (!isDemo && !isMvpDemoMode()) {
-    const user = await getCurrentUser();
-    if (!user) {
-      redirect("/login");
-    }
-
+  if (user && !isEphemeralDemo) {
     initialDisplayName =
       String(user.user_metadata?.prenom_client ?? "").trim() || null;
 
@@ -42,18 +41,26 @@ export default async function ClientDashboardPage({
     if (isAdminEmail(user.email) && !impersonatedId) {
       redirect("/admin");
     }
+  } else if (!user && !isEphemeralDemo && !isMvpDemoMode()) {
+    redirect("/login");
   }
 
-  const impersonation = isDemo ? null : await getImpersonationDisplayContext();
-  const dashboardUserId =
-    isDemo || isMvpDemoMode() ? null : await resolveDashboardUserId();
+  const impersonation = isDemoWorkspace
+    ? null
+    : await getImpersonationDisplayContext();
+  const dashboardUserId = isDemoWorkspace
+    ? null
+    : await resolveDashboardUserId();
 
   const initialDashboardData = dashboardUserId
     ? await loadDashboardDataForUser(dashboardUserId)
     : null;
 
   return (
-    <ClientShell initialDisplayName={initialDisplayName}>
+    <ClientShell
+      initialDisplayName={initialDisplayName}
+      isDemoWorkspace={isDemoWorkspace}
+    >
       {impersonation ? <ImpersonationBanner context={impersonation} /> : null}
       <Suspense
         fallback={
@@ -65,6 +72,7 @@ export default async function ClientDashboardPage({
         <DashboardWorkspace
           impersonationActive={Boolean(impersonation)}
           initialDashboardData={initialDashboardData}
+          isDemoWorkspace={isDemoWorkspace}
         />
       </Suspense>
     </ClientShell>

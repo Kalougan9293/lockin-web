@@ -63,13 +63,15 @@ type PendingImport = {
 type DashboardWorkspaceProps = {
   impersonationActive?: boolean;
   initialDashboardData?: DashboardInitialData | null;
+  isDemoWorkspace?: boolean;
 };
 
 export function DashboardWorkspace({
   impersonationActive = false,
   initialDashboardData = null,
+  isDemoWorkspace = false,
 }: DashboardWorkspaceProps) {
-  const { fromUrl: isEphemeralDemo, sessionKey: demoSessionKey } = useDemoSession();
+  const { sessionKey: demoSessionKey } = useDemoSession();
   const {
     tables,
     deliveries,
@@ -81,7 +83,7 @@ export function DashboardWorkspace({
     removeTable,
   } = useDashboardTables(
     impersonationActive,
-    isEphemeralDemo,
+    isDemoWorkspace,
     demoSessionKey,
     initialDashboardData,
   );
@@ -341,7 +343,7 @@ export function DashboardWorkspace({
 
   return (
     <>
-      {isEphemeralDemo ? (
+      {isDemoWorkspace ? (
         <p className="mb-4 text-center text-sm font-semibold text-red-500">
           Mode démo : rien n&apos;est enregistré, aucun e-mail n&apos;est
           envoyé. Créez un compte pour envoyer des relances.
@@ -412,7 +414,7 @@ export function DashboardWorkspace({
               onRecoveryClick={(rowIndex) =>
                 setRecoveryTarget({ tableId: activeTable.id, rowIndex })
               }
-              simulateRelances={isEphemeralDemo}
+              simulateRelances={isDemoWorkspace}
             />
 
             <div className="mt-4 flex min-h-10 w-full items-center justify-end">
@@ -512,7 +514,7 @@ export function DashboardWorkspace({
           ]}
           relanceSteps={recoveryTable.relanceSteps}
           deliveries={filterDeliveriesForLigne(deliveries, recoveryRow.id)}
-          simulateRelances={isEphemeralDemo}
+          simulateRelances={isDemoWorkspace}
           onClose={() => setRecoveryTarget(null)}
         />
       ) : null}

@@ -12,8 +12,6 @@ import {
 import { AuthField } from "@/components/auth/AuthField";
 import { PasswordCriteria } from "@/components/auth/PasswordCriteria";
 import { DeleteAccountModal } from "@/components/dashboard/DeleteAccountModal";
-import { MVP_DEMO_PROFILE } from "@/lib/mvp-demo";
-import { useDemoSession } from "@/hooks/useDemoSession";
 
 const initialState: ProfileActionState = {};
 
@@ -44,27 +42,18 @@ export function ProfileMenuPanel() {
   const [exportError, setExportError] = useState<string | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [isExporting, startExportTransition] = useTransition();
-  const { active: demoMode } = useDemoSession();
 
   useEffect(() => {
     setLoading(true);
     setPassword("");
     setConfirmPassword("");
 
-    if (demoMode) {
-      setProfile({ ...MVP_DEMO_PROFILE });
-      setLoading(false);
-      return;
-    }
-
     getProfileAction()
       .then((data) => setProfile(data))
       .finally(() => setLoading(false));
-  }, [demoMode]);
+  }, []);
 
   function handleExportData() {
-    if (demoMode) return;
-
     setExportError(null);
     startExportTransition(async () => {
       const result = await exportUserDataAction();
@@ -83,16 +72,10 @@ export function ProfileMenuPanel() {
         <p className="py-3 text-center text-xs text-brand-muted">Chargement…</p>
       ) : (
         <form
-          action={demoMode ? undefined : formAction}
+          action={formAction}
           className="space-y-2.5"
           onClick={(event) => event.stopPropagation()}
         >
-          {demoMode ? (
-            <p className="rounded-lg border border-amber-400/20 bg-amber-400/10 px-2.5 py-2 text-[11px] leading-relaxed text-amber-100/90">
-              Mode démo — modification à la mise en ligne.
-            </p>
-          ) : null}
-
           <AuthField
             label="Prénom"
             name="prenom"
@@ -157,7 +140,7 @@ export function ProfileMenuPanel() {
 
           <button
             type="submit"
-            disabled={demoMode || isPending}
+            disabled={isPending}
             className="w-full rounded-lg bg-brand-accent px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isPending ? "Enregistrement…" : "Enregistrer"}
@@ -170,7 +153,7 @@ export function ProfileMenuPanel() {
             <button
               type="button"
               onClick={handleExportData}
-              disabled={demoMode || isExporting}
+              disabled={isExporting}
               className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isExporting ? "Export en cours…" : "Exporter mes données"}
@@ -183,8 +166,7 @@ export function ProfileMenuPanel() {
             <button
               type="button"
               onClick={() => setDeleteModalOpen(true)}
-              disabled={demoMode}
-              className="w-full rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-200 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-200 transition-colors hover:bg-red-500/20"
             >
               Supprimer mon compte
             </button>
@@ -192,7 +174,7 @@ export function ProfileMenuPanel() {
         </form>
       )}
       <DeleteAccountModal
-        open={deleteModalOpen && !demoMode}
+        open={deleteModalOpen}
         onClose={() => setDeleteModalOpen(false)}
       />
     </div>

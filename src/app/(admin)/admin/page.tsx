@@ -1,3 +1,4 @@
+import { AdminActivityDomainChart } from "@/components/admin/AdminActivityDomainChart";
 import { AdminKpiCards } from "@/components/admin/AdminKpiCards";
 import { AdminProvidersTable } from "@/components/admin/AdminProvidersTable";
 import { AppShell } from "@/components/layout/AppShell";
@@ -8,12 +9,13 @@ export default async function AdminDashboardPage() {
   await requireAdminUser();
 
   try {
-    const { kpis, providers } = await fetchAdminDashboardData();
+    const { kpis, providers, activityDomainStats } = await fetchAdminDashboardData();
 
     return (
       <AppShell>
         <div className="space-y-8">
           <AdminKpiCards kpis={kpis} />
+          <AdminActivityDomainChart stats={activityDomainStats} />
           <section>
             <h2 className="mb-4 text-center text-lg font-semibold text-white">
               Clients inscrits

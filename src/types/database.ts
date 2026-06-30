@@ -4,6 +4,7 @@ export type ClientLockin = {
   id_client: string;
   prenom_client: string;
   nom_societe: string;
+  domaine_activite: string | null;
   forfait: "freemium" | "pro" | "enterprise";
   pays: string;
   date_inscription: string;
@@ -72,6 +73,7 @@ export type Database = {
           id_client: string;
           prenom_client: string;
           nom_societe: string;
+          domaine_activite?: string | null;
           forfait?: ClientLockin["forfait"];
           pays?: string;
           date_inscription?: string;
@@ -80,6 +82,7 @@ export type Database = {
         Update: {
           prenom_client?: string;
           nom_societe?: string;
+          domaine_activite?: string | null;
           forfait?: ClientLockin["forfait"];
           pays?: string;
           updated_at?: string;

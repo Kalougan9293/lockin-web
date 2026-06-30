@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import type { ActivityDomain } from "@/lib/auth/activity-domains";
+
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/types/database";
 
@@ -7,13 +9,20 @@ type ClientPayload = {
   idClient: string;
   prenomClient: string;
   nomSociete: string;
+  domaineActivite?: ActivityDomain;
 };
 
-function buildClientRow({ idClient, prenomClient, nomSociete }: ClientPayload) {
+function buildClientRow({
+  idClient,
+  prenomClient,
+  nomSociete,
+  domaineActivite,
+}: ClientPayload) {
   return {
     id_client: idClient,
     prenom_client: prenomClient,
     nom_societe: nomSociete,
+    ...(domaineActivite ? { domaine_activite: domaineActivite } : {}),
     forfait: "freemium" as const,
     pays: "France",
   };

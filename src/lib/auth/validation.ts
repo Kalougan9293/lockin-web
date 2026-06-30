@@ -1,3 +1,5 @@
+import { isActivityDomain } from "@/lib/auth/activity-domains";
+
 const PASSWORD_MIN_LENGTH = 8;
 const HAS_UPPERCASE = /[A-Z]/;
 const HAS_SPECIAL = /[^A-Za-z0-9]/;
@@ -5,6 +7,7 @@ const HAS_SPECIAL = /[^A-Za-z0-9]/;
 export type SignUpInput = {
   prenom: string;
   nomSociete: string;
+  domaineActivite: string;
   email: string;
   password: string;
   acceptCgu: boolean;
@@ -61,6 +64,12 @@ export function validateSignUp(input: SignUpInput): FieldErrors {
 
   if (!input.nomSociete.trim()) {
     errors.nomSociete = "Le nom de la société est requis.";
+  }
+
+  if (!input.domaineActivite.trim()) {
+    errors.domaineActivite = "Le domaine d'activité est requis.";
+  } else if (!isActivityDomain(input.domaineActivite.trim())) {
+    errors.domaineActivite = "Sélectionnez un domaine d'activité valide.";
   }
 
   if (!input.email.trim()) {
