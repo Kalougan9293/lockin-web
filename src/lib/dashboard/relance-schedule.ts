@@ -97,3 +97,42 @@ export function buildRelanceScheduleForRow(
 
   return schedule;
 }
+
+export const DUE_DATE_MUST_BE_TOMORROW_ERROR =
+  "La date d'échéance doit être fixée au moins à demain (J+1) pour pouvoir planifier les relances correctement.";
+
+/** Échéance au plus tard aujourd'hui → invalide pour planifier les relances. */
+export function isDueDateOnOrBeforeToday(isoDate: string): boolean {
+  const dueDate = parseFlexibleDate(isoDate);
+  if (!dueDate) return false;
+
+  const today = startOfDay(new Date());
+  return startOfDay(dueDate).getTime() <= today.getTime();
+}
+
+export function validateDueDateForRelance(isoDate: string): string | null {
+  const trimmed = isoDate.trim();
+  if (!trimmed) return null;
+
+  const dueDate = parseFlexibleDate(trimmed);
+  if (!dueDate) {
+    return "Date d'échéance invalide.";
+  }
+
+  if (isDueDateOnOrBeforeToday(trimmed)) {
+    return DUE_DATE_MUST_BE_TOMORROW_ERROR;
+  }
+
+  return null;
+}
+
+export function getDueDateFromPayload(
+  payload: Record<string, string>,
+): string {
+  for (const [label, value] of Object.entries(payload)) {
+    if (isDueDateColumnLabel(label)) {
+      return value.trim();
+    }
+  }
+  return "";
+}

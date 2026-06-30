@@ -19,6 +19,7 @@ import {
   startOfDay,
 } from "./relance-schedule";
 import { consolidateRelanceCronItems } from "./consolidate-relance-cron-items";
+import { finalizeRelanceEmailBody } from "./relance-email-body";
 import { mapTableauToTableData } from "./tableau-db";
 
 type Supabase = SupabaseClient<Database>;
@@ -259,5 +260,8 @@ export async function collectDueRelancesForCron(
     }
   }
 
-  return consolidateRelanceCronItems(items);
+  return consolidateRelanceCronItems(items).map((item) => ({
+    ...item,
+    body: finalizeRelanceEmailBody(item.body),
+  }));
 }

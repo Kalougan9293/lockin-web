@@ -9,6 +9,10 @@ import {
   type ParsedInvoiceFields,
 } from "@/lib/invoice/parse-invoice-fields";
 import { normalizeImportFields } from "@/lib/invoice/normalize-import-fields";
+import {
+  getDueDateFromPayload,
+  validateDueDateForRelance,
+} from "@/lib/dashboard/relance-schedule";
 import type { BulkImportEntry } from "@/lib/invoice/process-import-files";
 import { getColumnAutocomplete, getColumnFieldName } from "@/types/tableau";
 import type { TableData, TableSummary } from "@/types/tableau";
@@ -119,6 +123,17 @@ export function BulkImportModal({
     if (payloads.length === 0) {
       setError("Corrigez au moins un champ par ligne.");
       return;
+    }
+
+    for (const payload of payloads) {
+      const dueDate = getDueDateFromPayload(payload);
+      if (!dueDate) continue;
+
+      const dueDateError = validateDueDateForRelance(dueDate);
+      if (dueDateError) {
+        setError(dueDateError);
+        return;
+      }
     }
 
     onSubmit(targetTableId, payloads);

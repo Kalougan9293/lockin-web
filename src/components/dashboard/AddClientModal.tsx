@@ -8,6 +8,10 @@ import { PreferenceDateField } from "@/components/dashboard/PreferenceDateField"
 import { useUserPreferences } from "@/contexts/UserPreferencesContext";
 import { useHoldDragReorder } from "@/hooks/useHoldDragReorder";
 import { normalizeImportFields } from "@/lib/invoice/normalize-import-fields";
+import {
+  getDueDateFromPayload,
+  validateDueDateForRelance,
+} from "@/lib/dashboard/relance-schedule";
 import { isAmountColumnLabel } from "@/lib/preferences/currency-format";
 import { isDateColumnLabel } from "@/lib/preferences/date-format";
 import {
@@ -228,6 +232,14 @@ export function AddClientModal({
 
     if (hasEcheanceField && !echeanceValue) {
       setError("Renseignez la date d'échéance pour planifier les relances.");
+      return;
+    }
+
+    const dueDateError = validateDueDateForRelance(
+      getDueDateFromPayload(payload) || echeanceValue,
+    );
+    if (hasEcheanceField && dueDateError) {
+      setError(dueDateError);
       return;
     }
 

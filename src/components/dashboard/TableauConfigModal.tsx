@@ -197,25 +197,37 @@ export function TableauConfigModal({
         aria-labelledby="tableau-config-title"
         className="relative z-10 flex max-h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-brand-card shadow-2xl shadow-black/50"
       >
-        <header className="flex shrink-0 items-center justify-between gap-4 border-b border-white/10 px-5 py-4 sm:px-6">
-          <h2 id="tableau-config-title" className="text-base font-semibold text-white sm:text-lg">
-            Configuration des relances
-          </h2>
-          <div className="flex shrink-0 gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-brand-muted transition-colors hover:border-white/20 hover:text-white"
-            >
-              Annuler
-            </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              className="rounded-lg bg-brand-accent px-4 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
-            >
-              Enregistrer
-            </button>
+        <header className="flex shrink-0 flex-col gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <h2 id="tableau-config-title" className="text-base font-semibold text-white sm:text-lg">
+              Configuration des relances
+            </h2>
+            <div className="flex w-full flex-col gap-2 sm:max-w-md sm:items-end">
+              <p
+                role="status"
+                className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100/95 sm:text-right sm:text-xs"
+              >
+                <strong className="font-semibold text-amber-50">Attention !</strong> Si vous
+                modifiez et enregistrez une nouvelle configuration pour ce client, tout
+                l&apos;historique des relances déjà envoyées pour lui sera réinitialisé.
+              </p>
+              <div className="flex shrink-0 justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-brand-muted transition-colors hover:border-white/20 hover:text-white"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  className="rounded-lg bg-brand-accent px-4 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
+                >
+                  Enregistrer
+                </button>
+              </div>
+            </div>
           </div>
         </header>
 
