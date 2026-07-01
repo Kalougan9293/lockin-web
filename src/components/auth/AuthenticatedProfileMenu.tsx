@@ -35,6 +35,7 @@ export function AuthenticatedProfileMenu({
   const [displayName, setDisplayName] = useState<string | null>(
     () => (demoMode ? "Démo" : initialDisplayName),
   );
+  const [companyName, setCompanyName] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -53,6 +54,7 @@ export function AuthenticatedProfileMenu({
     getProfileAction().then((profile) => {
       if (!cancelled) {
         setDisplayName(profile?.prenom?.trim() || null);
+        setCompanyName(profile?.nomSociete?.trim() || null);
       }
     });
 
@@ -69,6 +71,7 @@ export function AuthenticatedProfileMenu({
     getProfileAction().then((profile) => {
       if (!cancelled) {
         setDisplayName(profile?.prenom?.trim() || null);
+        setCompanyName(profile?.nomSociete?.trim() || null);
       }
     });
 
@@ -135,9 +138,16 @@ export function AuthenticatedProfileMenu({
     <>
       <div ref={containerRef} className="relative flex items-center gap-2.5">
         {displayName ? (
-          <span className="max-w-[8rem] truncate text-sm font-medium text-violet-100/90 sm:max-w-[12rem]">
-            {displayName}
-          </span>
+          <div className="hidden text-right sm:block">
+            <p className="max-w-[12rem] truncate text-sm font-medium text-violet-100/90">
+              {displayName}
+            </p>
+            {companyName ? (
+              <p className="max-w-[12rem] truncate text-[11px] text-brand-muted/75">
+                {companyName}
+              </p>
+            ) : null}
+          </div>
         ) : null}
         <button
           type="button"

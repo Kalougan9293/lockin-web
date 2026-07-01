@@ -6,22 +6,20 @@ import { useEffect, useState } from "react";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useDashboardTables } from "@/hooks/useDashboardTables";
 import { useDemoSession } from "@/hooks/useDemoSession";
-import { validatePdfFile } from "@/lib/dashboard/import-limits";
 import {
   canAddRowToTable,
   canAddTable,
   getImportRowCapacity,
 } from "@/lib/dashboard/plan-limits";
 import { filterDeliveriesForLigne, filterDeliveriesForTableau } from "@/lib/dashboard/relance-delivery-display";
-import type { ParsedInvoiceFields } from "@/lib/invoice/parse-invoice-fields";
-import type { BulkImportEntry } from "@/lib/invoice/process-import-files";
+import { classifyServerImportFiles } from "@/lib/import/process-server-import";
+import { importFilesViaApi } from "@/lib/import/import-via-api";
 import type { DashboardInitialData } from "@/types/dashboard";
 import {
   getRightColumns,
   hideLeftColumn,
   addOrRestoreLeftColumn,
   mergeClientValuesIntoTable,
-  mergeMultipleClientsIntoTable,
 } from "@/types/tableau";
 
 import { ImportPrompt } from "./ImportPrompt";
@@ -30,11 +28,6 @@ import { DashboardTutorial } from "./tutorial/DashboardTutorial";
 
 const AddClientModal = dynamic(
   () => import("./AddClientModal").then((mod) => mod.AddClientModal),
-  { ssr: false },
-);
-
-const BulkImportModal = dynamic(
-  () => import("./BulkImportModal").then((mod) => mod.BulkImportModal),
   { ssr: false },
 );
 
@@ -47,18 +40,6 @@ const RecoveryDrawer = dynamic(
   () => import("./RecoveryDrawer").then((mod) => mod.RecoveryDrawer),
   { ssr: false },
 );
-
-type PendingBulkImport = {
-  tableId: string;
-  sourceLabel: string;
-  entries: BulkImportEntry[];
-};
-
-type PendingImport = {
-  tableId: string;
-  fileName: string;
-  fields: ParsedInvoiceFields;
-};
 
 type DashboardWorkspaceProps = {
   impersonationActive?: boolean;
@@ -81,6 +62,7 @@ export function DashboardWorkspace({
     updateTable,
     addTableAfter,
     removeTable,
+    syncTableFromServer,
   } = useDashboardTables(
     impersonationActive,
     isDemoWorkspace,
@@ -102,11 +84,9 @@ export function DashboardWorkspace({
     tableId: string;
     rowIndex: number;
   } | null>(null);
-  const [importQueue, setImportQueue] = useState<PendingImport[]>([]);
-  const [pendingBulkImport, setPendingBulkImport] =
-    useState<PendingBulkImport | null>(null);
   const [importLoading, setImportLoading] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  const [importSuccess, setImportSuccess] = useState<string | null>(null);
 
   const tableSummaries = tables.map((table) => ({
     id: table.id,
@@ -145,13 +125,21 @@ export function DashboardWorkspace({
     if (!tableId || files.length === 0) return;
 
     setImportError(null);
+    setImportSuccess(null);
 
-    if (getImportRowCapacity(tables, tableId) === 0) return;
+    if (isDemoWorkspace) {
+      setImportError(
+        "L'import IA nécessite un compte — rien n'est enregistré en mode démo.",
+      );
+      return;
+    }
 
-    const { classifyImportFiles, processImportFiles } = await import(
-      "@/lib/invoice/process-import-files"
-    );
-    const { pdfs, csvs, invalid } = classifyImportFiles(files);
+    if (getImportRowCapacity(tables, tableId) === 0) {
+      setImportError("Limite de lignes atteinte — import impossible.");
+      return;
+    }
+
+    const { pdfs, csvs, invalid } = classifyServerImportFiles(files);
 
     if (invalid.length > 0) {
       setImportError("Formats acceptés : PDF et CSV.");
@@ -168,119 +156,26 @@ export function DashboardWorkspace({
       return;
     }
 
-    if (csvs.length === 1) {
-      setImportLoading(true);
-      try {
-        const { entries, errors } = await processImportFiles(files);
-        if (errors.length > 0) {
-          setImportError(errors.slice(0, 3).join(" "));
-        }
-        if (entries.length === 0) return;
-
-        setPendingBulkImport({
-          tableId,
-          sourceLabel: files[0]?.name ?? "Import CSV",
-          entries,
-        });
-      } finally {
-        setImportLoading(false);
-      }
-      return;
-    }
-
-    if (pdfs.length === 0) return;
-
-    const { IMPORT_LIMITS } = await import("@/lib/dashboard/import-limits");
-    if (pdfs.length > IMPORT_LIMITS.MAX_PDF_FILES) {
-      setImportError(`Maximum ${IMPORT_LIMITS.MAX_PDF_FILES} PDF par import.`);
-      return;
-    }
-
     setImportLoading(true);
     try {
-      const [{ extractTextFromPdf }, { parseInvoiceFields, hasUsableInvoiceFields }] =
-        await Promise.all([
-          import("@/lib/invoice/extract-pdf-text"),
-          import("@/lib/invoice/parse-invoice-fields"),
-        ]);
+      const result = await importFilesViaApi(tableId, files);
+      syncTableFromServer(result.table);
 
-      const queue: PendingImport[] = [];
-      const errors: string[] = [];
-
-      for (const file of pdfs) {
-        if (!canAddRowToTable(tables, tableId)) {
-          errors.push("Limite de lignes atteinte — import interrompu.");
-          break;
-        }
-
-        const validationError = validatePdfFile(file);
-        if (validationError) {
-          errors.push(`${file.name} : ${validationError}`);
-          continue;
-        }
-
-        try {
-          const text = await extractTextFromPdf(file);
-          if (!text.trim()) {
-            errors.push(
-              `${file.name} : aucun texte lisible (scan non supporté).`,
-            );
-            continue;
-          }
-
-          const fields = parseInvoiceFields(text);
-          if (!hasUsableInvoiceFields(fields)) {
-            errors.push(`${file.name} : informations non détectées.`);
-            continue;
-          }
-
-          queue.push({ tableId, fileName: file.name, fields });
-        } catch {
-          errors.push(`${file.name} : lecture impossible.`);
-        }
+      const warningText = result.errors.slice(0, 2).join(" ");
+      if (warningText) {
+        setImportError(warningText);
       }
 
-      if (errors.length > 0) {
-        setImportError(errors.slice(0, 3).join(" "));
-      }
-
-      if (queue.length > 0) {
-        setImportQueue(queue);
-      }
-    } catch {
-      setImportError("Erreur lors de la lecture des PDF. Réessayez.");
+      setImportSuccess(
+        `${result.importedCount} ligne${result.importedCount > 1 ? "s" : ""} importée${result.importedCount > 1 ? "s" : ""} automatiquement.`,
+      );
+    } catch (error) {
+      setImportError(
+        error instanceof Error ? error.message : "Import impossible. Réessayez.",
+      );
     } finally {
       setImportLoading(false);
     }
-  }
-
-  function closeCurrentImport() {
-    setImportQueue((queue) => queue.slice(1));
-  }
-
-  function handleConfirmImport(valuesByLabel: Record<string, string>) {
-    const current = importQueue[0];
-    if (!current) return;
-
-    if (!canAddRowToTable(tables, current.tableId)) {
-      closeCurrentImport();
-      return;
-    }
-
-    updateTable(current.tableId, (table) =>
-      mergeClientValuesIntoTable(table, valuesByLabel),
-    );
-    closeCurrentImport();
-  }
-
-  function handleConfirmBulkImport(
-    tableId: string,
-    rows: Record<string, string>[],
-  ) {
-    if (rows.length === 0) return;
-
-    updateTable(tableId, (table) => mergeMultipleClientsIntoTable(table, rows));
-    setPendingBulkImport(null);
   }
 
   function confirmDelete() {
@@ -313,13 +208,6 @@ export function DashboardWorkspace({
     if (newTableId) {
       setActiveTableId(newTableId);
     }
-  }
-
-  function handleActiveTableChange(tableId: string) {
-    setActiveTableId(tableId);
-    setImportQueue((queue) =>
-      queue.length > 0 ? [{ ...queue[0], tableId }, ...queue.slice(1)] : queue,
-    );
   }
 
   const configTable = tables.find((table) => table.id === configTargetId);
@@ -362,10 +250,16 @@ export function DashboardWorkspace({
         </p>
       ) : null}
 
+      {importSuccess ? (
+        <p className="mb-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-100">
+          {importSuccess}
+        </p>
+      ) : null}
+
       <ImportPrompt
         tables={tableSummaries}
         selectedTableId={activeTableId}
-        onSelectedTableIdChange={handleActiveTableChange}
+        onSelectedTableIdChange={setActiveTableId}
         onAddManual={() => openAddClient(activeTableId)}
         onFilesSelected={handleFilesSelected}
         onAddTable={() => void handleAddTable()}
@@ -375,7 +269,7 @@ export function DashboardWorkspace({
         addManualDisabled={!canAddRowToActiveTable}
       />
 
-      <section className="w-full">
+      <section className="w-full pt-4">
         <div className="w-full overflow-x-auto">
           <div className="mx-auto w-max min-w-0 max-w-none">
             <TableauGrid
@@ -450,44 +344,6 @@ export function DashboardWorkspace({
           open
           onClose={() => setAddClientTargetId(null)}
           onSubmit={handleAddClient}
-        />
-      ) : null}
-
-      {importQueue[0] ? (
-        <AddClientModal
-          open
-          importedFields={importQueue[0].fields}
-          sourceFileName={importQueue[0].fileName}
-          remainingImportCount={importQueue.length - 1}
-          targetTable={{
-            tables: tableSummaries,
-            value: importQueue[0].tableId,
-            onChange: handleActiveTableChange,
-            onAddTable: () => void handleAddTable(),
-            canAddTable: canCreateTable,
-          }}
-          onClose={closeCurrentImport}
-          onSubmit={handleConfirmImport}
-        />
-      ) : null}
-
-      {pendingBulkImport ? (
-        <BulkImportModal
-          open
-          sourceLabel={pendingBulkImport.sourceLabel}
-          entries={pendingBulkImport.entries}
-          tables={tableSummaries}
-          allTables={tables}
-          targetTableId={pendingBulkImport.tableId}
-          onTargetTableIdChange={(tableId) =>
-            setPendingBulkImport((current) =>
-              current ? { ...current, tableId } : current,
-            )
-          }
-          onAddTable={() => void handleAddTable()}
-          canAddTable={canCreateTable}
-          onClose={() => setPendingBulkImport(null)}
-          onSubmit={handleConfirmBulkImport}
         />
       ) : null}
 

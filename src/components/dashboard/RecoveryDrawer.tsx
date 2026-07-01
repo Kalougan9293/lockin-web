@@ -67,8 +67,17 @@ function StepCard({
   compactTitle?: boolean;
   showSubtitle?: boolean;
 }) {
+  const accentClass =
+    step.id === 1
+      ? "border-violet-400/20 ring-violet-400/10"
+      : step.id === 2
+        ? "border-amber-400/20 ring-amber-400/10"
+        : "border-rose-400/20 ring-rose-400/10";
+
   return (
-    <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 shadow-lg shadow-violet-950/20 ring-1 ring-white/[0.06]">
+    <section
+      className={`rounded-2xl border bg-white/[0.03] p-5 shadow-lg shadow-violet-950/20 ring-1 ${accentClass}`}
+    >
       <div className="mb-4 flex items-start gap-3">
         <span
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-500/20 text-lg ring-1 ring-violet-400/30"

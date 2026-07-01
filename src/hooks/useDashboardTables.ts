@@ -331,6 +331,12 @@ export function useDashboardTables(
     [reportPersistError],
   );
 
+  const syncTableFromServer = useCallback((table: TableData) => {
+    setTables((current) =>
+      current.map((entry) => (entry.id === table.id ? table : entry)),
+    );
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -454,5 +460,6 @@ export function useDashboardTables(
     updateTable,
     addTableAfter,
     removeTable,
+    syncTableFromServer,
   };
 }

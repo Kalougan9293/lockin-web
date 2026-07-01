@@ -18,10 +18,10 @@ import {
   buildRelanceScheduleForRow,
   startOfDay,
 } from "./relance-schedule";
-import { consolidateRelanceCronItems } from "./consolidate-relance-cron-items";
+import { consolidateRelanceCronItems, type CronRelanceDraftItem } from "./consolidate-relance-cron-items";
 import {
-  getCreditorContext,
   fetchCreditorContexts,
+  getCreditorContext,
 } from "./creditor-context";
 import { buildRelanceEmailHtml } from "./relance-email-body";
 import { mapTableauToTableData } from "./tableau-db";
@@ -40,7 +40,9 @@ export type CronRelanceItem = {
   to: string;
   clientName?: string;
   subject: string;
+  /** Corps HTML prêt pour n8n (emailFormat: html). */
   body: string;
+  bodyFormat: "html";
   /** Montants et échéances formatés à mettre en gras dans le HTML. */
   emphasisValues?: string[];
   scheduledFor: string;
@@ -225,7 +227,7 @@ export async function collectDueRelancesForCron(
   if (error) throw error;
   if (!data?.length) return [];
 
-  const items: CronRelanceItem[] = [];
+  const items: CronRelanceDraftItem[] = [];
 
   for (const rawTableau of data) {
     const table = mapTableauToTableData(rawTableau);
@@ -281,7 +283,7 @@ export async function collectDueRelancesForCron(
           to,
           clientName: clientName || undefined,
           subject: buildRelanceSubject(step, stepIndex),
-          body: resolveRelanceMessageTemplate(step.messageTemplate, row, columns),
+          messageBody: resolveRelanceMessageTemplate(step.messageTemplate, row, columns),
           emphasisValues: getRelanceEmphasisValues(row, columns),
           scheduledFor,
         });
@@ -296,14 +298,16 @@ export async function collectDueRelancesForCron(
 
   return consolidateRelanceCronItems(items).map((item) => {
     const creditor = getCreditorContext(creditorContexts, item.userId);
+    const { messageBody, ...rest } = item;
 
     return {
-      ...item,
+      ...rest,
       body: buildRelanceEmailHtml(
-        item.body,
+        messageBody,
         creditor,
         item.emphasisValues ?? [],
       ),
+      bodyFormat: "html" as const,
     };
   });
 }

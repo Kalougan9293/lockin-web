@@ -2,17 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { fredoka } from "@/lib/fonts/fredoka";
+import {
+  dashboardTableTitleClassName,
+  dashboardTitleGradientClassName,
+} from "@/lib/dashboard/typography";
 
 type EditableTableTitleProps = {
   name: string;
   onRename: (name: string) => void;
 };
 
-export const tableTitleTextClassName = `${fredoka.className} text-4xl font-bold leading-none tracking-tight sm:text-5xl`;
+export const tableTitleTextClassName = dashboardTableTitleClassName;
 
-export const tableTitleGradientClassName =
-  "bg-gradient-to-r from-violet-300 via-fuchsia-300 to-indigo-300 bg-clip-text text-transparent";
+export const tableTitleGradientClassName = dashboardTitleGradientClassName;
 
 export function EditableTableTitle({ name, onRename }: EditableTableTitleProps) {
   const inputRef = useRef<HTMLInputElement>(null);

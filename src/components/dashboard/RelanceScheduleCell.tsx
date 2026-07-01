@@ -3,6 +3,7 @@ import {
   getRelanceDisplayFullDate,
   getRelanceDisplayTitle,
   type RelanceDisplayItem,
+  type RelanceDisplayStatus,
 } from "@/lib/dashboard/relance-delivery-display";
 
 type RelanceScheduleCellProps = {
@@ -39,6 +40,42 @@ const STATUS_STYLES = {
   },
 } as const;
 
+export { STATUS_STYLES };
+
+export function RelanceStatusDot({
+  status,
+  animate = false,
+  size = "md",
+}: {
+  status: RelanceDisplayStatus;
+  animate?: boolean;
+  size?: "sm" | "md";
+}) {
+  const styles = STATUS_STYLES[status];
+  const outer = size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4";
+  const inner = size === "sm" ? "h-2 w-2" : "h-2.5 w-2.5";
+  const shouldAnimate = animate || status === "scheduled";
+
+  return (
+    <span className={`relative flex ${outer} shrink-0 items-center justify-center`}>
+      {shouldAnimate ? (
+        <span
+          aria-hidden
+          className={`absolute inset-0 rounded-full ${styles.pulse} animate-breathe`}
+        />
+      ) : (
+        <span aria-hidden className={`absolute inset-0 rounded-full ${styles.pulse}`} />
+      )}
+      <span
+        aria-hidden
+        className={`relative ${inner} rounded-full ${styles.dot} ${
+          shouldAnimate ? "animate-breathe" : ""
+        }`}
+      />
+    </span>
+  );
+}
+
 export function RelanceScheduleCell({ item, paid = false, missingDueDate = false }: RelanceScheduleCellProps) {
   if (missingDueDate) {
     return (
@@ -73,22 +110,7 @@ export function RelanceScheduleCell({ item, paid = false, missingDueDate = false
       className="flex w-full min-w-0 flex-col items-center justify-center gap-1 px-0.5"
       title={`${statusTitle} le ${fullDate}`}
     >
-      <span className="relative flex h-4 w-4 shrink-0 items-center justify-center">
-        {animatePulse ? (
-          <span
-            aria-hidden
-            className={`absolute inset-0 rounded-full ${styles.pulse} animate-breathe`}
-          />
-        ) : (
-          <span aria-hidden className={`absolute inset-0 rounded-full ${styles.pulse}`} />
-        )}
-        <span
-          aria-hidden
-          className={`relative h-2.5 w-2.5 rounded-full ${styles.dot} ${
-            animatePulse ? "animate-breathe" : ""
-          }`}
-        />
-      </span>
+      <RelanceStatusDot status={item.status} animate={animatePulse} />
       <span
         className={`whitespace-nowrap text-xs font-medium tabular-nums leading-tight ${styles.text} ${paidStrikeClass}`}
       >

@@ -88,7 +88,7 @@ export function ImportPrompt({
   }
 
   return (
-    <section className="mb-6 flex flex-col items-center">
+      <section className="mb-7 flex flex-col items-center">
       <input
         ref={inputRef}
         type="file"

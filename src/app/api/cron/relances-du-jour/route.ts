@@ -4,6 +4,7 @@ import { verifyCronSecret } from "@/lib/cron/auth";
 import { collectDueRelancesForCron } from "@/lib/dashboard/relance-deliveries";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+/** Relances du jour pour n8n : chaque item.body est du HTML (bodyFormat: html). */
 export async function GET(request: Request) {
   const unauthorized = verifyCronSecret(request);
   if (unauthorized) return unauthorized;

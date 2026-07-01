@@ -171,3 +171,48 @@ export function getRelanceDisplayCompactLabel(item: RelanceDisplayItem): string 
 export function getRelanceDisplayFullDate(item: RelanceDisplayItem): string {
   return formatRelanceDisplayDate(item.displayDate);
 }
+
+export type RelanceProgressStep = {
+  step: RelanceStep;
+  index: number;
+  item: RelanceDisplayItem | null;
+};
+
+export type RelanceProgressState = {
+  steps: RelanceProgressStep[];
+  currentIndex: number;
+};
+
+export function buildRelanceProgressForRow(
+  row: ClientRow,
+  columns: ColumnDef[],
+  relanceSteps: RelanceStep[],
+  deliveries: RelanceDeliveryRow[] = [],
+  referenceDate: Date = new Date(),
+  options?: RelanceDisplayOptions,
+): RelanceProgressState | null {
+  if (relanceSteps.length === 0) return null;
+
+  const displayMap = buildRelanceDisplayForRow(
+    row,
+    columns,
+    relanceSteps,
+    deliveries,
+    referenceDate,
+    options,
+  );
+
+  const steps = relanceSteps.map((step, index) => ({
+    step,
+    index,
+    item: displayMap.get(step.id) ?? null,
+  }));
+
+  const firstActiveIndex = steps.findIndex(
+    (entry) => entry.item && entry.item.status !== "sent",
+  );
+  const currentIndex =
+    firstActiveIndex === -1 ? Math.max(steps.length - 1, 0) : firstActiveIndex;
+
+  return { steps, currentIndex };
+}

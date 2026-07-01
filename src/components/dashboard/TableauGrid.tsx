@@ -7,11 +7,16 @@ import { useUserPreferences } from "@/contexts/UserPreferencesContext";
 import { useHoldDragReorder } from "@/hooks/useHoldDragReorder";
 import {
   buildRelanceDisplayForRow,
+  buildRelanceProgressForRow,
   filterDeliveriesForLigne,
 } from "@/lib/dashboard/relance-delivery-display";
-import { isRecoveryRequired } from "@/lib/dashboard/recovery";
+import { isRecoveryRequired, getRowFieldValue } from "@/lib/dashboard/recovery";
 import { rowMissingDueDate } from "@/lib/dashboard/relance-schedule";
-import { fredoka } from "@/lib/fonts/fredoka";
+import {
+  dashboardColumnHeaderClassName,
+  dashboardConfigureTitleClassName,
+  dashboardTitleGradientClassName,
+} from "@/lib/dashboard/typography";
 import {
   formatAmountForDisplay,
   isAmountColumnLabel,
@@ -33,21 +38,29 @@ import {
 } from "@/types/tableau";
 
 import { RecoveryBadge } from "./RecoveryBadge";
+import { RelanceProgressCell } from "./RelanceProgressCell";
+import { RelanceProgressDrawer } from "./RelanceProgressDrawer";
 import { RelanceScheduleCell } from "./RelanceScheduleCell";
 import {
   EditableTableTitle,
-  tableTitleGradientClassName,
-  tableTitleTextClassName,
 } from "./EditableTableTitle";
 import { TableAmountCell } from "./TableAmountCell";
 import { TableDateCell } from "./TableDateCell";
 
+/** Style du libellé Configurer (Geist). */
+const configureLabelClassName = dashboardConfigureTitleClassName;
 const MIN_EMPTY_ROWS = 3;
 const TABLE_DATA_ROW_HEIGHT = "min-h-16 h-16";
 const TABLE_BORDER = "border-white/[0.12]";
 const TABLE_CELL_BORDER = "border-white/[0.08]";
 const TABLE_ROW_EVEN = "bg-white/[0.05]";
 const TABLE_ROW_ODD = "bg-white/[0.025]";
+
+function dataRowSurfaceClass(rowIndex: number, paid = false) {
+  return `${rowIndex % 2 === 0 ? TABLE_ROW_EVEN : TABLE_ROW_ODD} transition-colors hover:bg-white/[0.08] ${
+    paid ? "opacity-55" : ""
+  }`;
+}
 
 type RowNumberColumnProps = {
   rows: ClientRow[];
@@ -105,14 +118,16 @@ function RowDeleteColumn({
   rows,
   totalRows,
   onDeleteRow,
+  headerSpacerClassName = "h-12",
 }: {
   rows: ClientRow[];
   totalRows: number;
   onDeleteRow: (rowIndex: number) => void;
+  headerSpacerClassName?: string;
 }) {
   return (
     <div className="flex w-8 shrink-0 flex-col pl-1.5">
-      <div className="h-12 shrink-0" aria-hidden />
+      <div className={`${headerSpacerClassName} shrink-0`} aria-hidden />
       {Array.from({ length: totalRows }).map((_, rowIndex) => {
         const isDataRow = rowIndex < rows.length;
 
@@ -158,8 +173,8 @@ const RIGHT_COLUMN_WIDTH_PAD_CH = 1.5;
 const DEFAULT_RELANCE_COLUMN_MIN_WIDTH = "7rem";
 /** Largeur minimale de la colonne Statut. */
 const DEFAULT_STATUT_COLUMN_MIN_WIDTH = "5.75rem";
-/** Largeur minimale du bloc relances quand un badge recouvrement est affiché. */
-const RECOVERY_RELANCE_BLOCK_MIN_WIDTH = "17.5rem";
+/** Largeur de la colonne Progression (badge + bouton timeline). */
+const PROGRESSION_COLUMN_WIDTH = "12.75rem";
 
 function normalizeColumnLabel(label: string) {
   return label
@@ -231,6 +246,13 @@ function getStatutColumnCharWidth(column: RightColumnDef) {
 }
 
 function computeRightColumnStyle(column: RightColumnDef) {
+  if (column.variant === "progression") {
+    return {
+      minWidth: PROGRESSION_COLUMN_WIDTH,
+      width: PROGRESSION_COLUMN_WIDTH,
+    };
+  }
+
   if (column.variant === "relance") {
     return { minWidth: DEFAULT_RELANCE_COLUMN_MIN_WIDTH };
   }
@@ -391,6 +413,7 @@ type RightTableColumnProps = {
   simulateRelances: boolean;
   onStatusChange: (rowIndex: number, status: PaymentStatus) => void;
   expandForRecovery?: boolean;
+  onOpenProgressTimeline?: (rowIndex: number) => void;
 };
 
 function RightTableColumn({
@@ -403,10 +426,12 @@ function RightTableColumn({
   simulateRelances,
   onStatusChange,
   expandForRecovery = false,
+  onOpenProgressTimeline,
 }: RightTableColumnProps) {
   const styles = RIGHT_COLUMN_STYLES[column.accent];
   const columnStyle = computeRightColumnStyle(column);
   const isRelanceColumn = column.variant === "relance";
+  const isProgressionColumn = column.variant === "progression";
 
   return (
     <div
@@ -416,7 +441,11 @@ function RightTableColumn({
           ? expandForRecovery
             ? "min-w-[5rem] flex-1"
             : ""
-          : "last:border-r-0"
+          : isProgressionColumn
+            ? expandForRecovery
+              ? ""
+              : ""
+            : "last:border-r-0"
       }`}
     >
       <div
@@ -424,7 +453,13 @@ function RightTableColumn({
         title={column.headerTitle}
       >
         <span
-          className={`${fredoka.className} whitespace-nowrap text-center text-xs font-bold leading-none tracking-tight`}
+          className={`${dashboardColumnHeaderClassName} whitespace-nowrap text-center font-bold leading-none ${
+            column.variant === "statut"
+              ? "text-base"
+              : column.variant === "progression"
+                ? "text-sm"
+                : "text-xs"
+          }`}
         >
           {column.label}
         </span>
@@ -446,7 +481,9 @@ function RightTableColumn({
           <div
             key={rowIndex}
             className={`flex ${TABLE_DATA_ROW_HEIGHT} items-center justify-center border-b ${TABLE_CELL_BORDER} px-2 ${
-              rowIndex % 2 === 0 ? TABLE_ROW_EVEN : TABLE_ROW_ODD
+              recovery && isProgressionColumn
+                ? "border-transparent bg-transparent"
+                : dataRowSurfaceClass(rowIndex, paid)
             } ${isRelanceColumn ? styles.cell : ""}`}
           >
             {isDataRow && column.variant === "statut" ? (
@@ -463,6 +500,26 @@ function RightTableColumn({
               >
                 PAYE {status === "paye" ? "!" : "?"}
               </button>
+            ) : isDataRow && column.variant === "progression" ? (
+              recovery ? null : (
+                <RelanceProgressCell
+                  paid={paid}
+                  missingDueDate={missingDueDate}
+                  progress={
+                    missingDueDate
+                      ? null
+                      : buildRelanceProgressForRow(
+                          row,
+                          allLeftColumns,
+                          relanceSteps,
+                          filterDeliveriesForLigne(deliveries, row.id),
+                          new Date(),
+                          { simulateFromDates: simulateRelances },
+                        )
+                  }
+                  onOpenTimeline={() => onOpenProgressTimeline?.(rowIndex)}
+                />
+              )
             ) : isDataRow && column.variant === "relance" ? (
               recovery ? null : (
                 <RelanceScheduleCell
@@ -556,7 +613,7 @@ function TableColumn({
           title={
             compressed && headerLabel !== column.label ? column.label : undefined
           }
-          className={`${fredoka.className} min-w-0 flex-1 truncate text-center text-sm font-semibold tracking-tight ${handleProps?.className ?? ""}`}
+          className={`${dashboardColumnHeaderClassName} min-w-0 flex-1 truncate text-center ${handleProps?.className ?? ""}`}
         >
           {headerLabel}
         </span>
@@ -583,6 +640,7 @@ function TableColumn({
 
       {Array.from({ length: totalRows }).map((_, rowIndex) => {
         const isDataRow = rowIndex < rows.length;
+        const rowPaid = isDataRow ? isRowPaid(rows[rowIndex]) : false;
         const displayValue = isDataRow ? getCellValue(rowIndex, column.id) : "";
         const showCompressedValue =
           compressed && isDataRow && Boolean(displayValue?.trim());
@@ -590,9 +648,7 @@ function TableColumn({
         return (
           <div
             key={rowIndex}
-            className={`flex ${TABLE_DATA_ROW_HEIGHT} items-center justify-center border-b ${TABLE_CELL_BORDER} px-0.5 text-center ${
-              rowIndex % 2 === 0 ? TABLE_ROW_EVEN : TABLE_ROW_ODD
-            }`}
+            className={`flex ${TABLE_DATA_ROW_HEIGHT} items-center justify-center border-b ${TABLE_CELL_BORDER} px-0.5 text-center ${dataRowSurfaceClass(rowIndex, rowPaid)}`}
           >
             {showCompressedValue ? (
               <span
@@ -829,13 +885,18 @@ export function TableauGrid({
   const [compressedColumnIds, setCompressedColumnIds] = useState<Set<string>>(
     () => new Set(),
   );
+  const [progressDrawerRowIndex, setProgressDrawerRowIndex] = useState<
+    number | null
+  >(null);
   const totalRows = Math.max(MIN_EMPTY_ROWS, rows.length + 1);
   const allLeftColumns = [...leftColumns, ...hiddenLeftColumns];
   const addableColumnLabels = getAddableColumnLabels(
     leftColumns,
     hiddenLeftColumns,
   );
-  const relanceColumns = rightColumns.filter((column) => column.variant === "relance");
+  const progressionColumn = rightColumns.find(
+    (column) => column.variant === "progression",
+  );
   const statutColumns = rightColumns.filter((column) => column.variant === "statut");
   const hasRecoveryRows = rows.some((row) =>
     isRecoveryRequired(row, allLeftColumns, relanceSteps),
@@ -914,48 +975,75 @@ export function TableauGrid({
     );
   }
 
+  function getClientLabel(rowIndex: number) {
+    return (
+      getRowFieldValue(rows[rowIndex], allLeftColumns, "Nom", "nom", "Client") ||
+      `Client ${rowIndex + 1}`
+    );
+  }
+
+  const progressDrawerRow =
+    progressDrawerRowIndex !== null ? rows[progressDrawerRowIndex] : null;
+
   return (
     <>
       {DragPreview}
       <div className="w-max">
         <div className="grid w-max grid-cols-[auto_3px_auto]">
-          <div className="mb-4 min-w-0 self-end overflow-hidden" data-tutorial="table-title">
+          <div
+            className="col-start-1 row-start-1 mb-5 min-w-0 self-end overflow-hidden"
+            data-tutorial="table-title"
+          >
             <EditableTableTitle name={tableName} onRename={onTableRename} />
           </div>
-          <div className="mb-4" aria-hidden />
-          <div className="mb-4 flex w-full justify-start self-end">
+
+          <div className="col-start-2 row-start-1 mb-5" aria-hidden />
+
+          <div
+            className="col-start-3 row-start-1 mb-5 flex flex-col items-center gap-1 self-end px-1"
+            data-tutorial="configure-zone"
+          >
             <button
               type="button"
               data-tutorial="configure-btn"
               onClick={onConfigure}
-              className={`${tableTitleTextClassName} inline-flex items-center gap-2 ${tableTitleGradientClassName} cursor-pointer transition-opacity hover:opacity-85`}
+              className="group inline-flex items-center gap-2.5 transition-opacity hover:opacity-90"
             >
-              Configurer
-              <svg
-                className="h-5 w-5 shrink-0 text-violet-300/35 sm:h-6 sm:w-6"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.75"
-                aria-hidden="true"
+              <span
+                className={`${configureLabelClassName} whitespace-nowrap ${dashboardTitleGradientClassName}`}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                />
-              </svg>
+                Configurer
+              </span>
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-fuchsia-400/30 bg-fuchsia-500/10 text-fuchsia-200/75 shadow-sm shadow-fuchsia-950/20 transition-all group-hover:border-fuchsia-300/45 group-hover:bg-fuchsia-500/15 group-hover:text-fuchsia-100">
+                <svg
+                  className="h-4 w-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                  />
+                </svg>
+              </span>
             </button>
+            <span className="font-sans text-[10px] font-medium uppercase tracking-[0.18em] text-fuchsia-300/40">
+              Relances
+            </span>
           </div>
 
           <div
             data-tutorial="table-left"
-            className={`rounded-bl-2xl border border-t ${TABLE_BORDER} border-r-0 bg-brand-surface shadow-xl shadow-violet-950/25 ring-1 ring-white/[0.07]`}
+            className={`col-start-1 row-start-2 rounded-bl-2xl border border-t ${TABLE_BORDER} border-r-0 bg-brand-surface shadow-xl shadow-violet-950/25 ring-1 ring-white/[0.07]`}
           >
             <div className="flex shrink-0 bg-gradient-to-b from-violet-500/[0.12] to-brand-surface/80">
           <RowNumberColumn
@@ -993,59 +1081,63 @@ export function TableauGrid({
               </div>
             </div>
 
+          <div className="col-start-2 row-start-2 self-stretch">
             <TableSeparator />
-
-          <div className="flex items-start">
-          <div
-            data-tutorial="table-right"
-            className={`rounded-br-2xl border border-t ${TABLE_BORDER} border-l-0 bg-brand-surface shadow-xl shadow-violet-950/25 ring-1 ring-white/[0.07]`}
-          >
-            <div className="flex shrink-0 bg-gradient-to-b from-fuchsia-500/[0.10] to-brand-surface/80">
-          <div
-            className="relative flex overflow-visible"
-            style={
-              hasRecoveryRows
-                ? { minWidth: RECOVERY_RELANCE_BLOCK_MIN_WIDTH }
-                : undefined
-            }
-          >
-            {relanceColumns.map((column) => (
-              <RightTableColumn
-                key={column.id}
-                column={column}
-                rows={rows}
-                totalRows={totalRows}
-                allLeftColumns={allLeftColumns}
-                relanceSteps={relanceSteps}
-                deliveries={deliveries}
-                simulateRelances={simulateRelances}
-                expandForRecovery={hasRecoveryRows}
-                onStatusChange={handleStatusChange}
-              />
-            ))}
-            <RecoveryRowOverlays
-              rows={rows}
-              allLeftColumns={allLeftColumns}
-              relanceSteps={relanceSteps}
-              onRecoveryClick={onRecoveryClick}
-            />
           </div>
-          <TableSeparator />
-          {statutColumns.map((column) => (
-            <RightTableColumn
-              key={column.id}
-              column={column}
-              rows={rows}
-              totalRows={totalRows}
-              allLeftColumns={allLeftColumns}
-              relanceSteps={relanceSteps}
-              deliveries={deliveries}
-              simulateRelances={simulateRelances}
-              onStatusChange={handleStatusChange}
-            />
-          ))}
+
+          <div className="col-start-3 row-start-2 flex items-start gap-1.5">
+            <div className="relative min-w-0">
+              <span
+                aria-hidden
+                className="pointer-events-none absolute -top-2.5 left-4 right-4 h-2.5 rounded-t-lg border border-b-0 border-fuchsia-400/20 bg-fuchsia-500/[0.04]"
+              />
+              <div
+                data-tutorial="table-right"
+                className={`relative overflow-hidden rounded-br-2xl border border-t ${TABLE_BORDER} border-fuchsia-400/15 bg-brand-surface shadow-xl shadow-fuchsia-950/20 ring-1 ring-fuchsia-400/10`}
+              >
+                <div className="h-px bg-gradient-to-r from-transparent via-fuchsia-400/30 to-transparent" />
+                <div className="flex shrink-0 bg-gradient-to-b from-fuchsia-500/[0.11] to-brand-surface/80">
+                  <div className="relative flex overflow-visible">
+                    {progressionColumn ? (
+                      <RightTableColumn
+                        key={progressionColumn.id}
+                        column={progressionColumn}
+                        rows={rows}
+                        totalRows={totalRows}
+                        allLeftColumns={allLeftColumns}
+                        relanceSteps={relanceSteps}
+                        deliveries={deliveries}
+                        simulateRelances={simulateRelances}
+                        expandForRecovery={hasRecoveryRows}
+                        onStatusChange={handleStatusChange}
+                        onOpenProgressTimeline={setProgressDrawerRowIndex}
+                      />
+                    ) : null}
+                    <RecoveryRowOverlays
+                      rows={rows}
+                      allLeftColumns={allLeftColumns}
+                      relanceSteps={relanceSteps}
+                      onRecoveryClick={onRecoveryClick}
+                    />
+                  </div>
+                  <TableSeparator />
+                  {statutColumns.map((column) => (
+                    <RightTableColumn
+                      key={column.id}
+                      column={column}
+                      rows={rows}
+                      totalRows={totalRows}
+                      allLeftColumns={allLeftColumns}
+                      relanceSteps={relanceSteps}
+                      deliveries={deliveries}
+                      simulateRelances={simulateRelances}
+                      onStatusChange={handleStatusChange}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
+
             <RowDeleteColumn
               rows={rows}
               totalRows={totalRows}
@@ -1054,6 +1146,34 @@ export function TableauGrid({
           </div>
         </div>
       </div>
+
+      <RelanceProgressDrawer
+        open={progressDrawerRowIndex !== null}
+        onClose={() => setProgressDrawerRowIndex(null)}
+        clientLabel={
+          progressDrawerRowIndex !== null
+            ? getClientLabel(progressDrawerRowIndex)
+            : ""
+        }
+        paid={progressDrawerRow ? isRowPaid(progressDrawerRow) : false}
+        missingDueDate={
+          progressDrawerRow
+            ? rowMissingDueDate(progressDrawerRow, allLeftColumns)
+            : false
+        }
+        progress={
+          progressDrawerRow && !rowMissingDueDate(progressDrawerRow, allLeftColumns)
+            ? buildRelanceProgressForRow(
+                progressDrawerRow,
+                allLeftColumns,
+                relanceSteps,
+                filterDeliveriesForLigne(deliveries, progressDrawerRow.id),
+                new Date(),
+                { simulateFromDates: simulateRelances },
+              )
+            : null
+        }
+      />
     </>
   );
 }

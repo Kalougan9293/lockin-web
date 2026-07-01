@@ -93,28 +93,28 @@ export const STANDARD_TEMPLATE_LABELS = [
 export const DEFAULT_RELANCE_STEPS: RelanceStep[] = [
   {
     id: "rappel-j7",
-    name: "Relance amicale",
+    name: "",
     days: -7,
     messageTemplate:
       "Bonjour [Nom],\n\nVotre facture arrive bientôt à échéance le [Échéance]. Nous vous adressons ce message afin d'anticiper son règlement.\n\nMerci beaucoup.",
   },
   {
     id: "relance-j2",
-    name: "Relance douce",
+    name: "",
     days: 2,
     messageTemplate:
       "Bonjour [Nom],\n\nNous vous rappelons que votre facture d'un montant de [Montant] est arrivée à échéance le [Échéance].\n\nNous vous remercions de bien vouloir procéder à son règlement dans les meilleurs délais.",
   },
   {
     id: "relance-j10",
-    name: "Relance ferme",
+    name: "",
     days: 10,
     messageTemplate:
       "Bonjour [Nom],\n\nÀ ce jour, nous n'avons pas reçu le règlement de la facture arrivée à échéance le [Échéance].\n\nMerci de nous indiquer une date de paiement ou de procéder à sa régularisation dans les meilleurs délais.",
   },
   {
     id: "relance-j30",
-    name: "Mise en demeure",
+    name: "",
     days: 30,
     messageTemplate:
       "Bonjour [Nom],\n\nSauf erreur de notre part, la facture échue le [Échéance] demeure impayée malgré nos précédentes relances.\n\nNous vous remercions de procéder à sa régularisation sous 8 jours. À défaut de règlement, nous nous réservons le droit d'engager les démarches nécessaires au recouvrement de cette créance.",
@@ -232,7 +232,7 @@ export function getAddableColumnLabels(
 
 export type RightColumnDef = ColumnDef & {
   accent: RightColumnAccent;
-  variant: "relance" | "statut";
+  variant: "relance" | "progression" | "statut";
   /** Libellé complet (nom de la relance) affiché au survol de l'en-tête. */
   headerTitle?: string;
   /** Colonne un peu plus étroite (en-têtes longs). */
@@ -242,6 +242,7 @@ export type RightColumnDef = ColumnDef & {
 export type PaymentStatus = "paye" | "";
 
 export const STATUT_COLUMN_ID = "statut";
+export const PROGRESSION_COLUMN_ID = "progression";
 
 export function isRowPaid(row: ClientRow): boolean {
   return row.values[STATUT_COLUMN_ID] === "paye";
@@ -293,7 +294,7 @@ export function createRelanceStep(
 ): RelanceStep {
   return {
     id: crypto.randomUUID(),
-    name: partial?.name ?? "Nouvelle relance",
+    name: partial?.name ?? "",
     days: partial?.days ?? 7,
     messageTemplate:
       partial?.messageTemplate ??
@@ -410,19 +411,19 @@ function reorderMontantBeforeEcheance(table: TableData): TableData {
 }
 
 export function getRightColumns(relanceSteps: RelanceStep[]): RightColumnDef[] {
-  const relanceColumns: RightColumnDef[] = relanceSteps.map((step, index) => {
-    const style = getRelanceStepStyle(index);
+  const columns: RightColumnDef[] = [];
 
-    return {
-      id: step.id,
-      label: formatRelanceTiming(step.days),
-      headerTitle: step.name.trim() || `Relance ${index + 1}`,
-      accent: style.accent,
-      variant: "relance",
-    };
-  });
+  if (relanceSteps.length > 0) {
+    columns.push({
+      id: PROGRESSION_COLUMN_ID,
+      label: "Progression",
+      headerTitle: "Progression des relances",
+      accent: "neutral",
+      variant: "progression",
+    });
+  }
 
-  return [...relanceColumns, { ...STATUT_COLUMN }];
+  return [...columns, { ...STATUT_COLUMN }];
 }
 
 export function createColumn(label: string): ColumnDef {

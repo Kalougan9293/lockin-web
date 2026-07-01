@@ -1,14 +1,18 @@
 import type { CronRelanceItem } from "./relance-deliveries";
 
+export type CronRelanceDraftItem = Omit<CronRelanceItem, "body" | "bodyFormat"> & {
+  messageBody: string;
+};
+
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-function recipientGroupKey(item: CronRelanceItem): string {
+function recipientGroupKey(item: CronRelanceDraftItem): string {
   return `${item.userId}:${normalizeEmail(item.to)}`;
 }
 
-function withDeliveryArrays(item: CronRelanceItem): CronRelanceItem {
+function withDeliveryArrays(item: CronRelanceDraftItem): CronRelanceDraftItem {
   return {
     ...item,
     deliveryIds: item.deliveryIds?.length ? item.deliveryIds : [item.deliveryId],
@@ -16,7 +20,7 @@ function withDeliveryArrays(item: CronRelanceItem): CronRelanceItem {
   };
 }
 
-function buildMergedSubject(items: CronRelanceItem[]): string {
+function buildMergedSubject(items: CronRelanceDraftItem[]): string {
   if (items.length === 1) return items[0].subject;
 
   const uniqueSubjects = new Set(items.map((item) => item.subject));
@@ -30,8 +34,8 @@ function buildMergedSubject(items: CronRelanceItem[]): string {
   return `Relances concernant vos factures (${items.length})`;
 }
 
-function buildMergedBody(items: CronRelanceItem[]): string {
-  if (items.length === 1) return items[0].body;
+function buildMergedBody(items: CronRelanceDraftItem[]): string {
+  if (items.length === 1) return items[0].messageBody;
 
   const clientName = items[0].clientName?.trim();
   const intro = clientName
@@ -40,13 +44,13 @@ function buildMergedBody(items: CronRelanceItem[]): string {
 
   const sections = items.map((item, index) => {
     const header = `— Facture ${index + 1} —`;
-    return `${header}\n${item.body.trim()}`;
+    return `${header}\n${item.messageBody.trim()}`;
   });
 
   return intro + sections.join("\n\n────────────\n\n");
 }
 
-function mergeEmphasisValues(items: CronRelanceItem[]): string[] {
+function mergeEmphasisValues(items: CronRelanceDraftItem[]): string[] {
   const values = new Set<string>();
   for (const item of items) {
     for (const value of item.emphasisValues ?? []) {
@@ -56,7 +60,7 @@ function mergeEmphasisValues(items: CronRelanceItem[]): string[] {
   return [...values];
 }
 
-function mergeRecipientGroup(items: CronRelanceItem[]): CronRelanceItem {
+function mergeRecipientGroup(items: CronRelanceDraftItem[]): CronRelanceDraftItem {
   const normalized = items.map(withDeliveryArrays);
   const primary = normalized[0];
 
@@ -67,7 +71,7 @@ function mergeRecipientGroup(items: CronRelanceItem[]): CronRelanceItem {
     ligneId: primary.ligneId,
     ligneIds: normalized.flatMap((item) => item.ligneIds ?? [item.ligneId]),
     subject: buildMergedSubject(normalized),
-    body: buildMergedBody(normalized),
+    messageBody: buildMergedBody(normalized),
     emphasisValues: mergeEmphasisValues(normalized),
     scheduledFor: normalized
       .map((item) => item.scheduledFor)
@@ -81,13 +85,13 @@ function mergeRecipientGroup(items: CronRelanceItem[]): CronRelanceItem {
  * par passage du cron (évite le spam quand un client a plusieurs factures dues).
  */
 export function consolidateRelanceCronItems(
-  items: CronRelanceItem[],
-): CronRelanceItem[] {
+  items: CronRelanceDraftItem[],
+): CronRelanceDraftItem[] {
   if (items.length <= 1) {
     return items.map(withDeliveryArrays);
   }
 
-  const groups = new Map<string, CronRelanceItem[]>();
+  const groups = new Map<string, CronRelanceDraftItem[]>();
 
   for (const item of items) {
     const key = recipientGroupKey(item);
