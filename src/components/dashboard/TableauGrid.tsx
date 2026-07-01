@@ -146,10 +146,13 @@ type TableColumnProps = {
   getCellRawValue?: (rowIndex: number, columnId: string) => string;
   onCellChange?: (rowIndex: number, columnId: string, value: string) => void;
   showHeader?: boolean;
+  compressed?: boolean;
+  onToggleCompress?: () => void;
 };
 
-const REMOVE_BUTTON_CH = 2.75;
-const COLUMN_WIDTH_PAD_CH = 1;
+const REMOVE_BUTTON_CH = 2.25;
+const COMPRESS_BUTTON_CH = 2;
+const COLUMN_WIDTH_PAD_CH = 0.35;
 const RIGHT_COLUMN_WIDTH_PAD_CH = 1.5;
 /** Largeur minimale d'une colonne relance (texte « Prévu : DD/MM »). */
 const DEFAULT_RELANCE_COLUMN_MIN_WIDTH = "7rem";
@@ -158,28 +161,67 @@ const DEFAULT_STATUT_COLUMN_MIN_WIDTH = "5.75rem";
 /** Largeur minimale du bloc relances quand un badge recouvrement est affiché. */
 const RECOVERY_RELANCE_BLOCK_MIN_WIDTH = "17.5rem";
 
+function normalizeColumnLabel(label: string) {
+  return label
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "");
+}
+
+/** Libellé court en-tête quand la colonne est compressée. */
+function getCompressedColumnLabel(label: string): string {
+  const key = normalizeColumnLabel(label);
+  if (key === "reference") return "Ref";
+  if (key === "montant") return "€";
+  if (key === "numero") return "06";
+  return label;
+}
+
 function getColumnCharWidth(
   column: ColumnDef,
   rows: ClientRow[],
   getLength: (rowIndex: number, columnId: string) => number,
-  reserveRemoveButton = false,
+  extraControlsCh = 0,
 ) {
   const lengths = rows.map((_, rowIndex) => getLength(rowIndex, column.id));
   const base = Math.max(column.label.length, ...lengths, 3);
-  return reserveRemoveButton ? base + REMOVE_BUTTON_CH : base;
+  return base + extraControlsCh;
 }
 
 function computeColumnStyle(
   column: ColumnDef,
   rows: ClientRow[],
   getLength: (rowIndex: number, columnId: string) => number,
-  reserveRemoveButton = false,
+  options: {
+    reserveRemoveButton?: boolean;
+    reserveCompressButton?: boolean;
+    compressed?: boolean;
+  } = {},
 ) {
+  const {
+    reserveRemoveButton = false,
+    reserveCompressButton = false,
+    compressed = false,
+  } = options;
+
+  const controlsCh =
+    (reserveRemoveButton ? REMOVE_BUTTON_CH : 0) +
+    (reserveCompressButton ? COMPRESS_BUTTON_CH : 0);
+
+  if (compressed) {
+    const shortLabel = getCompressedColumnLabel(column.label);
+    const columnCharWidth = Math.max(shortLabel.length, 3) + controlsCh;
+    return {
+      width: `${columnCharWidth + COLUMN_WIDTH_PAD_CH}ch`,
+      minWidth: `${columnCharWidth + COLUMN_WIDTH_PAD_CH}ch`,
+    };
+  }
+
   const columnCharWidth = getColumnCharWidth(
     column,
     rows,
     getLength,
-    reserveRemoveButton,
+    controlsCh,
   );
   return { width: `${columnCharWidth + COLUMN_WIDTH_PAD_CH}ch` };
 }
@@ -206,6 +248,52 @@ function TableSeparator() {
       aria-hidden
       className="w-[3px] shrink-0 self-stretch bg-gradient-to-b from-violet-300/90 via-fuchsia-200/80 to-indigo-300/90 shadow-[0_0_14px_rgba(192,132,252,0.55)]"
     />
+  );
+}
+
+function CompressColumnButton({
+  compressed,
+  onClick,
+  columnLabel,
+}: {
+  compressed: boolean;
+  onClick: () => void;
+  columnLabel: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={
+        compressed
+          ? `Développer la colonne ${columnLabel}`
+          : `Compresser la colonne ${columnLabel}`
+      }
+      aria-pressed={compressed}
+      title={compressed ? "Développer" : "Compresser"}
+      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded transition-colors hover:bg-white/10 ${
+        compressed ? "text-violet-200" : "text-white/45 hover:text-violet-200"
+      }`}
+    >
+      <svg
+        className="h-3.5 w-3.5"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.85"
+        aria-hidden="true"
+      >
+        {compressed ? (
+          <>
+            <path strokeLinecap="round" d="M9 8l-3 3 3 3M15 8l3 3-3 3" />
+          </>
+        ) : (
+          <>
+            <path strokeLinecap="round" d="M7 8l-3 3 3 3M17 8l3 3-3 3" />
+          </>
+        )}
+      </svg>
+    </button>
   );
 }
 
@@ -417,12 +505,15 @@ function TableColumn({
   getCellRawValue,
   onCellChange,
   showHeader = true,
+  compressed = false,
+  onToggleCompress,
 }: TableColumnProps) {
   const itemProps = draggable && bindItem ? bindItem(column.id) : null;
   const handleProps = draggable && bindHandle ? bindHandle(column.id) : null;
   const cellsEditable = Boolean(onCellChange && getCellRawValue);
 
   const hasRemoveButton = editable && Boolean(onRemove);
+  const hasCompressButton = editable && Boolean(onToggleCompress);
   const isDateColumn = isDateColumnLabel(column.label);
   const isAmountColumn = isAmountColumnLabel(column.label);
 
@@ -439,8 +530,16 @@ function TableColumn({
           : raw;
       return display.length || 1;
     },
-    hasRemoveButton,
+    {
+      reserveRemoveButton: hasRemoveButton,
+      reserveCompressButton: hasCompressButton,
+      compressed,
+    },
   );
+
+  const headerLabel = compressed
+    ? getCompressedColumnLabel(column.label)
+    : column.label;
 
   return (
     <div
@@ -450,19 +549,30 @@ function TableColumn({
     >
       {showHeader ? (
       <div
-        className={`flex h-11 items-center gap-0.5 border-b ${TABLE_CELL_BORDER} px-1 ${headerClass}`}
+        className={`flex h-11 items-center gap-0 border-b ${TABLE_CELL_BORDER} px-0.5 ${headerClass}`}
       >
         <span
           {...(handleProps ?? {})}
-          className={`${fredoka.className} min-w-0 flex-1 whitespace-nowrap text-center text-sm font-semibold tracking-tight ${handleProps?.className ?? ""}`}
+          title={
+            compressed && headerLabel !== column.label ? column.label : undefined
+          }
+          className={`${fredoka.className} min-w-0 flex-1 truncate text-center text-sm font-semibold tracking-tight ${handleProps?.className ?? ""}`}
         >
-          {column.label}
+          {headerLabel}
         </span>
+        {hasCompressButton ? (
+          <CompressColumnButton
+            compressed={compressed}
+            onClick={onToggleCompress!}
+            columnLabel={column.label}
+          />
+        ) : null}
         {hasRemoveButton ? (
           <button
             type="button"
             onClick={onRemove}
             aria-label={`Masquer la colonne ${column.label}`}
+            title="Masquer la colonne"
             className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-xs text-white/40 transition-colors hover:bg-white/10 hover:text-white"
           >
             ×
@@ -473,15 +583,26 @@ function TableColumn({
 
       {Array.from({ length: totalRows }).map((_, rowIndex) => {
         const isDataRow = rowIndex < rows.length;
+        const displayValue = isDataRow ? getCellValue(rowIndex, column.id) : "";
+        const showCompressedValue =
+          compressed && isDataRow && Boolean(displayValue?.trim());
 
         return (
           <div
             key={rowIndex}
-            className={`flex ${TABLE_DATA_ROW_HEIGHT} items-center justify-center border-b ${TABLE_CELL_BORDER} px-1 text-center ${
+            className={`flex ${TABLE_DATA_ROW_HEIGHT} items-center justify-center border-b ${TABLE_CELL_BORDER} px-0.5 text-center ${
               rowIndex % 2 === 0 ? TABLE_ROW_EVEN : TABLE_ROW_ODD
             }`}
           >
-            {isDataRow && cellsEditable ? (
+            {showCompressedValue ? (
+              <span
+                className="w-full text-sm text-white/90"
+                title={displayValue}
+                aria-label={`${column.label}, ligne ${rowIndex + 1} : ${displayValue}`}
+              >
+                …
+              </span>
+            ) : isDataRow && cellsEditable ? (
               isDateColumn ? (
                 <TableDateCell
                   value={getCellRawValue!(rowIndex, column.id)}
@@ -705,6 +826,9 @@ export function TableauGrid({
   simulateRelances = false,
 }: TableauGridProps) {
   const { dateFormat } = useUserPreferences();
+  const [compressedColumnIds, setCompressedColumnIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const totalRows = Math.max(MIN_EMPTY_ROWS, rows.length + 1);
   const allLeftColumns = [...leftColumns, ...hiddenLeftColumns];
   const addableColumnLabels = getAddableColumnLabels(
@@ -733,7 +857,25 @@ export function TableauGrid({
     });
 
   function hideLeftColumn(id: string) {
+    setCompressedColumnIds((current) => {
+      if (!current.has(id)) return current;
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
     onHideLeftColumn(id);
+  }
+
+  function toggleColumnCompressed(columnId: string) {
+    setCompressedColumnIds((current) => {
+      const next = new Set(current);
+      if (next.has(columnId)) {
+        next.delete(columnId);
+      } else {
+        next.add(columnId);
+      }
+      return next;
+    });
   }
 
   function getCellRawValue(rowIndex: number, columnId: string) {
@@ -834,6 +976,8 @@ export function TableauGrid({
               bindHandle={bindColumnHandle}
               rows={rows}
               totalRows={totalRows}
+              compressed={compressedColumnIds.has(column.id)}
+              onToggleCompress={() => toggleColumnCompressed(column.id)}
               onRemove={() => hideLeftColumn(column.id)}
               getCellValue={getCellValue}
               getCellRawValue={getCellRawValue}
