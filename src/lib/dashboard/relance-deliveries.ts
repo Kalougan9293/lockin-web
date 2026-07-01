@@ -19,7 +19,11 @@ import {
   startOfDay,
 } from "./relance-schedule";
 import { consolidateRelanceCronItems } from "./consolidate-relance-cron-items";
-import { finalizeRelanceEmailBody } from "./relance-email-body";
+import {
+  getCreditorContext,
+  fetchCreditorContexts,
+} from "./creditor-context";
+import { buildRelanceEmailHtml } from "./relance-email-body";
 import { mapTableauToTableData } from "./tableau-db";
 
 type Supabase = SupabaseClient<Database>;
@@ -37,6 +41,8 @@ export type CronRelanceItem = {
   clientName?: string;
   subject: string;
   body: string;
+  /** Montants et échéances formatés à mettre en gras dans le HTML. */
+  emphasisValues?: string[];
   scheduledFor: string;
 };
 
@@ -115,6 +121,28 @@ export function resolveRelanceMessageTemplate(
   }
 
   return resolved;
+}
+
+/** Valeurs Montant / Échéance formatées pour mise en évidence dans l'e-mail HTML. */
+export function getRelanceEmphasisValues(
+  row: ClientRow,
+  columns: ColumnDef[],
+): string[] {
+  const values: string[] = [];
+
+  const montant = formatFieldForTemplate(
+    "Montant",
+    getRowFieldValue(row, columns, "Montant", "montant"),
+  );
+  if (montant !== "—") values.push(montant);
+
+  const echeance = formatFieldForTemplate(
+    "Échéance",
+    getRowFieldValue(row, columns, "Échéance", "Echeance"),
+  );
+  if (echeance !== "—") values.push(echeance);
+
+  return values;
 }
 
 function buildRelanceSubject(step: RelanceStep, stepIndex: number): string {
@@ -254,14 +282,28 @@ export async function collectDueRelancesForCron(
           clientName: clientName || undefined,
           subject: buildRelanceSubject(step, stepIndex),
           body: resolveRelanceMessageTemplate(step.messageTemplate, row, columns),
+          emphasisValues: getRelanceEmphasisValues(row, columns),
           scheduledFor,
         });
       }
     }
   }
 
-  return consolidateRelanceCronItems(items).map((item) => ({
-    ...item,
-    body: finalizeRelanceEmailBody(item.body),
-  }));
+  const creditorContexts = await fetchCreditorContexts(
+    supabase,
+    items.map((item) => item.userId),
+  );
+
+  return consolidateRelanceCronItems(items).map((item) => {
+    const creditor = getCreditorContext(creditorContexts, item.userId);
+
+    return {
+      ...item,
+      body: buildRelanceEmailHtml(
+        item.body,
+        creditor,
+        item.emphasisValues ?? [],
+      ),
+    };
+  });
 }

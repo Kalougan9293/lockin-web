@@ -88,8 +88,8 @@
         "fromEmail": "={{ $env.LOCKIN_FROM_EMAIL }}",
         "toEmail": "={{ $json.to }}",
         "subject": "={{ $json.subject }}",
-        "emailFormat": "text",
-        "text": "={{ $json.body }}",
+        "emailFormat": "html",
+        "html": "={{ $json.body }}",
         "options": {}
       },
       "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567805",

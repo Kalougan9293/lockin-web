@@ -34,7 +34,7 @@ function insertAtCursor(
   return { value: next, cursor: start + token.length };
 }
 
-const CONFIG_ROW_HEIGHT = "h-[5.5rem]";
+const CONFIG_ROW_HEIGHT = "min-h-[8rem]";
 const FLASH_ERROR_MS = 4500;
 
 export function TableauConfigModal({
@@ -183,70 +183,49 @@ export function TableauConfigModal({
   if (!open || typeof document === "undefined") return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-5">
-      <button
-        type="button"
-        aria-label="Fermer"
-        onClick={onClose}
-        className="absolute inset-0 bg-black/65 backdrop-blur-[2px]"
-      />
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="tableau-config-title"
+      className="fixed inset-0 z-[200] flex flex-col bg-brand-dark"
+    >
+      <header className="flex shrink-0 items-center border-b border-white/10 px-4 py-4 sm:px-8">
+        <h2
+          id="tableau-config-title"
+          className="text-lg font-semibold text-white sm:text-xl"
+        >
+          Configuration des relances
+        </h2>
 
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="tableau-config-title"
-        className="relative z-10 flex max-h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-brand-card shadow-2xl shadow-black/50"
-      >
-        <header className="flex shrink-0 border-b border-white/10 px-5 py-4 sm:px-6">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-            <h2
-              id="tableau-config-title"
-              className="shrink-0 text-base font-semibold text-white sm:text-lg"
-            >
-              Configuration des relances
-            </h2>
-
-            <div className="flex min-w-0 flex-1 flex-wrap items-center justify-center gap-x-3 gap-y-2">
-              <div className="flex shrink-0 gap-2">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-brand-muted transition-colors hover:border-white/20 hover:text-white"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  className="rounded-lg bg-brand-accent px-4 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
-                >
-                  Enregistrer
-                </button>
-              </div>
-
-              <p
-                role="status"
-                className="min-w-0 max-w-xl text-[11px] leading-snug text-amber-100/95 sm:text-xs"
-              >
-                <strong className="font-semibold text-amber-50">Attention !</strong> Si vous
-                modifiez et enregistrez une nouvelle configuration pour ce client, tout
-                l&apos;historique des relances déjà envoyées sera aussi réinitialisé.
-              </p>
-            </div>
-          </div>
-        </header>
+        <div className="ml-auto flex shrink-0 justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-brand-muted transition-colors hover:border-white/20 hover:text-white"
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            className="rounded-lg bg-brand-accent px-4 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
+          >
+            Enregistrer
+          </button>
+        </div>
+      </header>
 
         {flashError ? (
           <div
             role="alert"
-            className="shrink-0 border-b border-rose-400/25 bg-rose-500/15 px-5 py-2.5 text-center text-sm text-rose-100 sm:px-6"
+            className="shrink-0 border-b border-rose-400/25 bg-rose-500/15 px-4 py-2.5 text-center text-sm text-rose-100 sm:px-8"
           >
             {flashError}
           </div>
         ) : null}
 
-        <div className="min-h-0 flex-1 overflow-auto">
-          <table className="w-full min-w-[32rem] border-collapse text-sm">
+        <div className="min-h-0 flex-1 overflow-auto px-4 sm:px-8">
+          <table className="w-full border-collapse text-sm">
             <thead className="sticky top-0 z-[1] bg-brand-surface/95 backdrop-blur-sm">
               <tr className="border-b border-white/10 text-xs font-semibold uppercase tracking-wide">
                 <th className="w-28 px-3 py-3 text-center text-brand-muted sm:px-4">
@@ -321,9 +300,9 @@ export function TableauConfigModal({
                             })
                           }
                           onFocus={() => setActiveStepId(step.id)}
-                          rows={2}
-                          className={`${inputClass} resize-none border-sky-400/15 py-1 text-center leading-snug focus:border-sky-400/35 focus:ring-sky-400/15`}
-                          placeholder="Bonjour [Nom], votre facture du [Date]…"
+                          rows={5}
+                          className={`${inputClass} min-h-[7.5rem] resize-none border-sky-400/15 py-2 text-left leading-relaxed focus:border-sky-400/35 focus:ring-sky-400/15`}
+                          placeholder="Bonjour [Nom], votre facture à échéance le [Échéance]…"
                         />
                       </div>
                     </td>
@@ -348,7 +327,7 @@ export function TableauConfigModal({
           </table>
         </div>
 
-        <footer className="shrink-0 space-y-4 border-t border-white/10 px-5 py-4 sm:px-6">
+        <footer className="shrink-0 space-y-4 border-t border-white/10 px-4 py-5 sm:px-8">
           <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-2">
             <span className="text-xs font-medium text-brand-muted">Variables :</span>
             {templateBubbles.map((label) => (
@@ -381,16 +360,10 @@ export function TableauConfigModal({
             </p>
           )}
 
-          <p className="text-center text-xs text-brand-muted/80">
-            Chaque délai est calculé par rapport à la date d&apos;échéance du client.
-            Sans échéance renseignée, les relances ne peuvent pas être planifiées.
-          </p>
-
           <p className="text-center text-xs tabular-nums text-brand-muted">
             {steps.length} / {MAX_RELANCES}
           </p>
         </footer>
-      </div>
     </div>,
     document.body,
   );

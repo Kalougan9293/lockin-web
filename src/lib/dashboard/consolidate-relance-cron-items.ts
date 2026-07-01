@@ -46,6 +46,16 @@ function buildMergedBody(items: CronRelanceItem[]): string {
   return intro + sections.join("\n\n────────────\n\n");
 }
 
+function mergeEmphasisValues(items: CronRelanceItem[]): string[] {
+  const values = new Set<string>();
+  for (const item of items) {
+    for (const value of item.emphasisValues ?? []) {
+      if (value && value !== "—") values.add(value);
+    }
+  }
+  return [...values];
+}
+
 function mergeRecipientGroup(items: CronRelanceItem[]): CronRelanceItem {
   const normalized = items.map(withDeliveryArrays);
   const primary = normalized[0];
@@ -58,6 +68,7 @@ function mergeRecipientGroup(items: CronRelanceItem[]): CronRelanceItem {
     ligneIds: normalized.flatMap((item) => item.ligneIds ?? [item.ligneId]),
     subject: buildMergedSubject(normalized),
     body: buildMergedBody(normalized),
+    emphasisValues: mergeEmphasisValues(normalized),
     scheduledFor: normalized
       .map((item) => item.scheduledFor)
       .sort()

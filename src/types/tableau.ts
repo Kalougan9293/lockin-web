@@ -96,28 +96,28 @@ export const DEFAULT_RELANCE_STEPS: RelanceStep[] = [
     name: "Relance amicale",
     days: -7,
     messageTemplate:
-      "Bonjour [Nom], votre facture du [Date] arrive bientôt à échéance. Tout est ok de votre côté ?",
+      "Bonjour [Nom],\n\nVotre facture arrive bientôt à échéance le [Échéance]. Nous vous adressons ce message afin d'anticiper son règlement.\n\nMerci beaucoup.",
   },
   {
     id: "relance-j2",
     name: "Relance douce",
     days: 2,
     messageTemplate:
-      "Bonjour [Nom], petit rappel concernant votre facture du [Date] d'un montant de [Montant].",
+      "Bonjour [Nom],\n\nNous vous rappelons que votre facture d'un montant de [Montant] est arrivée à échéance le [Échéance].\n\nNous vous remercions de bien vouloir procéder à son règlement dans les meilleurs délais.",
   },
   {
     id: "relance-j10",
     name: "Relance ferme",
     days: 10,
     messageTemplate:
-      "Bonjour [Nom], nous n'avons pas reçu le règlement de la facture du [Date]. Pouvez-vous nous indiquer une date de virement ?",
+      "Bonjour [Nom],\n\nÀ ce jour, nous n'avons pas reçu le règlement de la facture arrivée à échéance le [Échéance].\n\nMerci de nous indiquer une date de paiement ou de procéder à sa régularisation dans les meilleurs délais.",
   },
   {
     id: "relance-j30",
     name: "Mise en demeure",
     days: 30,
     messageTemplate:
-      "Bonjour [Nom], sauf erreur de notre part, la facture du [Date] reste impayée. Merci de régulariser sous 8 jours.",
+      "Bonjour [Nom],\n\nSauf erreur de notre part, la facture échue le [Échéance] demeure impayée malgré nos précédentes relances.\n\nNous vous remercions de procéder à sa régularisation sous 8 jours. À défaut de règlement, nous nous réservons le droit d'engager les démarches nécessaires au recouvrement de cette créance.",
   },
 ];
 
@@ -297,7 +297,7 @@ export function createRelanceStep(
     days: partial?.days ?? 7,
     messageTemplate:
       partial?.messageTemplate ??
-      "Bonjour [Nom], concernant votre facture du [Date]…",
+      "Bonjour [Nom], concernant votre facture à échéance le [Échéance]…",
   };
 }
 

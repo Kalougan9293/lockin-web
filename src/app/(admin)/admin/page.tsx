@@ -15,13 +15,13 @@ export default async function AdminDashboardPage() {
       <AppShell>
         <div className="space-y-8">
           <AdminKpiCards kpis={kpis} />
-          <AdminActivityDomainChart stats={activityDomainStats} />
           <section>
             <h2 className="mb-4 text-center text-lg font-semibold text-white">
               Clients inscrits
             </h2>
             <AdminProvidersTable providers={providers} />
           </section>
+          <AdminActivityDomainChart stats={activityDomainStats} />
         </div>
       </AppShell>
     );
