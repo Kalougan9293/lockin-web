@@ -12,6 +12,7 @@ import {
   STATUT_COLUMN_ID,
   defaultRelanceStepName,
   ensureDefaultRelanceSteps,
+  normalizeRelanceStepChannel,
   relanceStepsLookUnconfigured,
   upgradeLegacyDefaultColumns,
 } from "@/types/tableau";
@@ -24,6 +25,8 @@ function mapRelanceStepRow(row: RelanceStepRow): RelanceStep {
     name: row.name,
     days: row.days,
     messageTemplate: row.message_template,
+    channel: normalizeRelanceStepChannel(row.channel),
+    smsTemplate: row.sms_template ?? "",
   };
 }
 
@@ -165,6 +168,8 @@ function relanceStepsToInsert(tableauId: string, steps: RelanceStep[]) {
     name: step.name.trim() || defaultRelanceStepName(ordre),
     days: step.days,
     message_template: step.messageTemplate,
+    sms_template: step.smsTemplate ?? "",
+    channel: normalizeRelanceStepChannel(step.channel),
     ordre,
   }));
 }

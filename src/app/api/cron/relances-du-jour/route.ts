@@ -6,7 +6,7 @@ import { collectDueRelancesForCron } from "@/lib/dashboard/relance-deliveries";
 import { serializeCronRelanceItems } from "@/lib/dashboard/serialize-cron-relance-items";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-/** Relances du jour pour n8n : chaque item.body est du HTML (bodyFormat: html). */
+/** Relances du jour pour n8n : HTML (`body`) + SMS (`smsBody`) selon `sendEmail` / `sendSms`. */
 export async function GET(request: Request) {
   const unauthorized = verifyCronSecret(request);
   if (unauthorized) return unauthorized;

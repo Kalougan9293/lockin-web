@@ -1,15 +1,25 @@
 import type { CronRelanceItem } from "./relance-deliveries";
 
-export type CronRelanceDraftItem = Omit<CronRelanceItem, "body" | "bodyFormat"> & {
+export type CronRelanceDraftItem = Omit<
+  CronRelanceItem,
+  "body" | "bodyFormat" | "smsBody"
+> & {
   messageBody: string;
+  smsMessageBody: string;
 };
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+function normalizePhone(phone: string): string {
+  return phone.replace(/\D/g, "");
+}
+
 function recipientGroupKey(item: CronRelanceDraftItem): string {
-  return `${item.userId}:${normalizeEmail(item.to)}`;
+  const email = normalizeEmail(item.to);
+  const phone = normalizePhone(item.phone);
+  return `${item.userId}:${item.channel}:${email}:${phone}`;
 }
 
 function withDeliveryArrays(item: CronRelanceDraftItem): CronRelanceDraftItem {
@@ -50,6 +60,19 @@ function buildMergedBody(items: CronRelanceDraftItem[]): string {
   return intro + sections.join("\n\n────────────\n\n");
 }
 
+function buildMergedSmsBody(items: CronRelanceDraftItem[]): string {
+  if (items.length === 1) return items[0].smsMessageBody;
+
+  const clientName = items[0].clientName?.trim();
+  const intro = clientName
+    ? `Bonjour ${clientName}, ${items.length} factures : `
+    : `${items.length} factures : `;
+
+  const snippets = items.map((item) => item.smsMessageBody.trim()).filter(Boolean);
+  const merged = intro + snippets.join(" | ");
+  return merged.length <= 160 ? merged : merged.slice(0, 160);
+}
+
 function mergeEmphasisValues(items: CronRelanceDraftItem[]): string[] {
   const values = new Set<string>();
   for (const item of items) {
@@ -63,6 +86,8 @@ function mergeEmphasisValues(items: CronRelanceDraftItem[]): string[] {
 function mergeRecipientGroup(items: CronRelanceDraftItem[]): CronRelanceDraftItem {
   const normalized = items.map(withDeliveryArrays);
   const primary = normalized[0];
+  const sendEmail = normalized.some((item) => item.sendEmail);
+  const sendSms = normalized.some((item) => item.sendSms);
 
   return {
     ...primary,
@@ -71,7 +96,10 @@ function mergeRecipientGroup(items: CronRelanceDraftItem[]): CronRelanceDraftIte
     ligneId: primary.ligneId,
     ligneIds: normalized.flatMap((item) => item.ligneIds ?? [item.ligneId]),
     subject: buildMergedSubject(normalized),
-    messageBody: buildMergedBody(normalized),
+    messageBody: sendEmail ? buildMergedBody(normalized) : "",
+    smsMessageBody: sendSms ? buildMergedSmsBody(normalized) : "",
+    sendEmail,
+    sendSms,
     emphasisValues: mergeEmphasisValues(normalized),
     scheduledFor: normalized
       .map((item) => item.scheduledFor)
@@ -81,8 +109,8 @@ function mergeRecipientGroup(items: CronRelanceDraftItem[]): CronRelanceDraftIte
 }
 
 /**
- * Regroupe les relances d'un même prestataire vers le même email en un seul envoi
- * par passage du cron (évite le spam quand un client a plusieurs factures dues).
+ * Regroupe les relances d'un même prestataire vers le même destinataire
+ * (e-mail et/ou téléphone) en un seul envoi par passage du cron.
  */
 export function consolidateRelanceCronItems(
   items: CronRelanceDraftItem[],

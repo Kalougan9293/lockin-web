@@ -6,11 +6,16 @@ import {
   parseDateInputToIso,
 } from "@/lib/preferences/date-format";
 import type { Database, RelanceDeliveryRow } from "@/types/database";
-import type { ClientRow, ColumnDef, RelanceStep, TableData } from "@/types/tableau";
+import type { ClientRow, ColumnDef, RelanceStep, RelanceStepChannel, TableData } from "@/types/tableau";
 import {
+  defaultSmsTemplateForStep,
   formatRelanceStepNumber,
   formatRelanceTiming,
   isRowPaid,
+  normalizeRelanceStepChannel,
+  relanceStepNeedsEmail,
+  relanceStepNeedsSms,
+  RELANCE_SMS_MAX_LENGTH,
 } from "@/types/tableau";
 
 import { getRowFieldValue } from "./recovery";
@@ -41,12 +46,21 @@ export type CronRelanceItem = {
   stepId: string;
   tableauId: string;
   userId: string;
+  /** Canal configuré sur l'étape de relance. */
+  channel: RelanceStepChannel;
+  /** Destinataire e-mail (vide si SMS seul). */
   to: string;
+  /** Téléphone du débiteur, format libre (vide si e-mail seul). */
+  phone: string;
   clientName?: string;
   subject: string;
   /** Corps HTML prêt pour n8n (emailFormat: html). */
   body: string;
   bodyFormat: "html";
+  /** Corps SMS brut (max 160 caractères). */
+  smsBody: string;
+  sendEmail: boolean;
+  sendSms: boolean;
   /** Montants et échéances formatés à mettre en gras dans le HTML. */
   emphasisValues?: string[];
   scheduledFor: string;
@@ -109,6 +123,7 @@ export function resolveRelanceMessageTemplate(
     ["Échéance", ["Échéance", "Echeance"]],
     ["Date", ["Date", "date"]],
     ["Mail", ["Mail", "Email"]],
+    ["Référence", ["Référence", "reference", "Facture"]],
   ];
 
   for (const [label, aliases] of standardFields) {
@@ -160,6 +175,40 @@ function getAllColumns(table: TableData): ColumnDef[] {
 
 function isDueOnOrBeforeToday(scheduledDate: Date, referenceDate: Date): boolean {
   return isDateOnOrBefore(scheduledDate, referenceDate);
+}
+
+function getRowPhone(row: ClientRow, columns: ColumnDef[]): string {
+  return getRowFieldValue(
+    row,
+    columns,
+    "Numéro",
+    "numero",
+    "Téléphone",
+    "Tel",
+    "Phone",
+  );
+}
+
+function rowMeetsChannelRequirements(
+  channel: RelanceStepChannel,
+  email: string,
+  phone: string,
+): boolean {
+  if (relanceStepNeedsEmail(channel) && !email.trim()) return false;
+  if (relanceStepNeedsSms(channel) && !phone.trim()) return false;
+  return true;
+}
+
+function resolveSmsBody(
+  step: RelanceStep,
+  row: ClientRow,
+  columns: ColumnDef[],
+): string {
+  const template =
+    step.smsTemplate.trim() || defaultSmsTemplateForStep(step.days);
+  const resolved = resolveRelanceMessageTemplate(template, row, columns).trim();
+  if (resolved.length <= RELANCE_SMS_MAX_LENGTH) return resolved;
+  return resolved.slice(0, RELANCE_SMS_MAX_LENGTH);
 }
 
 async function queueDelivery(
@@ -250,9 +299,8 @@ export async function collectDueRelancesForCron(
     for (const row of table.rows) {
       if (isRowPaid(row)) continue;
 
-      const to = getRowFieldValue(row, columns, "Mail", "Email");
-      if (!to) continue;
-
+      const email = getRowFieldValue(row, columns, "Mail", "Email");
+      const phone = getRowPhone(row, columns);
       const clientName = getRowFieldValue(row, columns, "Nom", "nom", "Client");
 
       const schedule = buildRelanceScheduleForRow(
@@ -263,9 +311,11 @@ export async function collectDueRelancesForCron(
 
       for (let stepIndex = 0; stepIndex < relanceSteps.length; stepIndex += 1) {
         const step = relanceSteps[stepIndex];
+        const channel = normalizeRelanceStepChannel(step.channel);
         const scheduled = schedule.get(step.id);
         if (!scheduled) continue;
         if (!isDueOnOrBeforeToday(scheduled.scheduledDate, today)) continue;
+        if (!rowMeetsChannelRequirements(channel, email, phone)) continue;
 
         const scheduledFor = formatIsoDate(scheduled.scheduledDate);
         const delivery = await queueDelivery(supabase, {
@@ -277,6 +327,9 @@ export async function collectDueRelancesForCron(
 
         if (!delivery || delivery.status === "sent") continue;
 
+        const needsEmail = relanceStepNeedsEmail(channel);
+        const needsSms = relanceStepNeedsSms(channel);
+
         items.push({
           deliveryId: delivery.id,
           deliveryIds: [delivery.id],
@@ -285,11 +338,20 @@ export async function collectDueRelancesForCron(
           stepId: step.id,
           tableauId: table.id,
           userId,
-          to,
+          channel,
+          to: needsEmail ? email.trim() : "",
+          phone: needsSms ? phone.trim() : "",
           clientName: clientName || undefined,
           subject: buildRelanceSubject(step, stepIndex),
-          messageBody: resolveRelanceMessageTemplate(step.messageTemplate, row, columns),
-          emphasisValues: getRelanceEmphasisValues(row, columns),
+          messageBody: needsEmail
+            ? resolveRelanceMessageTemplate(step.messageTemplate, row, columns)
+            : "",
+          smsMessageBody: needsSms ? resolveSmsBody(step, row, columns) : "",
+          sendEmail: needsEmail,
+          sendSms: needsSms,
+          emphasisValues: needsEmail
+            ? getRelanceEmphasisValues(row, columns)
+            : [],
           scheduledFor,
         });
       }
@@ -303,16 +365,21 @@ export async function collectDueRelancesForCron(
 
   return consolidateRelanceCronItems(items).map((item) => {
     const creditor = getCreditorContext(creditorContexts, item.userId);
-    const { messageBody, ...rest } = item;
+    const { messageBody, smsMessageBody, sendEmail, sendSms, ...rest } = item;
 
     return {
       ...rest,
-      body: buildRelanceEmailHtml(
-        messageBody,
-        creditor,
-        item.emphasisValues ?? [],
-      ),
+      body: sendEmail
+        ? buildRelanceEmailHtml(
+            messageBody,
+            creditor,
+            item.emphasisValues ?? [],
+          )
+        : "",
       bodyFormat: "html" as const,
+      smsBody: sendSms ? smsMessageBody : "",
+      sendEmail,
+      sendSms,
     };
   });
 }

@@ -3,13 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import type { ColumnDef, RelanceStep } from "@/types/tableau";
+import type { ColumnDef, RelanceStep, RelanceStepChannel } from "@/types/tableau";
 import {
   MAX_RELANCES,
   buildDefaultRelanceStepsForUi,
   createRelanceStep,
+  defaultSmsTemplateForStep,
   getTemplateBubbles,
-  relanceDaysHint,
+  normalizeRelanceStepChannel,
   relanceStepsLookUnconfigured,
   validateRelanceStepsOrder,
 } from "@/types/tableau";
@@ -22,8 +23,22 @@ type TableauConfigModalProps = {
   onSubmit: (steps: RelanceStep[]) => void;
 };
 
+const SMS_MAX_LENGTH = 160;
+
+const RELANCE_CHANNEL_OPTIONS = [
+  { value: "email", label: "Email" },
+  { value: "sms", label: "SMS" },
+  { value: "both", label: "Les 2" },
+] as const satisfies ReadonlyArray<{
+  value: RelanceStepChannel;
+  label: string;
+}>;
+
 const inputClass =
   "w-full rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-sm text-white outline-none placeholder:text-brand-muted/50 focus:border-white/25 focus:ring-1 focus:ring-white/10";
+
+const delayInputClass =
+  "box-border w-[3rem] max-w-full shrink-0 rounded-lg border border-white/10 bg-white/[0.04] px-0.5 py-1.5 text-center text-sm tabular-nums text-white outline-none focus:border-amber-400/35 focus:ring-1 focus:ring-amber-400/15";
 
 function insertAtCursor(
   textarea: HTMLTextAreaElement,
@@ -36,8 +51,34 @@ function insertAtCursor(
   return { value: next, cursor: start + token.length };
 }
 
-const CONFIG_ROW_HEIGHT = "min-h-[8rem]";
+const CONFIG_ROW_HEIGHT_BASE = "min-h-[8rem]";
+const CONFIG_ROW_HEIGHT_BOTH = "min-h-[14rem]";
 const FLASH_ERROR_MS = 4500;
+
+function channelIncludesSms(channel: RelanceStepChannel): boolean {
+  return channel === "sms" || channel === "both";
+}
+
+function channelIncludesEmail(channel: RelanceStepChannel): boolean {
+  return channel === "email" || channel === "both";
+}
+
+function configRowHeightClass(channel: RelanceStepChannel): string {
+  return channel === "both" ? CONFIG_ROW_HEIGHT_BOTH : CONFIG_ROW_HEIGHT_BASE;
+}
+
+function normalizeStepForUi(step: RelanceStep): RelanceStep {
+  const channel = normalizeRelanceStepChannel(step.channel);
+  const needsSms = channel === "sms" || channel === "both";
+
+  return {
+    ...step,
+    channel,
+    smsTemplate:
+      step.smsTemplate?.trim() ||
+      (needsSms ? defaultSmsTemplateForStep(step.days) : ""),
+  };
+}
 
 export function TableauConfigModal({
   open,
@@ -77,7 +118,7 @@ export function TableauConfigModal({
         ? initialSteps
         : buildDefaultRelanceStepsForUi();
 
-    const next = source.map((step) => ({ ...step }));
+    const next = source.map((step) => normalizeStepForUi(step));
     setSteps(next);
     setActiveStepId(next[0]?.id ?? null);
     setFlashError(null);
@@ -130,6 +171,27 @@ export function TableauConfigModal({
     });
   }
 
+  function handleChannelChange(id: string, raw: string) {
+    const channel = normalizeRelanceStepChannel(raw);
+
+    setSteps((current) =>
+      current.map((step) => {
+        if (step.id !== id) return step;
+
+        const next: RelanceStep = { ...step, channel };
+
+        if (
+          (channel === "sms" || channel === "both") &&
+          !step.smsTemplate.trim()
+        ) {
+          next.smsTemplate = defaultSmsTemplateForStep(step.days);
+        }
+
+        return next;
+      }),
+    );
+  }
+
   function removeStep(id: string) {
     setSteps((current) => {
       if (current.length <= 1) return current;
@@ -161,7 +223,7 @@ export function TableauConfigModal({
     const token = `[${label}]`;
     const textarea = messageRefs.current[stepId];
     const step = steps.find((entry) => entry.id === stepId);
-    if (!step) return;
+    if (!step || !channelIncludesEmail(step.channel)) return;
 
     if (textarea) {
       const { value, cursor } = insertAtCursor(textarea, step.messageTemplate, token);
@@ -183,7 +245,33 @@ export function TableauConfigModal({
       return;
     }
 
-    onSubmit(steps);
+    for (let index = 0; index < steps.length; index += 1) {
+      const step = steps[index];
+
+      if (channelIncludesEmail(step.channel) && !step.messageTemplate.trim()) {
+        showFlashError(
+          `Renseignez le message e-mail pour la relance n°${index + 1}.`,
+        );
+        return;
+      }
+
+      if (channelIncludesSms(step.channel)) {
+        if (!step.smsTemplate.trim()) {
+          showFlashError(
+            `Renseignez le message SMS pour la relance n°${index + 1}.`,
+          );
+          return;
+        }
+        if (step.smsTemplate.length > SMS_MAX_LENGTH) {
+          showFlashError(
+            `Le SMS de la relance n°${index + 1} ne doit pas dépasser ${SMS_MAX_LENGTH} caractères.`,
+          );
+          return;
+        }
+      }
+    }
+
+    onSubmit(steps.map((step) => normalizeStepForUi(step)));
     onClose();
   }
 
@@ -222,155 +310,233 @@ export function TableauConfigModal({
         </div>
       </header>
 
-        {flashError ? (
-          <div
-            role="alert"
-            className="shrink-0 border-b border-rose-400/25 bg-rose-500/15 px-4 py-2.5 text-center text-sm text-rose-100 sm:px-8"
-          >
-            {flashError}
-          </div>
-        ) : null}
+      {flashError ? (
+        <div
+          role="alert"
+          className="shrink-0 border-b border-rose-400/25 bg-rose-500/15 px-4 py-2.5 text-center text-sm text-rose-100 sm:px-8"
+        >
+          {flashError}
+        </div>
+      ) : null}
 
-        <div className="min-h-0 flex-1 overflow-auto px-4 sm:px-8">
-          <table className="w-full border-collapse text-sm">
-            <thead className="sticky top-0 z-[1] bg-brand-surface/95 backdrop-blur-sm">
-              <tr className="border-b border-white/10 text-xs font-semibold uppercase tracking-wide">
-                <th className="w-28 px-3 py-3 text-center text-brand-muted sm:px-4">
-                  Relance
-                </th>
-                <th className="w-[10.5rem] border-l border-white/[0.08] bg-amber-500/[0.07] px-4 py-3 text-center text-amber-100 sm:w-[11.5rem]">
-                  Délai
-                </th>
-                <th className="border-l border-white/[0.08] bg-sky-500/[0.06] px-4 py-3 text-center text-sky-100">
-                  Message
-                </th>
-                <th className="w-12 border-l border-white/[0.08] px-2 py-3" aria-label="Actions" />
-              </tr>
-            </thead>
-            <tbody>
-              {steps.map((step, index) => {
-                const isActive = activeStepId === step.id;
-                const canRemove = steps.length > 1;
+      <div className="min-h-0 flex-1 overflow-auto px-4 sm:px-8">
+        <table className="w-full table-fixed border-collapse text-sm">
+          <thead className="sticky top-0 z-[1] bg-brand-surface/95 backdrop-blur-sm">
+            <tr className="border-b border-white/10 text-xs font-semibold uppercase tracking-wide">
+              <th className="w-[6.5rem] px-2 py-3 text-center text-brand-muted sm:w-[7rem]">
+                Relance
+              </th>
+              <th className="w-[7.25rem] border-l border-white/[0.08] bg-amber-500/[0.07] px-1 py-3 text-center text-amber-100 sm:w-[7.5rem]">
+                Délai
+              </th>
+              <th className="w-[8.5rem] border-l border-white/[0.08] bg-violet-500/[0.07] px-2 py-3 text-center text-violet-100 sm:w-[9rem]">
+                Canal
+              </th>
+              <th className="border-l border-white/[0.08] bg-sky-500/[0.06] px-4 py-3 text-center text-sky-100">
+                Message
+              </th>
+              <th
+                className="w-12 border-l border-white/[0.08] px-2 py-3"
+                aria-label="Actions"
+              />
+            </tr>
+          </thead>
+          <tbody>
+            {steps.map((step, index) => {
+              const isActive = activeStepId === step.id;
+              const canRemove = steps.length > 1;
+              const rowHeightClass = configRowHeightClass(step.channel);
+              const showEmail = channelIncludesEmail(step.channel);
+              const showSms = channelIncludesSms(step.channel);
 
-                return (
-                  <tr
-                    key={step.id}
-                    className={`border-b border-white/[0.06] transition-colors ${CONFIG_ROW_HEIGHT} ${
-                      isActive ? "bg-white/[0.03]" : "hover:bg-white/[0.015]"
-                    }`}
-                  >
-                    <td className="p-0 align-middle sm:px-0">
-                      <div
-                        className={`flex ${CONFIG_ROW_HEIGHT} items-center justify-center px-3 sm:px-4`}
-                      >
-                        <span className="text-sm font-medium text-violet-100/90">
-                          Relance {index + 1}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="border-l border-white/[0.08] bg-amber-500/[0.04] p-0 align-middle">
-                      <div
-                        className={`flex ${CONFIG_ROW_HEIGHT} flex-col items-center justify-center px-4`}
-                      >
-                        <div className="flex items-center justify-center gap-1.5">
-                          <input
-                            type="number"
-                            inputMode="numeric"
-                            value={step.days}
-                            onChange={(event) =>
-                              handleDaysChange(step.id, event.target.value)
-                            }
-                            onFocus={() => setActiveStepId(step.id)}
-                            aria-label={`Jours pour la relance n°${index + 1}`}
-                            className={`${inputClass} w-14 shrink-0 border-amber-400/15 text-center tabular-nums focus:border-amber-400/35 focus:ring-amber-400/15`}
-                          />
-                          <span className="text-xs text-amber-100/70">j</span>
-                        </div>
-                        <p className="mt-1 text-center text-[10px] leading-tight text-amber-100/50">
-                          {relanceDaysHint()}
-                        </p>
-                      </div>
-                    </td>
-                    <td className="border-l border-white/[0.08] bg-sky-500/[0.04] p-0 align-middle">
-                      <div
-                        className={`flex ${CONFIG_ROW_HEIGHT} items-center justify-center px-4`}
-                      >
-                        <textarea
-                          ref={(node) => {
-                            messageRefs.current[step.id] = node;
-                          }}
-                          id={`message-${step.id}`}
-                          value={step.messageTemplate}
+              return (
+                <tr
+                  key={step.id}
+                  className={`border-b border-white/[0.06] transition-colors ${rowHeightClass} ${
+                    isActive ? "bg-white/[0.03]" : "hover:bg-white/[0.015]"
+                  }`}
+                >
+                  <td className="p-0 align-middle sm:px-0">
+                    <div
+                      className={`flex ${rowHeightClass} items-center justify-center px-3 sm:px-4`}
+                    >
+                      <span className="text-sm font-medium text-violet-100/90">
+                        Relance {index + 1}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="overflow-hidden border-l border-white/[0.08] bg-amber-500/[0.04] p-0 align-middle">
+                    <div
+                      className={`flex ${rowHeightClass} min-w-0 flex-col items-center justify-center px-1.5 py-2 sm:px-2`}
+                    >
+                      <div className="flex min-w-0 max-w-full items-center justify-center gap-0.5">
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          value={step.days}
                           onChange={(event) =>
-                            updateStep(step.id, {
-                              messageTemplate: event.target.value,
-                            })
+                            handleDaysChange(step.id, event.target.value)
                           }
                           onFocus={() => setActiveStepId(step.id)}
-                          rows={5}
-                          className={`${inputClass} min-h-[7.5rem] resize-none border-sky-400/15 py-2 text-left leading-relaxed focus:border-sky-400/35 focus:ring-sky-400/15`}
-                          placeholder="Bonjour [Nom], votre facture à échéance le [Échéance]…"
+                          aria-label={`Jours pour la relance n°${index + 1}`}
+                          className={`${delayInputClass} border-amber-400/15`}
                         />
+                        <span className="shrink-0 text-[11px] leading-none text-amber-100/70">
+                          jours
+                        </span>
                       </div>
-                    </td>
-                    <td className="border-l border-white/[0.08] p-0 align-middle">
-                      <div className={`flex ${CONFIG_ROW_HEIGHT} items-center justify-center px-2`}>
-                        {canRemove ? (
-                          <button
-                            type="button"
-                            onClick={() => removeStep(step.id)}
-                            aria-label={`Supprimer la relance ${index + 1}`}
-                            className="flex h-9 w-9 items-center justify-center rounded-lg text-xl font-medium leading-none text-red-500 transition-colors hover:bg-red-500/15 hover:text-red-400"
+                      <p className="mt-1.5 w-full min-w-0 px-0.5 text-center text-[9px] leading-[1.35] text-amber-100/50">
+                        par rapport à la
+                        <br />
+                        date d&apos;échéance
+                      </p>
+                    </div>
+                  </td>
+                  <td className="border-l border-white/[0.08] bg-violet-500/[0.04] p-0 align-middle">
+                    <div
+                      className={`flex ${rowHeightClass} flex-col items-center justify-center px-3`}
+                    >
+                      <select
+                        value={step.channel}
+                        onChange={(event) =>
+                          handleChannelChange(step.id, event.target.value)
+                        }
+                        onFocus={() => setActiveStepId(step.id)}
+                        aria-label={`Canal pour la relance n°${index + 1}`}
+                        className={`${inputClass} border-violet-400/15 text-xs focus:border-violet-400/35 focus:ring-violet-400/15`}
+                      >
+                        {RELANCE_CHANNEL_OPTIONS.map((option) => (
+                          <option
+                            key={option.value}
+                            value={option.value}
+                            className="bg-brand-dark"
                           >
-                            ×
-                          </button>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </td>
+                  <td className="border-l border-white/[0.08] bg-sky-500/[0.04] p-0 align-middle">
+                    <div
+                      className={`flex ${rowHeightClass} flex-col justify-center gap-3 px-4 py-3`}
+                    >
+                      {showEmail ? (
+                        <div className="min-h-0 flex-1 space-y-1">
+                          <span className="text-[10px] font-medium uppercase tracking-wide text-sky-200/60">
+                            E-mail
+                          </span>
+                          <textarea
+                            ref={(node) => {
+                              messageRefs.current[step.id] = node;
+                            }}
+                            id={`message-${step.id}`}
+                            value={step.messageTemplate}
+                            onChange={(event) =>
+                              updateStep(step.id, {
+                                messageTemplate: event.target.value,
+                              })
+                            }
+                            onFocus={() => setActiveStepId(step.id)}
+                            rows={showSms ? 4 : 5}
+                            className={`${inputClass} min-h-[6rem] resize-none border-sky-400/15 py-2 text-left leading-relaxed focus:border-sky-400/35 focus:ring-sky-400/15 ${
+                              showSms ? "sm:min-h-[5.5rem]" : "sm:min-h-[7.5rem]"
+                            }`}
+                            placeholder="Bonjour [Nom], votre facture à échéance le [Échéance]…"
+                          />
+                        </div>
+                      ) : null}
+
+                      {showSms ? (
+                        <div className="min-h-0 shrink-0 space-y-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[10px] font-medium uppercase tracking-wide text-emerald-200/60">
+                              SMS
+                            </span>
+                            <span className="text-[10px] tabular-nums text-brand-muted">
+                              {step.smsTemplate.length}/{SMS_MAX_LENGTH}
+                            </span>
+                          </div>
+                          <textarea
+                            value={step.smsTemplate}
+                            maxLength={SMS_MAX_LENGTH}
+                            rows={3}
+                            onChange={(event) =>
+                              updateStep(step.id, {
+                                smsTemplate: event.target.value,
+                              })
+                            }
+                            onFocus={() => setActiveStepId(step.id)}
+                            className={`${inputClass} resize-none border-emerald-400/15 py-2 text-left leading-snug focus:border-emerald-400/35 focus:ring-emerald-400/15`}
+                            placeholder="Bonjour [Nom], facture [Référence] à échéance le [Échéance]…"
+                          />
+                          <p className="text-[10px] text-brand-muted/80">
+                            Texte brut uniquement, {SMS_MAX_LENGTH} caractères max.
+                          </p>
+                        </div>
+                      ) : null}
+                    </div>
+                  </td>
+                  <td className="border-l border-white/[0.08] p-0 align-middle">
+                    <div
+                      className={`flex ${rowHeightClass} items-center justify-center px-2`}
+                    >
+                      {canRemove ? (
+                        <button
+                          type="button"
+                          onClick={() => removeStep(step.id)}
+                          aria-label={`Supprimer la relance ${index + 1}`}
+                          className="flex h-9 w-9 items-center justify-center rounded-lg text-xl font-medium leading-none text-red-500 transition-colors hover:bg-red-500/15 hover:text-red-400"
+                        >
+                          ×
+                        </button>
+                      ) : null}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <footer className="shrink-0 space-y-4 border-t border-white/10 px-4 py-5 sm:px-8">
+        <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-2">
+          <span className="text-xs font-medium text-brand-muted">Variables :</span>
+          {templateBubbles.map((label) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => insertBubble(label)}
+              title="Insérer dans le message e-mail actif"
+              className="rounded-md border border-violet-400/25 bg-violet-500/10 px-2 py-0.5 font-mono text-[11px] text-violet-100 transition-colors hover:border-violet-300/40 hover:bg-violet-500/20"
+            >
+              [{label}]
+            </button>
+          ))}
         </div>
 
-        <footer className="shrink-0 space-y-4 border-t border-white/10 px-4 py-5 sm:px-8">
-          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-2">
-            <span className="text-xs font-medium text-brand-muted">Variables :</span>
-            {templateBubbles.map((label) => (
-              <button
-                key={label}
-                type="button"
-                onClick={() => insertBubble(label)}
-                title="Insérer dans le message actif"
-                className="rounded-md border border-violet-400/25 bg-violet-500/10 px-2 py-0.5 font-mono text-[11px] text-violet-100 transition-colors hover:border-violet-300/40 hover:bg-violet-500/20"
-              >
-                [{label}]
-              </button>
-            ))}
+        {steps.length < MAX_RELANCES ? (
+          <div className="flex justify-center">
+            <button
+              type="button"
+              onClick={addStep}
+              className="flex items-center gap-2 rounded-xl border border-violet-400/35 bg-gradient-to-r from-violet-500/25 to-fuchsia-500/20 px-6 py-2.5 text-base font-semibold text-violet-50 shadow-sm shadow-violet-900/25 transition-all hover:border-violet-300/50 hover:from-violet-500/35 hover:to-fuchsia-500/30"
+            >
+              <span className="text-xl leading-none">+</span>
+              Ajouter une relance
+            </button>
           </div>
-
-          {steps.length < MAX_RELANCES ? (
-            <div className="flex justify-center">
-              <button
-                type="button"
-                onClick={addStep}
-                className="flex items-center gap-2 rounded-xl border border-violet-400/35 bg-gradient-to-r from-violet-500/25 to-fuchsia-500/20 px-6 py-2.5 text-base font-semibold text-violet-50 shadow-sm shadow-violet-900/25 transition-all hover:border-violet-300/50 hover:from-violet-500/35 hover:to-fuchsia-500/30"
-              >
-                <span className="text-xl leading-none">+</span>
-                Ajouter une relance
-              </button>
-            </div>
-          ) : (
-            <p className="text-center text-sm text-brand-muted">
-              Maximum {MAX_RELANCES} relances atteint.
-            </p>
-          )}
-
-          <p className="text-center text-xs tabular-nums text-brand-muted">
-            {steps.length} / {MAX_RELANCES}
+        ) : (
+          <p className="text-center text-sm text-brand-muted">
+            Maximum {MAX_RELANCES} relances atteint.
           </p>
-        </footer>
+        )}
+
+        <p className="text-center text-xs tabular-nums text-brand-muted">
+          {steps.length} / {MAX_RELANCES}
+        </p>
+      </footer>
     </div>,
     document.body,
   );

@@ -10,11 +10,43 @@ export type ClientRow = {
 
 export const MAX_RELANCES = 7;
 
+export type RelanceStepChannel = "email" | "sms" | "both";
+
+export const DEFAULT_RELANCE_STEP_CHANNEL: RelanceStepChannel = "email";
+
+export function normalizeRelanceStepChannel(value: unknown): RelanceStepChannel {
+  if (value === "email" || value === "sms" || value === "both") return value;
+  return DEFAULT_RELANCE_STEP_CHANNEL;
+}
+
+export function relanceStepNeedsEmail(channel: RelanceStepChannel): boolean {
+  return channel === "email" || channel === "both";
+}
+
+export function relanceStepNeedsSms(channel: RelanceStepChannel): boolean {
+  return channel === "sms" || channel === "both";
+}
+
+export function formatRelanceChannelLabel(channel: RelanceStepChannel): string {
+  switch (channel) {
+    case "email":
+      return "E-mail automatique LockIn";
+    case "sms":
+      return "SMS automatique LockIn";
+    case "both":
+      return "E-mail + SMS automatiques LockIn";
+  }
+}
+
+export const RELANCE_SMS_MAX_LENGTH = 160;
+
 export type RelanceStep = {
   id: string;
   name: string;
   days: number;
   messageTemplate: string;
+  channel: RelanceStepChannel;
+  smsTemplate: string;
 };
 
 export type RightColumnAccent = "green" | "yellow" | "orange" | "red" | "neutral";
@@ -94,11 +126,17 @@ export function defaultRelanceStepName(ordre: number): string {
   return `Relance ${ordre + 1}`;
 }
 
+export const DEFAULT_SMS_FALLBACK =
+  "Bonjour [Nom], relance facture [Référence] (éch. [Échéance]). Merci de votre retour.";
+
 export const DEFAULT_RELANCE_STEPS: RelanceStep[] = [
   {
     id: "rappel-j7",
     name: "Relance 1",
     days: -7,
+    channel: DEFAULT_RELANCE_STEP_CHANNEL,
+    smsTemplate:
+      "Bonjour [Nom], facture [Référence] à échéance le [Échéance]. Merci d'anticiper le règlement.",
     messageTemplate:
       "Bonjour [Nom],\n\nVotre facture arrive bientôt à échéance le [Échéance]. Nous vous adressons ce message afin d'anticiper son règlement.\n\nMerci beaucoup.",
   },
@@ -106,6 +144,9 @@ export const DEFAULT_RELANCE_STEPS: RelanceStep[] = [
     id: "relance-j2",
     name: "Relance 2",
     days: 2,
+    channel: DEFAULT_RELANCE_STEP_CHANNEL,
+    smsTemplate:
+      "Bonjour [Nom], facture [Référence] de [Montant] échue le [Échéance]. Merci de procéder au règlement.",
     messageTemplate:
       "Bonjour [Nom],\n\nNous vous rappelons que votre facture d'un montant de [Montant] est arrivée à échéance le [Échéance].\n\nNous vous remercions de bien vouloir procéder à son règlement dans les meilleurs délais.",
   },
@@ -113,6 +154,9 @@ export const DEFAULT_RELANCE_STEPS: RelanceStep[] = [
     id: "relance-j10",
     name: "Relance 3",
     days: 10,
+    channel: DEFAULT_RELANCE_STEP_CHANNEL,
+    smsTemplate:
+      "Bonjour [Nom], facture [Référence] impayée (éch. [Échéance]). Merci de nous indiquer une date de paiement.",
     messageTemplate:
       "Bonjour [Nom],\n\nÀ ce jour, nous n'avons pas reçu le règlement de la facture arrivée à échéance le [Échéance].\n\nMerci de nous indiquer une date de paiement ou de procéder à sa régularisation dans les meilleurs délais.",
   },
@@ -120,10 +164,20 @@ export const DEFAULT_RELANCE_STEPS: RelanceStep[] = [
     id: "relance-j30",
     name: "Relance 4",
     days: 30,
+    channel: DEFAULT_RELANCE_STEP_CHANNEL,
+    smsTemplate:
+      "Bonjour [Nom], facture [Référence] toujours impayée (éch. [Échéance]). Merci de régulariser sous 8 jours.",
     messageTemplate:
       "Bonjour [Nom],\n\nSauf erreur de notre part, la facture échue le [Échéance] demeure impayée malgré nos précédentes relances.\n\nNous vous remercions de procéder à sa régularisation sous 8 jours. À défaut de règlement, nous nous réservons le droit d'engager les démarches nécessaires au recouvrement de cette créance.",
   },
 ];
+
+/** Message SMS court par défaut, calqué sur le ton des e-mails (max 160 car. une fois variables remplacées). */
+export function defaultSmsTemplateForStep(days: number): string {
+  const match = DEFAULT_RELANCE_STEPS.find((step) => step.days === days);
+  if (match?.smsTemplate.trim()) return match.smsTemplate;
+  return DEFAULT_SMS_FALLBACK;
+}
 
 export type TableSummary = {
   id: string;
@@ -294,12 +348,16 @@ export function validateRelanceStepsOrder(steps: RelanceStep[]): string | null {
 }
 
 export function createRelanceStep(
-  partial?: Partial<Pick<RelanceStep, "name" | "days" | "messageTemplate">>,
+  partial?: Partial<
+    Pick<RelanceStep, "name" | "days" | "messageTemplate" | "channel" | "smsTemplate">
+  >,
 ): RelanceStep {
   return {
     id: crypto.randomUUID(),
     name: partial?.name?.trim() || defaultRelanceStepName(0),
     days: partial?.days ?? 7,
+    channel: partial?.channel ?? DEFAULT_RELANCE_STEP_CHANNEL,
+    smsTemplate: partial?.smsTemplate ?? "",
     messageTemplate:
       partial?.messageTemplate ??
       "Bonjour [Nom], concernant votre facture à échéance le [Échéance]…",

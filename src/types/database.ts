@@ -20,12 +20,16 @@ export type TableauRow = {
   created_at: string;
 };
 
+export type RelanceStepChannel = "email" | "sms" | "both";
+
 export type RelanceStepRow = {
   id: string;
   tableau_id: string;
   name: string;
   days: number;
   message_template: string;
+  sms_template: string;
+  channel: RelanceStepChannel;
   ordre: number;
 };
 
@@ -121,6 +125,8 @@ export type Database = {
           name: string;
           days: number;
           message_template?: string;
+          sms_template?: string;
+          channel?: RelanceStepChannel;
           ordre?: number;
         };
         Update: {
@@ -128,6 +134,8 @@ export type Database = {
           name?: string;
           days?: number;
           message_template?: string;
+          sms_template?: string;
+          channel?: RelanceStepChannel;
           ordre?: number;
         };
         Relationships: [

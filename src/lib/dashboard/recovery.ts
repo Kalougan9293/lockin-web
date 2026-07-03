@@ -1,7 +1,7 @@
 import { formatAmountForDisplay } from "@/lib/preferences/currency-format";
 import { formatDateForDisplay } from "@/lib/preferences/date-format";
 import type { ClientRow, ColumnDef, RelanceStep } from "@/types/tableau";
-import { formatRelanceStepNumber, formatRelanceTiming, isRowPaid } from "@/types/tableau";
+import { formatRelanceStepNumber, formatRelanceTiming, formatRelanceChannelLabel, isRowPaid, normalizeRelanceStepChannel } from "@/types/tableau";
 import type { RelanceDeliveryRow } from "@/types/database";
 
 import {
@@ -154,7 +154,7 @@ export function buildRelanceProofHistory(
         stepName,
         timing,
         sentDate: formatRelanceDisplayDate(item.displayDate),
-        channel: "Email automatique LockIn",
+        channel: formatRelanceChannelLabel(normalizeRelanceStepChannel(step.channel)),
         subject: `${stepName} — ${timing}`,
       };
     })
