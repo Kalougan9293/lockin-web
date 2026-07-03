@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 
 import { verifyCronSecret } from "@/lib/cron/auth";
+import { todayDateOnly } from "@/lib/dashboard/date-only";
 import { collectDueRelancesForCron } from "@/lib/dashboard/relance-deliveries";
+import { serializeCronRelanceItems } from "@/lib/dashboard/serialize-cron-relance-items";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /** Relances du jour pour n8n : chaque item.body est du HTML (bodyFormat: html). */
@@ -11,9 +13,10 @@ export async function GET(request: Request) {
 
   try {
     const admin = createAdminClient();
-    const items = await collectDueRelancesForCron(admin);
+    const items = await collectDueRelancesForCron(admin, todayDateOnly());
+    const payload = serializeCronRelanceItems(items);
 
-    return NextResponse.json({ items });
+    return NextResponse.json(payload);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Erreur lors du chargement des relances.";

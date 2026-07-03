@@ -15,9 +15,13 @@ import {
 
 import { getRowFieldValue } from "./recovery";
 import {
-  buildRelanceScheduleForRow,
+  formatDateOnlyIso,
+  isDateOnOrBefore,
+  normalizeDateOnlyInput,
   startOfDay,
-} from "./relance-schedule";
+  todayDateOnly,
+} from "./date-only";
+import { buildRelanceScheduleForRow } from "./relance-schedule";
 import { consolidateRelanceCronItems, type CronRelanceDraftItem } from "./consolidate-relance-cron-items";
 import {
   fetchCreditorContexts,
@@ -56,10 +60,7 @@ function normalizeLabel(label: string) {
 }
 
 function formatIsoDate(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return formatDateOnlyIso(date);
 }
 
 export function buildRelanceIdempotencyKey(
@@ -67,7 +68,9 @@ export function buildRelanceIdempotencyKey(
   stepId: string,
   scheduledFor: string,
 ): string {
-  return `${ligneId}:${stepId}:${scheduledFor}`;
+  const normalized =
+    normalizeDateOnlyInput(scheduledFor) ?? scheduledFor.trim();
+  return `${ligneId}:${stepId}:${normalized}`;
 }
 
 function formatFieldForTemplate(label: string, raw: string): string {
@@ -156,7 +159,7 @@ function getAllColumns(table: TableData): ColumnDef[] {
 }
 
 function isDueOnOrBeforeToday(scheduledDate: Date, referenceDate: Date): boolean {
-  return startOfDay(scheduledDate).getTime() <= startOfDay(referenceDate).getTime();
+  return isDateOnOrBefore(scheduledDate, referenceDate);
 }
 
 async function queueDelivery(
@@ -168,17 +171,19 @@ async function queueDelivery(
     scheduledFor: string;
   },
 ): Promise<RelanceDeliveryRow | null> {
+  const scheduledFor =
+    normalizeDateOnlyInput(payload.scheduledFor) ?? payload.scheduledFor.trim();
   const idempotencyKey = buildRelanceIdempotencyKey(
     payload.ligneId,
     payload.stepId,
-    payload.scheduledFor,
+    scheduledFor,
   );
 
   const { error: insertError } = await supabase.from("relance_deliveries").insert({
     ligne_id: payload.ligneId,
     step_id: payload.stepId,
     tableau_id: payload.tableauId,
-    scheduled_for: payload.scheduledFor,
+    scheduled_for: scheduledFor,
     status: "queued",
     idempotency_key: idempotencyKey,
   });
@@ -217,8 +222,9 @@ async function queueDelivery(
 
 export async function collectDueRelancesForCron(
   supabase: Supabase,
-  referenceDate: Date = new Date(),
+  referenceDate: Date = todayDateOnly(),
 ): Promise<CronRelanceItem[]> {
+  const today = startOfDay(referenceDate);
   const { data, error } = await supabase
     .from("tableaux")
     .select("*, relance_steps(*), lignes_factures(*)")
@@ -253,14 +259,13 @@ export async function collectDueRelancesForCron(
         row,
         columns,
         relanceSteps,
-        referenceDate,
       );
 
       for (let stepIndex = 0; stepIndex < relanceSteps.length; stepIndex += 1) {
         const step = relanceSteps[stepIndex];
         const scheduled = schedule.get(step.id);
         if (!scheduled) continue;
-        if (!isDueOnOrBeforeToday(scheduled.scheduledDate, referenceDate)) continue;
+        if (!isDueOnOrBeforeToday(scheduled.scheduledDate, today)) continue;
 
         const scheduledFor = formatIsoDate(scheduled.scheduledDate);
         const delivery = await queueDelivery(supabase, {

@@ -3,10 +3,15 @@ import type { ClientRow, ColumnDef, RelanceStep } from "@/types/tableau";
 
 import { buildRelanceIdempotencyKey } from "./relance-deliveries";
 import {
+  formatDateOnlyIso,
+  normalizeDateOnlyInput,
+  startOfDay,
+  todayDateOnly,
+} from "./date-only";
+import {
   buildRelanceScheduleForRow,
   formatRelanceCompactDate,
   formatRelanceDisplayDate,
-  startOfDay,
 } from "./relance-schedule";
 
 export type RelanceDisplayStatus =
@@ -33,10 +38,7 @@ export type RelanceDisplayOptions = {
 };
 
 function formatIsoDate(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return formatDateOnlyIso(date);
 }
 
 function findDeliveryForStep(
@@ -45,8 +47,20 @@ function findDeliveryForStep(
   stepId: string,
   scheduledFor: string,
 ): RelanceDeliveryRow | undefined {
-  const key = buildRelanceIdempotencyKey(ligneId, stepId, scheduledFor);
-  return deliveries.find((delivery) => delivery.idempotency_key === key);
+  const normalizedScheduled =
+    normalizeDateOnlyInput(scheduledFor) ?? scheduledFor.trim();
+  const key = buildRelanceIdempotencyKey(ligneId, stepId, normalizedScheduled);
+  return deliveries.find((delivery) => {
+    const deliveryDate =
+      normalizeDateOnlyInput(delivery.scheduled_for) ??
+      delivery.scheduled_for.trim();
+    const deliveryKey = buildRelanceIdempotencyKey(
+      delivery.ligne_id,
+      delivery.step_id,
+      deliveryDate,
+    );
+    return delivery.idempotency_key === key || deliveryKey === key;
+  });
 }
 
 export function filterDeliveriesForLigne(
@@ -68,14 +82,13 @@ export function buildRelanceDisplayForRow(
   columns: ColumnDef[],
   relanceSteps: RelanceStep[],
   deliveries: RelanceDeliveryRow[] = [],
-  referenceDate: Date = new Date(),
+  referenceDate: Date = todayDateOnly(),
   options?: RelanceDisplayOptions,
 ): Map<string, RelanceDisplayItem> {
   const schedule = buildRelanceScheduleForRow(
     row,
     columns,
     relanceSteps,
-    referenceDate,
   );
   const result = new Map<string, RelanceDisplayItem>();
   const today = startOfDay(referenceDate).getTime();
@@ -188,7 +201,7 @@ export function buildRelanceProgressForRow(
   columns: ColumnDef[],
   relanceSteps: RelanceStep[],
   deliveries: RelanceDeliveryRow[] = [],
-  referenceDate: Date = new Date(),
+  referenceDate: Date = todayDateOnly(),
   options?: RelanceDisplayOptions,
 ): RelanceProgressState | null {
   if (relanceSteps.length === 0) return null;

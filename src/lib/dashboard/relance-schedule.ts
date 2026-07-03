@@ -1,5 +1,13 @@
-import { parseDateInputToIso } from "@/lib/preferences/date-format";
 import type { ClientRow, ColumnDef, RelanceStep } from "@/types/tableau";
+
+import {
+  addDaysDateOnly,
+  formatDateOnlyIso,
+  isDateOnOrBefore,
+  parseDateOnly,
+  startOfDay,
+  todayDateOnly,
+} from "./date-only";
 
 export type RelanceScheduleItem = {
   stepId: string;
@@ -16,24 +24,16 @@ export function isDueDateColumnLabel(label: string) {
   return normalized.includes("echeance");
 }
 
-export function startOfDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
+export {
+  formatDateOnlyIso,
+  normalizeDateOnlyInput,
+  parseDateOnly,
+  startOfDay,
+  todayDateOnly,
+} from "./date-only";
 
 export function parseFlexibleDate(value: string): Date | null {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-
-  for (const format of ["fr", "iso"] as const) {
-    const iso = parseDateInputToIso(trimmed, format);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) continue;
-
-    const [year, month, day] = iso.split("-").map(Number);
-    const parsed = new Date(year, month - 1, day);
-    if (!Number.isNaN(parsed.getTime())) return parsed;
-  }
-
-  return null;
+  return parseDateOnly(value);
 }
 
 export function formatRelanceDisplayDate(date: Date) {
@@ -41,7 +41,7 @@ export function formatRelanceDisplayDate(date: Date) {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
-  }).format(date);
+  }).format(startOfDay(date));
 }
 
 /** Date courte pour les cellules de relance (sans année). */
@@ -49,14 +49,12 @@ export function formatRelanceCompactDate(date: Date) {
   return new Intl.DateTimeFormat("fr-FR", {
     day: "2-digit",
     month: "2-digit",
-  }).format(date);
+  }).format(startOfDay(date));
 }
 
-/** Date de relance = date d'échéance + days (chaque étape). */
+/** Date de relance = date d'échéance + days, à 00:00:00.000. */
 export function computeRelanceDate(dueDate: Date, days: number) {
-  const result = new Date(dueDate);
-  result.setDate(result.getDate() + days);
-  return startOfDay(result);
+  return addDaysDateOnly(dueDate, days);
 }
 
 export function resolveDueDateValue(
@@ -72,18 +70,17 @@ export function resolveDueDateValue(
 export function rowMissingDueDate(row: ClientRow, columns: ColumnDef[]): boolean {
   const dueRaw = resolveDueDateValue(row, columns);
   if (!dueRaw) return true;
-  return parseFlexibleDate(dueRaw) === null;
+  return parseDateOnly(dueRaw) === null;
 }
 
 export function buildRelanceScheduleForRow(
   row: ClientRow,
   columns: ColumnDef[],
   relanceSteps: RelanceStep[],
-  referenceDate: Date = new Date(),
 ): Map<string, RelanceScheduleItem> {
   const schedule = new Map<string, RelanceScheduleItem>();
   const dueRaw = resolveDueDateValue(row, columns);
-  const dueDate = parseFlexibleDate(dueRaw);
+  const dueDate = parseDateOnly(dueRaw);
 
   if (!dueDate) return schedule;
 
@@ -103,18 +100,17 @@ export const DUE_DATE_MUST_BE_TOMORROW_ERROR =
 
 /** Échéance au plus tard aujourd'hui → invalide pour planifier les relances. */
 export function isDueDateOnOrBeforeToday(isoDate: string): boolean {
-  const dueDate = parseFlexibleDate(isoDate);
+  const dueDate = parseDateOnly(isoDate);
   if (!dueDate) return false;
 
-  const today = startOfDay(new Date());
-  return startOfDay(dueDate).getTime() <= today.getTime();
+  return isDateOnOrBefore(dueDate, todayDateOnly());
 }
 
 export function validateDueDateForRelance(isoDate: string): string | null {
   const trimmed = isoDate.trim();
   if (!trimmed) return null;
 
-  const dueDate = parseFlexibleDate(trimmed);
+  const dueDate = parseDateOnly(trimmed);
   if (!dueDate) {
     return "Date d'échéance invalide.";
   }

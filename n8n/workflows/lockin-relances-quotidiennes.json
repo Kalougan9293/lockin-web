@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## LockIn × n8n\n\n**Variables d'environnement n8n** (Settings → Variables) :\n- `CRON_SECRET` — identique à Vercel / lockin-web\n- `LOCKIN_API_URL` — URL prod (ex. `https://app.lockin.app` ou `https://xxx.vercel.app`)\n- `LOCKIN_FROM_EMAIL` — expéditeur (ex. `relances@votredomaine.com`)\n\n**À configurer après import :**\n1. Credentials SMTP sur le nœud « Envoyer l'email »\n2. Activer le workflow\n3. Tester avec « Execute workflow »\n\n**Flux :** Cron 08h → GET relances (fusion anti-spam par client/email) → boucle → email → POST ack (deliveryIds) → relance suivante",
+        "content": "## LockIn × n8n\n\n**Variables d'environnement n8n** (Settings → Variables) :\n- `CRON_SECRET` — identique à Vercel / lockin-web\n- `LOCKIN_API_URL` — URL prod (ex. `https://app.lockin.app` ou `https://xxx.vercel.app`)\n- `LOCKIN_FROM_EMAIL` — expéditeur (ex. `relances@votredomaine.com`)\n\n**À configurer après import :**\n1. Credentials SMTP sur le nœud « Envoyer l'email »\n2. Activer le workflow\n3. Tester avec « Execute workflow »\n\n**Flux :** Cron 08h → GET relances (`{ items: [], count }`) → Code déplie `items` → boucle → email → POST ack",
         "height": 340,
         "width": 420,
         "color": 6
@@ -63,13 +63,12 @@
     },
     {
       "parameters": {
-        "fieldToSplitOut": "items",
-        "options": {}
+        "jsCode": "const payload = $input.first().json;\nconst items = Array.isArray(payload?.items) ? payload.items : [];\n\nif (items.length === 0) {\n  return [];\n}\n\nreturn items.map((item) => ({ json: item }));"
       },
       "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567803",
       "name": "3. Parcourir chaque relance",
-      "type": "n8n-nodes-base.splitOut",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [800, 300]
     },
     {

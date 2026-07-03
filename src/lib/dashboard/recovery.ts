@@ -11,6 +11,7 @@ import {
   buildRelanceScheduleForRow,
   formatRelanceDisplayDate,
   startOfDay,
+  todayDateOnly,
 } from "@/lib/dashboard/relance-schedule";
 
 export type RecoveryInvoiceFields = {
@@ -76,7 +77,7 @@ export function isRecoveryRequired(
   row: ClientRow,
   columns: ColumnDef[],
   relanceSteps: RelanceStep[],
-  referenceDate: Date = new Date(),
+  referenceDate: Date = todayDateOnly(),
 ): boolean {
   if (isRowPaid(row)) return false;
 
@@ -87,7 +88,6 @@ export function isRecoveryRequired(
     row,
     columns,
     relanceSteps,
-    referenceDate,
   );
   const lastItem = schedule.get(lastStep.id);
   if (!lastItem) return false;
@@ -130,7 +130,7 @@ export function buildRelanceProofHistory(
   columns: ColumnDef[],
   relanceSteps: RelanceStep[],
   deliveries: RelanceDeliveryRow[] = [],
-  referenceDate: Date = new Date(),
+  referenceDate: Date = todayDateOnly(),
   simulateFromDates = false,
 ): RelanceProofEntry[] {
   const display = buildRelanceDisplayForRow(
