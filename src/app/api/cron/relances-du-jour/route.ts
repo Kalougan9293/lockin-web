@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { verifyCronSecret } from "@/lib/cron/auth";
-import { todayDateOnly } from "@/lib/dashboard/date-only";
+import { todayDateOnlyParis } from "@/lib/dashboard/date-only";
 import { collectDueRelancesForCron } from "@/lib/dashboard/relance-deliveries";
 import { serializeCronRelanceItems } from "@/lib/dashboard/serialize-cron-relance-items";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -13,7 +13,7 @@ export async function GET(request: Request) {
 
   try {
     const admin = createAdminClient();
-    const items = await collectDueRelancesForCron(admin, todayDateOnly());
+    const items = await collectDueRelancesForCron(admin, todayDateOnlyParis());
     const payload = serializeCronRelanceItems(items);
 
     return NextResponse.json(payload);

@@ -17,8 +17,8 @@ type AckPayload = {
   sent_at?: string;
 };
 
-function isAckStatus(value: unknown): value is "sent" | "failed" {
-  return value === "sent" || value === "failed";
+function isAckStatus(value: unknown): value is "sent" | "failed" | "cancelled" {
+  return value === "sent" || value === "failed" || value === "cancelled";
 }
 
 function resolveDeliveryIds(body: AckPayload): string[] {
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
 
   if (!isAckStatus(status)) {
     return NextResponse.json(
-      { error: "status invalide (attendu : sent ou failed)." },
+      { error: "status invalide (attendu : sent, failed ou cancelled)." },
       { status: 400 },
     );
   }
@@ -81,6 +81,11 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
+
+  const cancelledMessage =
+    status === "cancelled"
+      ? errorMessage ?? "Annulé avant envoi (facture payée ou relance retirée)."
+      : null;
 
   const sentAtRaw = body.sentAt?.trim() || body.sent_at?.trim();
   const sentAt =
@@ -122,9 +127,14 @@ export async function POST(request: Request) {
       .update({
         status,
         sent_at: sentAt,
-        provider: body.provider?.trim() || null,
+        provider: status === "sent" ? body.provider?.trim() || null : null,
         provider_message_id: status === "sent" ? providerMessageId : null,
-        error_message: status === "failed" ? errorMessage : null,
+        error_message:
+          status === "failed"
+            ? errorMessage
+            : status === "cancelled"
+              ? cancelledMessage
+              : null,
       })
       .in("id", deliveryIds);
 

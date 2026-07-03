@@ -42,3 +42,19 @@ export async function shouldSendRelanceForLigne(
 
   return (count ?? 0) > 0;
 }
+
+/** Toutes les lignes doivent encore être éligibles (anti-envoi si une facture vient d'être payée). */
+export async function shouldSendRelanceForLignes(
+  supabase: Supabase,
+  ligneIds: string[],
+): Promise<boolean> {
+  const uniqueIds = [...new Set(ligneIds.map((id) => id.trim()).filter(Boolean))];
+  if (uniqueIds.length === 0) return false;
+
+  for (const ligneId of uniqueIds) {
+    const eligible = await shouldSendRelanceForLigne(supabase, ligneId);
+    if (!eligible) return false;
+  }
+
+  return true;
+}

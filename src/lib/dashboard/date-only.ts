@@ -7,6 +7,9 @@ import { parseDateInputToIso } from "@/lib/preferences/date-format";
 
 const ISO_DATE_PREFIX = /^(\d{4})-(\d{2})-(\d{2})/;
 
+/** Fuseau métier LockIn (cron n8n 08h Europe/Paris). */
+export const PARIS_TIME_ZONE = "Europe/Paris";
+
 export function startOfDay(date: Date): Date {
   return new Date(
     date.getFullYear(),
@@ -21,6 +24,27 @@ export function startOfDay(date: Date): Date {
 
 export function todayDateOnly(): Date {
   return startOfDay(new Date());
+}
+
+/**
+ * Date calendaire du jour à Paris (indépendant du fuseau du serveur Vercel/UTC).
+ * Utilisé par le cron des relances pour coller au déclencheur n8n 08h Europe/Paris.
+ */
+export function todayDateOnlyParis(): Date {
+  const parisYmd = new Intl.DateTimeFormat("en-CA", {
+    timeZone: PARIS_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+
+  const [year, month, day] = parisYmd.split("-").map(Number);
+  const parsed = fromParts(year, month, day);
+  if (!parsed) {
+    return todayDateOnly();
+  }
+
+  return parsed;
 }
 
 export function formatDateOnlyIso(date: Date): string {

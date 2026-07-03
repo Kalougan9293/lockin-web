@@ -3,9 +3,9 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## LockIn × n8n\n\n**Variables d'environnement n8n** (Settings → Variables) :\n- `CRON_SECRET` — identique à Vercel / lockin-web\n- `LOCKIN_API_URL` — URL prod (ex. `https://app.lockin.app` ou `https://xxx.vercel.app`)\n- `LOCKIN_FROM_EMAIL` — expéditeur (ex. `relances@votredomaine.com`)\n\n**À configurer après import :**\n1. Credentials SMTP sur le nœud « Envoyer l'email »\n2. Activer le workflow\n3. Tester avec « Execute workflow »\n\n**Flux :** Cron 08h → GET relances (`{ items: [], count }`) → Code déplie `items` → boucle → email → POST ack",
-        "height": 340,
-        "width": 420,
+        "content": "## LockIn × n8n\n\n**Variables d'environnement n8n** (Settings → Variables) :\n- `CRON_SECRET` — identique à Vercel / lockin-web\n- `LOCKIN_API_URL` — URL prod (ex. `https://app.lockin.app`)\n- `LOCKIN_FROM_EMAIL` — expéditeur SMTP\n\n**Flux :** Cron 08h Paris → GET relances → check-status (payé ?) → email ou annulation → ack\n\n**Après import :** credentials SMTP, activer le workflow, tester « Execute workflow ».",
+        "height": 360,
+        "width": 440,
         "color": 6
       },
       "id": "f8a1c2b3-4d5e-6f70-8192-a3b4c5d6e7f0",
@@ -84,18 +84,78 @@
     },
     {
       "parameters": {
+        "method": "GET",
+        "url": "={{ (() => {\n  const relance = $json;\n  const ids = Array.isArray(relance.ligneIds) && relance.ligneIds.length\n    ? relance.ligneIds\n    : [relance.ligneId];\n  const query = ids.filter(Boolean).join(',');\n  return $env.LOCKIN_API_URL.replace(/\\/$/, '') + '/api/cron/check-status?ids=' + encodeURIComponent(query);\n})() }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.CRON_SECRET }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false,
+              "neverError": false
+            }
+          }
+        }
+      },
+      "id": "b2c3d4e5-f6a7-8901-bcde-f123456780a1",
+      "name": "5. Vérifier statut (check-status)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1360, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "should-send-relance",
+              "leftValue": "={{ $json.shouldSend }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c3d4e5f6-a7b8-9012-cdef-123456780a2b",
+      "name": "6. Encore à envoyer ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1640, 300]
+    },
+    {
+      "parameters": {
         "fromEmail": "={{ $env.LOCKIN_FROM_EMAIL }}",
-        "toEmail": "={{ $json.to }}",
-        "subject": "={{ $json.subject }}",
+        "toEmail": "={{ $('4. Une relance à la fois').item.json.to }}",
+        "subject": "={{ $('4. Une relance à la fois').item.json.subject }}",
         "emailFormat": "html",
-        "html": "={{ $json.body }}",
+        "html": "={{ $('4. Une relance à la fois').item.json.body }}",
         "options": {}
       },
       "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567805",
-      "name": "5. Envoyer l'email",
+      "name": "7. Envoyer l'email",
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
-      "position": [1360, 300],
+      "position": [1920, 180],
       "onError": "continueErrorOutput",
       "continueOnFail": true
     },
@@ -123,10 +183,39 @@
         "options": {}
       },
       "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567806",
-      "name": "6. Accuser réception (ack)",
+      "name": "8. Accuser réception (ack)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1640, 300]
+      "position": [2200, 180]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.LOCKIN_API_URL.replace(/\\/$/, '') + '/api/cron/relances/ack' }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.CRON_SECRET }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => {\n  const relance = $('4. Une relance à la fois').item.json;\n  const deliveryIds = Array.isArray(relance.deliveryIds) && relance.deliveryIds.length\n    ? relance.deliveryIds\n    : [relance.deliveryId];\n\n  return {\n    deliveryIds,\n    deliveryId: relance.deliveryId,\n    status: 'cancelled',\n    errorMessage: 'Facture payée ou relance retirée avant envoi.',\n  };\n})() }}",
+        "options": {}
+      },
+      "id": "d4e5f6a7-b8c9-0123-def0-23456780a3c4",
+      "name": "9. Annuler (payé / retiré)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1920, 440]
     }
   ],
   "connections": {
@@ -167,7 +256,7 @@
       "main": [
         [
           {
-            "node": "5. Envoyer l'email",
+            "node": "5. Vérifier statut (check-status)",
             "type": "main",
             "index": 0
           }
@@ -175,11 +264,40 @@
         []
       ]
     },
-    "5. Envoyer l'email": {
+    "5. Vérifier statut (check-status)": {
       "main": [
         [
           {
-            "node": "6. Accuser réception (ack)",
+            "node": "6. Encore à envoyer ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6. Encore à envoyer ?": {
+      "main": [
+        [
+          {
+            "node": "7. Envoyer l'email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "9. Annuler (payé / retiré)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "7. Envoyer l'email": {
+      "main": [
+        [
+          {
+            "node": "8. Accuser réception (ack)",
             "type": "main",
             "index": 0
           }
@@ -188,14 +306,25 @@
       "error": [
         [
           {
-            "node": "6. Accuser réception (ack)",
+            "node": "8. Accuser réception (ack)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "6. Accuser réception (ack)": {
+    "8. Accuser réception (ack)": {
+      "main": [
+        [
+          {
+            "node": "4. Une relance à la fois",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "9. Annuler (payé / retiré)": {
       "main": [
         [
           {
@@ -215,5 +344,5 @@
   "staticData": null,
   "tags": [],
   "active": false,
-  "versionId": "lockin-relances-v1"
+  "versionId": "lockin-relances-v2-check-status"
 }
