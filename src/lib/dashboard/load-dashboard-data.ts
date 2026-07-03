@@ -7,7 +7,7 @@ import {
 } from "@/lib/dashboard/tableau-db";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { DashboardInitialData } from "@/types/dashboard";
-import { createTableData } from "@/types/tableau";
+import { createTableData, ensureDefaultRelanceSteps } from "@/types/tableau";
 
 export async function loadDashboardDataForUser(
   userId: string,
@@ -21,6 +21,8 @@ export async function loadDashboardDataForUser(
     tables = [initial];
     return { tables, deliveries: [] };
   }
+
+  tables = tables.map(ensureDefaultRelanceSteps);
 
   const tableauIds = tables.map((table) => table.id);
   const deliveries = await fetchRelanceDeliveriesForTableaux(admin, tableauIds);

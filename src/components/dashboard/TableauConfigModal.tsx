@@ -6,9 +6,11 @@ import { createPortal } from "react-dom";
 import type { ColumnDef, RelanceStep } from "@/types/tableau";
 import {
   MAX_RELANCES,
+  buildDefaultRelanceStepsForUi,
   createRelanceStep,
   getTemplateBubbles,
   relanceDaysHint,
+  relanceStepsLookUnconfigured,
   validateRelanceStepsOrder,
 } from "@/types/tableau";
 
@@ -70,7 +72,12 @@ export function TableauConfigModal({
   useEffect(() => {
     if (!open) return;
 
-    const next = initialSteps.map((step) => ({ ...step }));
+    const source =
+      initialSteps.length > 0 && !relanceStepsLookUnconfigured(initialSteps)
+        ? initialSteps
+        : buildDefaultRelanceStepsForUi();
+
+    const next = source.map((step) => ({ ...step }));
     setSteps(next);
     setActiveStepId(next[0]?.id ?? null);
     setFlashError(null);

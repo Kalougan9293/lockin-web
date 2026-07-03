@@ -8,7 +8,13 @@ import type {
   TableauWithRelations,
 } from "@/types/database";
 import type { ClientRow, ColumnDef, RelanceStep, TableData } from "@/types/tableau";
-import { STATUT_COLUMN_ID, upgradeLegacyDefaultColumns } from "@/types/tableau";
+import {
+  STATUT_COLUMN_ID,
+  defaultRelanceStepName,
+  ensureDefaultRelanceSteps,
+  relanceStepsLookUnconfigured,
+  upgradeLegacyDefaultColumns,
+} from "@/types/tableau";
 
 type Supabase = SupabaseClient<Database>;
 
@@ -40,14 +46,16 @@ export function mapTableauToTableData(tableau: TableauWithRelations): TableData 
     )
     .map(mapLigneRow);
 
-  return upgradeLegacyDefaultColumns({
-    id: tableau.id,
-    name: tableau.name,
-    leftColumns: tableau.left_columns as ColumnDef[],
-    hiddenLeftColumns: tableau.hidden_left_columns as ColumnDef[],
-    rows,
-    relanceSteps,
-  });
+  return ensureDefaultRelanceSteps(
+    upgradeLegacyDefaultColumns({
+      id: tableau.id,
+      name: tableau.name,
+      leftColumns: tableau.left_columns as ColumnDef[],
+      hiddenLeftColumns: tableau.hidden_left_columns as ColumnDef[],
+      rows,
+      relanceSteps,
+    }),
+  );
 }
 
 function rawTableauNeedsColumnUpgrade(
@@ -69,6 +77,28 @@ function rawTableauNeedsColumnUpgrade(
   });
 }
 
+function tableNeedsRelanceStepsSeed(
+  raw: TableauWithRelations,
+  table: TableData,
+): boolean {
+  const rawSteps = [...(raw.relance_steps ?? [])]
+    .sort((a, b) => a.ordre - b.ordre)
+    .map(mapRelanceStepRow);
+
+  if (rawSteps.length === 0 && table.relanceSteps.length > 0) return true;
+
+  if (rawSteps.length === 0) return false;
+
+  if (relanceStepsLookUnconfigured(rawSteps) && table.relanceSteps.length > rawSteps.length) {
+    return true;
+  }
+
+  return (
+    relanceStepsLookUnconfigured(rawSteps) &&
+    JSON.stringify(rawSteps) !== JSON.stringify(table.relanceSteps)
+  );
+}
+
 async function persistMigratedTables(
   supabase: Supabase,
   rawRows: TableauWithRelations[],
@@ -77,6 +107,11 @@ async function persistMigratedTables(
   for (let index = 0; index < rawRows.length; index += 1) {
     const raw = rawRows[index];
     const table = tables[index];
+
+    if (tableNeedsRelanceStepsSeed(raw, table)) {
+      await syncRelanceSteps(supabase, table.id, table.relanceSteps);
+    }
+
     if (!rawTableauNeedsColumnUpgrade(raw, table)) continue;
 
     await updateTableMeta(supabase, table);
@@ -127,7 +162,7 @@ function relanceStepsToInsert(tableauId: string, steps: RelanceStep[]) {
   return steps.map((step, ordre) => ({
     id: step.id,
     tableau_id: tableauId,
-    name: step.name,
+    name: step.name.trim() || defaultRelanceStepName(ordre),
     days: step.days,
     message_template: step.messageTemplate,
     ordre,

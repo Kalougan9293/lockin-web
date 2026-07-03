@@ -90,31 +90,35 @@ export const STANDARD_TEMPLATE_LABELS = [
   "Référence",
 ] as const;
 
+export function defaultRelanceStepName(ordre: number): string {
+  return `Relance ${ordre + 1}`;
+}
+
 export const DEFAULT_RELANCE_STEPS: RelanceStep[] = [
   {
     id: "rappel-j7",
-    name: "",
+    name: "Relance 1",
     days: -7,
     messageTemplate:
       "Bonjour [Nom],\n\nVotre facture arrive bientôt à échéance le [Échéance]. Nous vous adressons ce message afin d'anticiper son règlement.\n\nMerci beaucoup.",
   },
   {
     id: "relance-j2",
-    name: "",
+    name: "Relance 2",
     days: 2,
     messageTemplate:
       "Bonjour [Nom],\n\nNous vous rappelons que votre facture d'un montant de [Montant] est arrivée à échéance le [Échéance].\n\nNous vous remercions de bien vouloir procéder à son règlement dans les meilleurs délais.",
   },
   {
     id: "relance-j10",
-    name: "",
+    name: "Relance 3",
     days: 10,
     messageTemplate:
       "Bonjour [Nom],\n\nÀ ce jour, nous n'avons pas reçu le règlement de la facture arrivée à échéance le [Échéance].\n\nMerci de nous indiquer une date de paiement ou de procéder à sa régularisation dans les meilleurs délais.",
   },
   {
     id: "relance-j30",
-    name: "",
+    name: "Relance 4",
     days: 30,
     messageTemplate:
       "Bonjour [Nom],\n\nSauf erreur de notre part, la facture échue le [Échéance] demeure impayée malgré nos précédentes relances.\n\nNous vous remercions de procéder à sa régularisation sous 8 jours. À défaut de règlement, nous nous réservons le droit d'engager les démarches nécessaires au recouvrement de cette créance.",
@@ -294,7 +298,7 @@ export function createRelanceStep(
 ): RelanceStep {
   return {
     id: crypto.randomUUID(),
-    name: partial?.name ?? "",
+    name: partial?.name?.trim() || defaultRelanceStepName(0),
     days: partial?.days ?? 7,
     messageTemplate:
       partial?.messageTemplate ??
@@ -326,17 +330,57 @@ export function getTemplateBubbles(leftColumns: ColumnDef[]): string[] {
 }
 
 export function createTableData(index = 1): TableData {
-  return upgradeLegacyDefaultColumns({
-    id: crypto.randomUUID(),
-    name: `Tableau ${index}`,
-    leftColumns: DEFAULT_LEFT_COLUMNS.map((column) => ({ ...column })),
-    hiddenLeftColumns: [],
-    rows: [],
-    relanceSteps: DEFAULT_RELANCE_STEPS.map((step) => ({
-      ...step,
+  return ensureDefaultRelanceSteps(
+    upgradeLegacyDefaultColumns({
       id: crypto.randomUUID(),
-    })),
-  });
+      name: `Tableau ${index}`,
+      leftColumns: DEFAULT_LEFT_COLUMNS.map((column) => ({ ...column })),
+      hiddenLeftColumns: [],
+      rows: [],
+      relanceSteps: [],
+    }),
+  );
+}
+
+const MIN_CONFIGURED_RELANCE_MESSAGE_LENGTH = 40;
+
+function buildDefaultRelanceSteps(): RelanceStep[] {
+  return DEFAULT_RELANCE_STEPS.map((step, ordre) => ({
+    ...step,
+    id: crypto.randomUUID(),
+    name: step.name.trim() || defaultRelanceStepName(ordre),
+  }));
+}
+
+/** Copie fraîche des 4 relances par défaut (ids uniques) pour l’UI. */
+export function buildDefaultRelanceStepsForUi(): RelanceStep[] {
+  return buildDefaultRelanceSteps();
+}
+
+/** Relances jamais configurées (messages vides ou placeholders type « test »). */
+export function relanceStepsLookUnconfigured(steps: RelanceStep[]): boolean {
+  if (steps.length === 0) return true;
+  return steps.every(
+    (step) => step.messageTemplate.trim().length < MIN_CONFIGURED_RELANCE_MESSAGE_LENGTH,
+  );
+}
+
+/**
+ * Réinjecte les 4 relances par défaut si le tableau n'en a aucune (legacy)
+ * ou si la config en base est incomplète / placeholder (≠ démo).
+ */
+export function ensureDefaultRelanceSteps(table: TableData): TableData {
+  if (
+    table.relanceSteps.length >= DEFAULT_RELANCE_STEPS.length ||
+    (table.relanceSteps.length > 0 && !relanceStepsLookUnconfigured(table.relanceSteps))
+  ) {
+    return table;
+  }
+
+  return {
+    ...table,
+    relanceSteps: buildDefaultRelanceSteps(),
+  };
 }
 
 function isLegacyDateColumn(column: ColumnDef) {

@@ -31,7 +31,7 @@ import {
 } from "@/lib/dashboard/plan-limits";
 import type { RelanceDeliveryRow } from "@/types/database";
 import type { ClientRow, TableData } from "@/types/tableau";
-import { createTableData, isRowPaid } from "@/types/tableau";
+import { createTableData, ensureDefaultRelanceSteps, isRowPaid } from "@/types/tableau";
 
 import type { DashboardInitialData } from "@/types/dashboard";
 
@@ -111,9 +111,10 @@ export function useDashboardTables(
   initialData: DashboardInitialData | null = null,
 ) {
   const hasInitialData = initialData !== null;
-  const [tables, setTables] = useState<TableData[]>(
-    () => initialData?.tables ?? (demoMode ? [createTableData()] : []),
-  );
+  const [tables, setTables] = useState<TableData[]>(() => {
+    const source = initialData?.tables ?? (demoMode ? [createTableData()] : []);
+    return source.map(ensureDefaultRelanceSteps);
+  });
   const [deliveries, setDeliveries] = useState<RelanceDeliveryRow[]>(
     () => initialData?.deliveries ?? [],
   );
@@ -356,7 +357,7 @@ export function useDashboardTables(
       if (hasInitialData && initialData) {
         persistEnabledRef.current = true;
         if (!cancelled) {
-          setTables(initialData.tables);
+          setTables(initialData.tables.map(ensureDefaultRelanceSteps));
           setDeliveries(initialData.deliveries);
           setLoading(false);
         }
@@ -382,7 +383,7 @@ export function useDashboardTables(
             setTables([initial]);
             setDeliveries([]);
           } else {
-            setTables(loaded);
+            setTables(loaded.map(ensureDefaultRelanceSteps));
           }
           return;
         }
@@ -423,7 +424,7 @@ export function useDashboardTables(
           setTables([initial]);
           setDeliveries([]);
         } else {
-          setTables(loaded);
+          setTables(loaded.map(ensureDefaultRelanceSteps));
         }
       } catch (error) {
         if (!cancelled) {
