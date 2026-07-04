@@ -25,13 +25,25 @@ type TableauConfigModalProps = {
 
 const SMS_MAX_LENGTH = 160;
 
+/** MVP : masquer SMS / Les 2 dans Configurer jusqu'à activation Twilio. */
+const SMS_CHANNELS_UI_ENABLED = false;
+
 const RELANCE_CHANNEL_OPTIONS = [
-  { value: "email", label: "Email" },
-  { value: "sms", label: "SMS" },
-  { value: "both", label: "Les 2" },
+  { value: "email", label: "Email", disabled: false },
+  {
+    value: "sms",
+    label: "SMS (bientôt)",
+    disabled: !SMS_CHANNELS_UI_ENABLED,
+  },
+  {
+    value: "both",
+    label: "Les 2 (bientôt)",
+    disabled: !SMS_CHANNELS_UI_ENABLED,
+  },
 ] as const satisfies ReadonlyArray<{
   value: RelanceStepChannel;
   label: string;
+  disabled: boolean;
 }>;
 
 const inputClass =
@@ -68,8 +80,12 @@ function configRowHeightClass(channel: RelanceStepChannel): string {
 }
 
 function normalizeStepForUi(step: RelanceStep): RelanceStep {
-  const channel = normalizeRelanceStepChannel(step.channel);
-  const needsSms = channel === "sms" || channel === "both";
+  let channel = normalizeRelanceStepChannel(step.channel);
+  if (!SMS_CHANNELS_UI_ENABLED && channel !== "email") {
+    channel = "email";
+  }
+  const needsSms =
+    SMS_CHANNELS_UI_ENABLED && (channel === "sms" || channel === "both");
 
   return {
     ...step,
@@ -172,6 +188,8 @@ export function TableauConfigModal({
   }
 
   function handleChannelChange(id: string, raw: string) {
+    if (!SMS_CHANNELS_UI_ENABLED && raw !== "email") return;
+
     const channel = normalizeRelanceStepChannel(raw);
 
     setSteps((current) =>
@@ -409,7 +427,12 @@ export function TableauConfigModal({
                           <option
                             key={option.value}
                             value={option.value}
-                            className="bg-brand-dark"
+                            disabled={option.disabled}
+                            className={
+                              option.disabled
+                                ? "bg-brand-dark text-brand-muted"
+                                : "bg-brand-dark"
+                            }
                           >
                             {option.label}
                           </option>

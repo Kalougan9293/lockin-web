@@ -3,16 +3,16 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## LockIn × n8n\n\n**Variables d'environnement n8n** (Settings → Variables) :\n- `CRON_SECRET` — identique à Vercel / lockin-web\n- `LOCKIN_API_URL` — URL prod (ex. `https://app.lockin.app`)\n- `LOCKIN_FROM_EMAIL` — expéditeur SMTP\n- `TWILIO_ACCOUNT_SID` — compte Twilio\n- `TWILIO_AUTH_TOKEN` — token Twilio\n- `TWILIO_FROM_NUMBER` — numéro expéditeur SMS (E.164, ex. +33612345678)\n\n**Flux :** Cron 08h Paris → GET relances → check-status → email et/ou SMS selon `sendEmail` / `sendSms` → ack\n\n**Après import :** credentials SMTP, variables Twilio, activer le workflow, tester « Execute workflow ».",
-        "height": 400,
-        "width": 460,
+        "content": "## LockIn × n8n — V4 Multi-Canal (Email, SMS & Les 2)\n\n**Variables n8n** (Settings → Variables) :\n- `CRON_SECRET` — identique à Vercel / lockin-web\n- `LOCKIN_API_URL` — ex. `https://lockin-web.online`\n- `LOCKIN_FROM_EMAIL` — expéditeur SMTP\n- `TWILIO_FROM_NUMBER` — numéro expéditeur SMS (E.164)\n\n**Credentials n8n :** SMTP + Twilio API\n\n**Flux :** Cron 08h Paris → GET relances → boucle → check-status (`id`) → aiguillage `channel` → envoi SMTP / Twilio (`continueOnFail`) → ack JS → si payé : ack `cancelled`.",
+        "height": 320,
+        "width": 480,
         "color": 6
       },
-      "id": "f8a1c2b3-4d5e-6f70-8192-a3b4c5d6e7f0",
+      "id": "fef435d4-59a7-43e1-aa09-b8960c2cc16a",
       "name": "Note de configuration",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [-200, 80]
+      "position": [240, 80]
     },
     {
       "parameters": {
@@ -26,11 +26,11 @@
         },
         "timezone": "Europe/Paris"
       },
-      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567801",
+      "id": "78ae503b-18db-453a-b199-6f806e143a9c",
       "name": "1. Tous les jours 08h00",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [240, 300]
+      "position": [240, 400]
     },
     {
       "parameters": {
@@ -55,37 +55,37 @@
           }
         }
       },
-      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567802",
+      "id": "2408734d-f5eb-4f8c-8329-e17e44bba28e",
       "name": "2. Récupérer relances du jour",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [520, 300]
+      "position": [520, 400]
     },
     {
       "parameters": {
-        "jsCode": "const payload = $input.first().json;\nconst items = Array.isArray(payload?.items) ? payload.items : [];\n\nif (items.length === 0) {\n  return [];\n}\n\nreturn items.map((item) => ({ json: item }));"
+        "jsCode": "const payload = $input.first()?.json;\nconst items = Array.isArray(payload?.items) ? payload.items : [];\n\nif (items.length === 0) {\n  return [];\n}\n\nreturn items.map((item) => ({ json: item }));"
       },
-      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567803",
+      "id": "4d4a013f-ca3d-459c-9089-47599af80ab2",
       "name": "3. Parcourir chaque relance",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [800, 300]
+      "position": [800, 400]
     },
     {
       "parameters": {
         "batchSize": 1,
         "options": {}
       },
-      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567804",
+      "id": "546e3167-09f7-486d-b4ab-0884252b9860",
       "name": "4. Une relance à la fois",
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
-      "position": [1080, 300]
+      "position": [1080, 400]
     },
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ (() => {\n  const relance = $json;\n  const ids = Array.isArray(relance.ligneIds) && relance.ligneIds.length\n    ? relance.ligneIds\n    : [relance.ligneId];\n  const query = ids.filter(Boolean).join(',');\n  return $env.LOCKIN_API_URL.replace(/\\/$/, '') + '/api/cron/check-status?ids=' + encodeURIComponent(query);\n})() }}",
+        "url": "={{ $env.LOCKIN_API_URL.replace(/\\/$/, '') + '/api/cron/check-status?id=' + encodeURIComponent($json.ligneId) }}",
         "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {
@@ -105,11 +105,11 @@
           }
         }
       },
-      "id": "b2c3d4e5-f6a7-8901-bcde-f123456780a1",
+      "id": "9e52a9cd-eea5-48b6-ba34-33b707ec9dc0",
       "name": "5. Vérifier statut (check-status)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1360, 300]
+      "position": [1360, 400]
     },
     {
       "parameters": {
@@ -136,42 +136,38 @@
         },
         "options": {}
       },
-      "id": "c3d4e5f6-a7b8-9012-cdef-123456780a2b",
+      "id": "889d241d-bc30-45d5-b01b-3f35ae32fc67",
       "name": "6. Encore à envoyer ?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1640, 300]
+      "position": [1640, 400]
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
+        "dataType": "string",
+        "value": "={{ $('4. Une relance à la fois').item.json.channel || 'email' }}",
+        "rules": {
+          "rules": [
             {
-              "id": "send-email-flag",
-              "leftValue": "={{ $('4. Une relance à la fois').item.json.sendEmail }}",
-              "rightValue": "",
-              "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
-              }
+              "value": "email",
+              "output": 0
+            },
+            {
+              "value": "sms",
+              "output": 1
+            },
+            {
+              "value": "both",
+              "output": 2
             }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
+          ]
+        }
       },
-      "id": "e5f6a7b8-c9d0-1234-ef01-34567890a4b5",
-      "name": "7. Envoyer email ?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [1920, 300]
+      "id": "c1f77d8a-9f5a-4b0d-83cb-f166163ee9a4",
+      "name": "7. Aiguillage Canal",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [1920, 400]
     },
     {
       "parameters": {
@@ -182,96 +178,12 @@
         "html": "={{ $('4. Une relance à la fois').item.json.body }}",
         "options": {}
       },
-      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567805",
-      "name": "7b. Envoyer l'email",
+      "id": "e823f9b2-3642-4f11-9fa6-07f8cfcb9b01",
+      "name": "8a. Envoyer l'email (Seul)",
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
-      "position": [2200, 180],
-      "onError": "continueErrorOutput",
+      "position": [2200, 200],
       "continueOnFail": true
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "send-sms-flag",
-              "leftValue": "={{ $('4. Une relance à la fois').item.json.sendSms }}",
-              "rightValue": "",
-              "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "f6a7b8c9-d0e1-2345-f012-45678901b5c6",
-      "name": "8. Envoyer SMS ?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [2480, 300]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ 'https://api.twilio.com/2010-04-01/Accounts/' + $env.TWILIO_ACCOUNT_SID + '/Messages.json' }}",
-        "authentication": "none",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "={{ 'Basic ' + Buffer.from($env.TWILIO_ACCOUNT_SID + ':' + $env.TWILIO_AUTH_TOKEN).toString('base64') }}"
-            }
-          ]
-        },
-        "sendBody": true,
-        "contentType": "form-urlencoded",
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "To",
-              "value": "={{ $('4. Une relance à la fois').item.json.phone }}"
-            },
-            {
-              "name": "From",
-              "value": "={{ $env.TWILIO_FROM_NUMBER }}"
-            },
-            {
-              "name": "Body",
-              "value": "={{ $('4. Une relance à la fois').item.json.smsBody }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "a7b8c9d0-e1f2-3456-0123-56789012c6d7",
-      "name": "8b. Envoyer SMS",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [2760, 180],
-      "onError": "continueErrorOutput",
-      "continueOnFail": true
-    },
-    {
-      "parameters": {
-        "jsCode": "const relance = $('4. Une relance à la fois').first().json;\nconst deliveryIds = Array.isArray(relance.deliveryIds) && relance.deliveryIds.length\n  ? relance.deliveryIds\n  : [relance.deliveryId];\n\nconst errors = [];\nconst providers = [];\nconst messageIds = [];\n\nfunction branchError(nodeName) {\n  try {\n    const items = $(nodeName).all();\n    if (!items.length) return 'non exécuté';\n    const failed = items.find((item) => item.error);\n    if (failed) {\n      const err = failed.error;\n      return String(err?.message || err?.description || err || 'erreur inconnue');\n    }\n    return null;\n  } catch (error) {\n    return String(error?.message || 'non exécuté');\n  }\n}\n\nif (relance.sendEmail) {\n  const emailError = branchError(\"7b. Envoyer l'email\");\n  if (emailError) {\n    errors.push('Email : ' + emailError);\n  } else {\n    providers.push('smtp');\n    messageIds.push(String($execution.id) + '-mail');\n  }\n}\n\nif (relance.sendSms) {\n  const smsError = branchError('8b. Envoyer SMS');\n  if (smsError) {\n    errors.push('SMS : ' + smsError);\n  } else {\n    providers.push('twilio');\n    try {\n      const sid = $('8b. Envoyer SMS').first().json?.sid;\n      messageIds.push(sid ? String(sid) : String($execution.id) + '-sms');\n    } catch {\n      messageIds.push(String($execution.id) + '-sms');\n    }\n  }\n}\n\nif (errors.length) {\n  return [{\n    json: {\n      deliveryIds,\n      deliveryId: relance.deliveryId,\n      status: 'failed',\n      errorMessage: errors.join(' ; '),\n    },\n  }];\n}\n\nreturn [{\n  json: {\n    deliveryIds,\n    deliveryId: relance.deliveryId,\n    status: 'sent',\n    provider: providers.join('+') || 'lockin',\n    providerMessageId: messageIds.join(','),\n    sentAt: new Date().toISOString(),\n  },\n}];"
-      },
-      "id": "b8c9d0e1-f2a3-4567-1234-67890123d7e8",
-      "name": "9. Préparer ack",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [3040, 300]
     },
     {
       "parameters": {
@@ -293,14 +205,116 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ $json }}",
+        "jsonBody": "={{ (() => {\n  const relance = $('4. Une relance à la fois').item.json;\n  const nodeEmail = $(\"8a. Envoyer l'email (Seul)\").item;\n  const failed = Boolean(nodeEmail.error);\n  const deliveryIds = Array.isArray(relance.deliveryIds) && relance.deliveryIds.length\n    ? relance.deliveryIds\n    : [relance.deliveryId];\n\n  if (failed) {\n    return {\n      deliveryIds,\n      deliveryId: relance.deliveryId,\n      status: 'failed',\n      errorMessage: String(nodeEmail.error?.message || nodeEmail.error?.description || 'Échec envoi e-mail'),\n    };\n  }\n\n  return {\n    deliveryIds,\n    deliveryId: relance.deliveryId,\n    status: 'sent',\n    providerMessageId: String($execution.id) + '-mail',\n    provider: 'smtp',\n    sentAt: new Date().toISOString(),\n  };\n})() }}",
         "options": {}
       },
-      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567806",
-      "name": "10. Accuser réception (ack)",
+      "id": "f5d0f19c-8a3b-4871-912b-3a51bc97855b",
+      "name": "9a. Ack Email (Seul)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [3320, 300]
+      "position": [2480, 200]
+    },
+    {
+      "parameters": {
+        "from": "={{ $env.TWILIO_FROM_NUMBER }}",
+        "to": "={{ $('4. Une relance à la fois').item.json.phone }}",
+        "message": "={{ $('4. Une relance à la fois').item.json.smsBody }}",
+        "options": {}
+      },
+      "id": "180b5b08-963d-4c38-89c0-be358245cd98",
+      "name": "8b. Envoyer le SMS (Seul)",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [2200, 400],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.LOCKIN_API_URL.replace(/\\/$/, '') + '/api/cron/relances/ack' }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.CRON_SECRET }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => {\n  const relance = $('4. Une relance à la fois').item.json;\n  const nodeSMS = $(\"8b. Envoyer le SMS (Seul)\").item;\n  const failed = Boolean(nodeSMS.error);\n  const deliveryIds = Array.isArray(relance.deliveryIds) && relance.deliveryIds.length\n    ? relance.deliveryIds\n    : [relance.deliveryId];\n\n  if (failed) {\n    return {\n      deliveryIds,\n      deliveryId: relance.deliveryId,\n      status: 'failed',\n      errorMessage: String(nodeSMS.error?.message || nodeSMS.error?.description || 'Échec envoi SMS Twilio'),\n    };\n  }\n\n  const sid = nodeSMS.json?.sid;\n\n  return {\n    deliveryIds,\n    deliveryId: relance.deliveryId,\n    status: 'sent',\n    providerMessageId: sid ? String(sid) : String($execution.id) + '-sms',\n    provider: 'twilio',\n    sentAt: new Date().toISOString(),\n  };\n})() }}",
+        "options": {}
+      },
+      "id": "cb1c7d8a-9f5a-4b0d-83cb-f166163ee9cc",
+      "name": "9b. Ack SMS (Seul)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2480, 400]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.LOCKIN_FROM_EMAIL }}",
+        "toEmail": "={{ $('4. Une relance à la fois').item.json.to }}",
+        "subject": "={{ $('4. Une relance à la fois').item.json.subject }}",
+        "emailFormat": "html",
+        "html": "={{ $('4. Une relance à la fois').item.json.body }}",
+        "options": {}
+      },
+      "id": "e919f2b8-1642-4f11-9fa6-07f8cfcb9b01",
+      "name": "8c. Envoyer l'email (Double)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [2200, 600],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "from": "={{ $env.TWILIO_FROM_NUMBER }}",
+        "to": "={{ $('4. Une relance à la fois').item.json.phone }}",
+        "message": "={{ $('4. Une relance à la fois').item.json.smsBody }}",
+        "options": {}
+      },
+      "id": "210b5b08-963d-4c38-89c0-be358245cd98",
+      "name": "8d. Envoyer le SMS (Double)",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [2480, 600],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.LOCKIN_API_URL.replace(/\\/$/, '') + '/api/cron/relances/ack' }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.CRON_SECRET }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => {\n  const relance = $('4. Une relance à la fois').item.json;\n  const nodeEmail = $(\"8c. Envoyer l'email (Double)\").item;\n  const nodeSMS = $(\"8d. Envoyer le SMS (Double)\").item;\n  const emailFailed = Boolean(nodeEmail.error);\n  const smsFailed = Boolean(nodeSMS.error);\n  const deliveryIds = Array.isArray(relance.deliveryIds) && relance.deliveryIds.length\n    ? relance.deliveryIds\n    : [relance.deliveryId];\n\n  const errors = [];\n  if (emailFailed) {\n    errors.push('Email : ' + String(nodeEmail.error?.message || nodeEmail.error?.description || 'Échec envoi e-mail'));\n  }\n  if (smsFailed) {\n    errors.push('SMS : ' + String(nodeSMS.error?.message || nodeSMS.error?.description || 'Échec envoi SMS Twilio'));\n  }\n\n  if (errors.length) {\n    return {\n      deliveryIds,\n      deliveryId: relance.deliveryId,\n      status: 'failed',\n      errorMessage: errors.join(' ; '),\n    };\n  }\n\n  const smsSid = nodeSMS.json?.sid;\n\n  return {\n    deliveryIds,\n    deliveryId: relance.deliveryId,\n    status: 'sent',\n    providerMessageId: [String($execution.id) + '-mail', smsSid ? String(smsSid) : String($execution.id) + '-sms'].join(','),\n    provider: 'smtp+twilio',\n    sentAt: new Date().toISOString(),\n  };\n})() }}",
+        "options": {}
+      },
+      "id": "ab1c7d8a-9f5a-4b0d-83cb-f166163ee9dd",
+      "name": "9c. Ack Double",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2760, 600]
     },
     {
       "parameters": {
@@ -325,11 +339,11 @@
         "jsonBody": "={{ (() => {\n  const relance = $('4. Une relance à la fois').item.json;\n  const deliveryIds = Array.isArray(relance.deliveryIds) && relance.deliveryIds.length\n    ? relance.deliveryIds\n    : [relance.deliveryId];\n\n  return {\n    deliveryIds,\n    deliveryId: relance.deliveryId,\n    status: 'cancelled',\n    errorMessage: 'Facture payée ou relance retirée avant envoi.',\n  };\n})() }}",
         "options": {}
       },
-      "id": "d4e5f6a7-b8c9-0123-def0-23456780a3c4",
-      "name": "11. Annuler (payé / retiré)",
+      "id": "7dd7d948-af3c-4ac2-901c-bb0fab8b54dd",
+      "name": "10. Annuler (payé / retiré)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1920, 520]
+      "position": [1920, 640]
     }
   ],
   "connections": {
@@ -393,108 +407,57 @@
       "main": [
         [
           {
-            "node": "7. Envoyer email ?",
+            "node": "7. Aiguillage Canal",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "11. Annuler (payé / retiré)",
+            "node": "10. Annuler (payé / retiré)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "7. Envoyer email ?": {
+    "7. Aiguillage Canal": {
       "main": [
         [
           {
-            "node": "7b. Envoyer l'email",
+            "node": "8a. Envoyer l'email (Seul)",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "8. Envoyer SMS ?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "7b. Envoyer l'email": {
-      "main": [
-        [
-          {
-            "node": "8. Envoyer SMS ?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ],
-      "error": [
-        [
-          {
-            "node": "8. Envoyer SMS ?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "8. Envoyer SMS ?": {
-      "main": [
-        [
-          {
-            "node": "8b. Envoyer SMS",
+            "node": "8b. Envoyer le SMS (Seul)",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "9. Préparer ack",
+            "node": "8c. Envoyer l'email (Double)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "8b. Envoyer SMS": {
+    "8a. Envoyer l'email (Seul)": {
       "main": [
         [
           {
-            "node": "9. Préparer ack",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ],
-      "error": [
-        [
-          {
-            "node": "9. Préparer ack",
+            "node": "9a. Ack Email (Seul)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "9. Préparer ack": {
-      "main": [
-        [
-          {
-            "node": "10. Accuser réception (ack)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "10. Accuser réception (ack)": {
+    "9a. Ack Email (Seul)": {
       "main": [
         [
           {
@@ -505,7 +468,62 @@
         ]
       ]
     },
-    "11. Annuler (payé / retiré)": {
+    "8b. Envoyer le SMS (Seul)": {
+      "main": [
+        [
+          {
+            "node": "9b. Ack SMS (Seul)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "9b. Ack SMS (Seul)": {
+      "main": [
+        [
+          {
+            "node": "4. Une relance à la fois",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "8c. Envoyer l'email (Double)": {
+      "main": [
+        [
+          {
+            "node": "8d. Envoyer le SMS (Double)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "8d. Envoyer le SMS (Double)": {
+      "main": [
+        [
+          {
+            "node": "9c. Ack Double",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "9c. Ack Double": {
+      "main": [
+        [
+          {
+            "node": "4. Une relance à la fois",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10. Annuler (payé / retiré)": {
       "main": [
         [
           {
@@ -525,5 +543,5 @@
   "staticData": null,
   "tags": [],
   "active": false,
-  "versionId": "lockin-relances-v3-sms-multi-canal"
+  "versionId": "lockin-relances-v4-switch-canal"
 }

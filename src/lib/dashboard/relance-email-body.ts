@@ -21,11 +21,10 @@ export function finalizeRelanceEmailBody(
 
 Cordialement,
 ${companyName}
-${email}
 
 ---
 Propulsé par lockin-web.online
-${RELANCE_EMAIL_BRAND_URL}
+${email}
 
 ${RELANCE_EMAIL_DISCLAIMER}`;
 }
@@ -39,9 +38,9 @@ export function buildRelanceEmailHtml(
   const messageHtml = formatMessageBodyHtml(messageBody.trim(), emphasisValues);
   const companyName = escapeHtml(creditor.companyName.trim() || "—");
   const email = creditor.email.trim();
-  const emailLine = email
-    ? `<a href="mailto:${escapeHtml(email)}" style="color:#6366f1;text-decoration:none">${escapeHtml(email)}</a>`
-    : "—";
+  const footerEmailLine = email
+    ? `<a href="mailto:${escapeHtml(email)}" style="color:#8b5cf6;text-decoration:none;font-weight:400">${escapeHtml(email)}</a>`
+    : "";
 
   return `<!DOCTYPE html>
 <html lang="fr">
@@ -71,8 +70,7 @@ export function buildRelanceEmailHtml(
                   <td style="border-top:1px solid #eceef2;padding-top:20px">
                     <p style="margin:0;font-size:15px;line-height:1.65;color:#374151">
                       Cordialement,<br />
-                      <strong style="color:#111827;font-weight:600">${companyName}</strong><br />
-                      ${emailLine}
+                      <strong style="color:#111827;font-weight:600">${companyName}</strong>
                     </p>
                   </td>
                 </tr>
@@ -81,9 +79,10 @@ export function buildRelanceEmailHtml(
           </tr>
           <tr>
             <td style="padding:0 32px 28px">
-              <p style="margin:0 0 10px;font-size:11px;line-height:1.5;color:#9ca3af;text-align:center">
+              <p style="margin:0 0 4px;font-size:11px;line-height:1.5;color:#9ca3af;text-align:center">
                 <a href="${RELANCE_EMAIL_BRAND_URL}" style="color:#9ca3af;text-decoration:none">Propulsé par lockin-web.online</a>
               </p>
+              ${footerEmailLine ? `<p style="margin:0 0 10px;font-size:10px;line-height:1.5;text-align:center">${footerEmailLine}</p>` : ""}
               <p style="margin:0;font-size:10px;line-height:1.5;color:#b0b7c3;text-align:center">${escapeHtml(RELANCE_EMAIL_DISCLAIMER)}</p>
             </td>
           </tr>
