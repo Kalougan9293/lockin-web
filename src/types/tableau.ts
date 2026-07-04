@@ -148,7 +148,7 @@ export const DEFAULT_RELANCE_STEPS: RelanceStep[] = [
     smsTemplate:
       "Bonjour [Nom], facture [Référence] de [Montant] échue le [Échéance]. Merci de procéder au règlement.",
     messageTemplate:
-      "Bonjour [Nom],\n\nNous vous rappelons que votre facture d'un montant de [Montant] est arrivée à échéance le [Échéance].\n\nNous vous remercions de bien vouloir procéder à son règlement dans les meilleurs délais.",
+      "Bonjour [Nom],\n\nNous vous rappelons que votre facture d'un montant de [Montant] est arrivée à échéance le [Échéance].\n\nSauf erreur de notre part, cette facture semble toujours en attente de règlement.",
   },
   {
     id: "relance-j10",

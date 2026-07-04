@@ -15,7 +15,6 @@ export function finalizeRelanceEmailBody(
 ): string {
   const trimmed = messageBody.trimEnd();
   const companyName = creditor.companyName.trim() || "—";
-  const email = creditor.email.trim() || "—";
 
   return `${trimmed}
 
@@ -23,10 +22,33 @@ Cordialement,
 ${companyName}
 
 ---
-Propulsé par lockin-web.online
-${email}
+Envoyé via Lockin
 
 ${RELANCE_EMAIL_DISCLAIMER}`;
+}
+
+function extractDueDateForPreheader(
+  emphasisValues: string[],
+  messageBody: string,
+): string | null {
+  for (const value of emphasisValues) {
+    const trimmed = value.trim();
+    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(trimmed)) return trimmed;
+  }
+
+  const match = messageBody.match(/(?:échéance|échue|éch\.?)\s*(?:du|le)?\s*(\d{1,2}\/\d{1,2}\/\d{4})/i);
+  if (match?.[1]) return match[1];
+
+  const generic = messageBody.match(/\b(\d{1,2}\/\d{1,2}\/\d{4})\b/);
+  return generic?.[1] ?? null;
+}
+
+function buildPreheaderHtml(dueDate: string | null): string {
+  const text = dueDate
+    ? `Rappel de facture – échéance du ${dueDate}.`
+    : "Rappel de facture.";
+
+  return `<div style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all">${escapeHtml(text)}</div>`;
 }
 
 /** Template HTML complet pour l'envoi n8n (SMTP en mode HTML). */
@@ -35,42 +57,44 @@ export function buildRelanceEmailHtml(
   creditor: RelanceEmailCreditor,
   emphasisValues: string[] = [],
 ): string {
-  const messageHtml = formatMessageBodyHtml(messageBody.trim(), emphasisValues);
+  const trimmedBody = messageBody.trim();
+  const messageHtml = formatMessageBodyHtml(trimmedBody);
   const companyName = escapeHtml(creditor.companyName.trim() || "—");
-  const email = creditor.email.trim();
-  const footerEmailLine = email
-    ? `<a href="mailto:${escapeHtml(email)}" style="color:#8b5cf6;text-decoration:none;font-weight:400">${escapeHtml(email)}</a>`
-    : "";
+  const preheaderHtml = buildPreheaderHtml(
+    extractDueDateForPreheader(emphasisValues, trimmedBody),
+  );
 
   return `<!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" xmlns="http://www.w3.org/1999/xhtml">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="x-apple-disable-message-reformatting" />
   <title>Relance</title>
 </head>
-<body style="margin:0;padding:0;background-color:#eef0f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#eef0f4;padding:40px 16px">
+<body style="margin:0;padding:0;background-color:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;-ms-text-size-adjust:100%;-webkit-text-size-adjust:100%">
+  ${preheaderHtml}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f5f7;padding:48px 20px">
     <tr>
       <td align="center">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:580px;background-color:#ffffff;border-radius:16px;border:1px solid #e4e7ec;overflow:hidden;box-shadow:0 8px 30px rgba(15,23,42,0.06)">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;background-color:#ffffff;border-radius:12px;border:1px solid #e8eaed">
           <tr>
-            <td style="height:4px;background:linear-gradient(90deg,#8b5cf6 0%,#d946ef 50%,#6366f1 100%);font-size:0;line-height:0">&nbsp;</td>
+            <td style="height:3px;background-color:#8b5cf6;font-size:0;line-height:0">&nbsp;</td>
           </tr>
           <tr>
-            <td style="padding:36px 32px 12px">
+            <td style="padding:44px 40px 20px">
               ${messageHtml}
             </td>
           </tr>
           <tr>
-            <td style="padding:12px 32px 28px">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+            <td style="padding:8px 40px 36px">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
-                  <td style="border-top:1px solid #eceef2;padding-top:20px">
-                    <p style="margin:0;font-size:15px;line-height:1.65;color:#374151">
+                  <td style="border-top:1px solid #eef0f2;padding-top:28px">
+                    <p style="margin:0;font-size:15px;line-height:1.7;color:#4b5563">
                       Cordialement,<br />
-                      <strong style="color:#111827;font-weight:600">${companyName}</strong>
+                      <span style="color:#111827;font-weight:500">${companyName}</span>
                     </p>
                   </td>
                 </tr>
@@ -78,12 +102,11 @@ export function buildRelanceEmailHtml(
             </td>
           </tr>
           <tr>
-            <td style="padding:0 32px 28px">
-              <p style="margin:0 0 4px;font-size:11px;line-height:1.5;color:#9ca3af;text-align:center">
-                <a href="${RELANCE_EMAIL_BRAND_URL}" style="color:#9ca3af;text-decoration:none">Propulsé par lockin-web.online</a>
+            <td style="padding:0 40px 36px">
+              <p style="margin:0 0 12px;font-size:11px;line-height:1.5;color:#c4c9d2;text-align:center">
+                <a href="${RELANCE_EMAIL_BRAND_URL}" style="color:#c4c9d2;text-decoration:none">Envoyé via Lockin</a>
               </p>
-              ${footerEmailLine ? `<p style="margin:0 0 10px;font-size:10px;line-height:1.5;text-align:center">${footerEmailLine}</p>` : ""}
-              <p style="margin:0;font-size:10px;line-height:1.5;color:#b0b7c3;text-align:center">${escapeHtml(RELANCE_EMAIL_DISCLAIMER)}</p>
+              <p style="margin:0;font-size:11px;line-height:1.55;color:#c4c9d2;text-align:center">${escapeHtml(RELANCE_EMAIL_DISCLAIMER)}</p>
             </td>
           </tr>
         </table>
@@ -94,48 +117,30 @@ export function buildRelanceEmailHtml(
 </html>`;
 }
 
-function formatMessageBodyHtml(
-  messageBody: string,
-  emphasisValues: string[] = [],
-): string {
+function formatMessageBodyHtml(messageBody: string): string {
   const blocks = messageBody
     .split(/\n{2,}/)
     .map((block) => block.trim())
     .filter(Boolean);
 
   if (blocks.length === 0) {
-    return `<p style="margin:0 0 16px;font-size:15px;line-height:1.65;color:#374151">&nbsp;</p>`;
+    return `<p style="margin:0;font-size:15px;line-height:1.7;color:#374151">&nbsp;</p>`;
   }
 
   return blocks
-    .map((block) => {
+    .map((block, index) => {
+      const isLast = index === blocks.length - 1;
+      const marginBottom = isLast ? "0" : "20px";
+
       if (/^—\s*.+\s*—$/.test(block)) {
         const html = escapeHtml(block);
-        return `<p style="margin:24px 0 10px;font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#6b7280">${html}</p>`;
+        return `<p style="margin:28px 0 12px;font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:#9ca3af">${html}</p>`;
       }
 
-      const html = applyEmphasis(
-        escapeHtml(block).replace(/\n/g, "<br />"),
-        emphasisValues,
-      );
-      return `<p style="margin:0 0 16px;font-size:15px;line-height:1.65;color:#374151">${html}</p>`;
+      const html = escapeHtml(block).replace(/\n/g, "<br />");
+      return `<p style="margin:0 0 ${marginBottom};font-size:15px;line-height:1.7;color:#374151">${html}</p>`;
     })
     .join("");
-}
-
-function applyEmphasis(html: string, emphasisValues: string[]): string {
-  const sorted = [...emphasisValues]
-    .filter((value) => value.trim() && value !== "—")
-    .sort((a, b) => b.length - a.length);
-
-  let result = html;
-  for (const value of sorted) {
-    const escaped = escapeHtml(value);
-    if (!escaped || !result.includes(escaped)) continue;
-    const strong = `<strong style="color:#111827;font-weight:700">${escaped}</strong>`;
-    result = result.split(escaped).join(strong);
-  }
-  return result;
 }
 
 function escapeHtml(value: string): string {
