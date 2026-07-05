@@ -16,6 +16,7 @@ import {
 import { filterDeliveriesForLigne, filterDeliveriesForTableau } from "@/lib/dashboard/relance-delivery-display";
 import { classifyServerImportFiles } from "@/lib/import/process-server-import";
 import { importFilesViaApi } from "@/lib/import/import-via-api";
+import type { ImportReviewQueueItem } from "@/lib/import/process-server-import";
 import type { DashboardInitialData } from "@/types/dashboard";
 import {
   getRightColumns,
@@ -66,7 +67,6 @@ export function DashboardWorkspace({
     updateTable,
     addTableAfter,
     removeTable,
-    syncTableFromServer,
   } = useDashboardTables(
     impersonationActive,
     isDemoWorkspace,
@@ -91,6 +91,9 @@ export function DashboardWorkspace({
   const [importLoading, setImportLoading] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
+  const [importQueue, setImportQueue] = useState<ImportReviewQueueItem[]>([]);
+  const [importQueueIndex, setImportQueueIndex] = useState(0);
+  const [importedCountSession, setImportedCountSession] = useState(0);
 
   const tableSummaries = tables.map((table) => ({
     id: table.id,
@@ -110,18 +113,85 @@ export function DashboardWorkspace({
     setActiveTableId(tables[0].id);
   }, [tables, activeTableId]);
 
+  useEffect(() => {
+    if (!importSuccess) return;
+
+    const timer = window.setTimeout(() => setImportSuccess(null), 10_000);
+    return () => window.clearTimeout(timer);
+  }, [importSuccess]);
+
+  function clearImportQueue() {
+    setImportQueue([]);
+    setImportQueueIndex(0);
+    setImportedCountSession(0);
+  }
+
   function openAddClient(tableId: string) {
     if (!canAddRowToTable(tables, tableId)) return;
+    clearImportQueue();
     setAddClientTargetId(tableId);
   }
 
-  function handleAddClient(valuesByLabel: Record<string, string>) {
-    if (!addClientTargetId) return;
-    if (!canAddRowToTable(tables, addClientTargetId)) return;
+  function handleAddClient(valuesByLabel: Record<string, string>): boolean {
+    if (!addClientTargetId) return false;
+    if (!canAddRowToTable(tables, addClientTargetId)) {
+      setImportError("Limite de lignes atteinte — impossible d'ajouter ce client.");
+      return importQueue.length > importQueueIndex + 1;
+    }
 
     updateTable(addClientTargetId, (table) =>
       mergeClientValuesIntoTable(table, valuesByLabel),
     );
+
+    const nextIndex = importQueueIndex + 1;
+    const addedFromQueue = importQueue.length > 0;
+    const totalAdded = addedFromQueue ? importedCountSession + 1 : 0;
+
+    if (addedFromQueue && nextIndex < importQueue.length) {
+      setImportedCountSession(totalAdded);
+      setImportQueueIndex(nextIndex);
+      return true;
+    }
+
+    if (addedFromQueue) {
+      const count = totalAdded;
+      setImportSuccess(
+        `${count} ligne${count > 1 ? "s" : ""} ajoutée${count > 1 ? "s" : ""} au tableau.`,
+      );
+      clearImportQueue();
+      setAddClientTargetId(null);
+      return false;
+    }
+
+    setAddClientTargetId(null);
+    return false;
+  }
+
+  function startImportReviewQueue(
+    queue: ImportReviewQueueItem[],
+    tableId: string,
+  ) {
+    if (queue.length === 0) return;
+
+    const capacity = getImportRowCapacity(tables, tableId);
+    const items = queue.slice(0, capacity);
+    const skipped = queue.length - items.length;
+
+    if (items.length === 0) {
+      setImportError("Limite de lignes atteinte — import impossible.");
+      return;
+    }
+
+    if (skipped > 0) {
+      setImportError(
+        `${skipped} facture${skipped > 1 ? "s" : ""} ignorée${skipped > 1 ? "s" : ""} — limite du forfait atteinte.`,
+      );
+    }
+
+    setImportQueue(items);
+    setImportQueueIndex(0);
+    setImportedCountSession(0);
+    setAddClientTargetId(tableId);
   }
 
   async function handleFilesSelected(files: File[]) {
@@ -156,16 +226,13 @@ export function DashboardWorkspace({
     setImportLoading(true);
     try {
       const result = await importFilesViaApi(tableId, files);
-      syncTableFromServer(result.table);
 
       const warningText = result.errors.slice(0, 2).join(" ");
       if (warningText) {
         setImportError(warningText);
       }
 
-      setImportSuccess(
-        `${result.importedCount} ligne${result.importedCount > 1 ? "s" : ""} importée${result.importedCount > 1 ? "s" : ""} automatiquement.`,
-      );
+      startImportReviewQueue(result.reviewQueue, tableId);
     } catch (error) {
       setImportError(
         error instanceof Error ? error.message : "Import impossible. Réessayez.",
@@ -259,9 +326,20 @@ export function DashboardWorkspace({
       ) : null}
 
       {importSuccess ? (
-        <p className="mb-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-100">
-          {importSuccess}
-        </p>
+        <div
+          role="status"
+          className="relative mb-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 py-2 pl-4 pr-10 text-sm text-emerald-100"
+        >
+          <p>{importSuccess}</p>
+          <button
+            type="button"
+            onClick={() => setImportSuccess(null)}
+            aria-label="Fermer le message de succès"
+            className="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-emerald-200/80 transition-colors hover:bg-white/10 hover:text-white"
+          >
+            ×
+          </button>
+        </div>
       ) : null}
 
       {importZoneVisible ? (
@@ -281,9 +359,8 @@ export function DashboardWorkspace({
       ) : null}
 
       <section className={`w-full ${importZoneVisible ? "pt-4" : ""}`}>
-        <div className="w-full overflow-x-auto">
-          <div className="mx-auto w-max min-w-0 max-w-none">
-            <TableauGrid
+        <div className="w-full max-w-full">
+          <TableauGrid
               tableName={activeTable.name}
               onTableRename={(name) =>
                 updateTable(activeTable.id, (current) => ({ ...current, name }))
@@ -346,15 +423,39 @@ export function DashboardWorkspace({
                 </svg>
               </button>
             </div>
-          </div>
         </div>
       </section>
 
       {addClientTargetId !== null ? (
         <AddClientModal
           open
-          onClose={() => setAddClientTargetId(null)}
+          onClose={() => {
+            setAddClientTargetId(null);
+            clearImportQueue();
+          }}
           onSubmit={handleAddClient}
+          importedFields={
+            importQueue.length > 0
+              ? importQueue[importQueueIndex]?.fields
+              : undefined
+          }
+          sourceFileName={
+            importQueue.length > 0
+              ? importQueue[importQueueIndex]?.fileName
+              : undefined
+          }
+          importProgress={
+            importQueue.length > 0
+              ? { current: importQueueIndex + 1, total: importQueue.length }
+              : undefined
+          }
+          importAmbigu={importQueue[importQueueIndex]?.ambigu}
+          importReviewNotes={importQueue[importQueueIndex]?.notes || undefined}
+          key={
+            importQueue.length > 0
+              ? `import-${importQueueIndex}-${importQueue[importQueueIndex]?.fileName}`
+              : "manual-add"
+          }
         />
       ) : null}
 

@@ -6,10 +6,7 @@ import {
   resolveDashboardUserId,
 } from "@/lib/admin/impersonation";
 import { fetchCreditorContexts, getCreditorContext } from "@/lib/dashboard/creditor-context";
-import {
-  applyValidatedRowsToTable,
-  processServerImportFiles,
-} from "@/lib/import/process-server-import";
+import { processServerImportFiles } from "@/lib/import/process-server-import";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
@@ -67,44 +64,24 @@ export async function POST(request: Request) {
       email: creditor.email,
     };
 
-    const { rows, errors: extractionErrors } = await processServerImportFiles(
-      files,
-      issuer,
-    );
+    const { reviewQueue, errors } = await processServerImportFiles(files, issuer);
 
-    if (rows.length === 0) {
+    if (reviewQueue.length === 0) {
       return NextResponse.json(
         {
           error:
-            extractionErrors[0] ??
-            "Aucune ligne valide extraite. Vérifiez que le client final (débiteur) est identifiable.",
-          errors: extractionErrors,
-          importedCount: 0,
+            errors[0] ??
+            "Aucune facture exploitable. Vérifiez que le client final (débiteur) est identifiable.",
+          errors,
         },
         { status: 422 },
       );
     }
 
-    const { table, importedRows, skippedCount } = await applyValidatedRowsToTable(
-      admin,
-      userId,
-      tableId,
-      rows,
-    );
-
-    const warnings = [...extractionErrors];
-    if (skippedCount > 0) {
-      warnings.push(
-        `${skippedCount} ligne(s) ignorée(s) — limite du forfait atteinte.`,
-      );
-    }
-
     return NextResponse.json({
       ok: true,
-      table,
-      importedCount: importedRows.length,
-      importedRowIds: importedRows.map((row) => row.id),
-      errors: warnings,
+      reviewQueue,
+      errors,
     });
   } catch (error) {
     const message =

@@ -12,16 +12,42 @@ import {
   extractInvoiceFromPdf,
 } from "./extract-invoice-with-anthropic";
 import {
+  formatRowRejectionReason,
+  getLlmRowReviewMeta,
+  mapLlmRowToReviewPayload,
   validateRowsForImport,
-  type ValidatedInvoiceRow,
 } from "./invoice-schema";
 import type { IssuerContext } from "./issuer-context";
 
+export type ImportReviewQueueItem = {
+  fields: Record<string, string>;
+  fileName: string;
+  ambigu: boolean;
+  notes: string;
+};
+
 export type ServerImportFileResult = {
   source: string;
-  rows: ValidatedInvoiceRow[];
   errors: string[];
+  reviewQueue: ImportReviewQueueItem[];
 };
+
+function buildNoValidRowsMessage(
+  fileName: string,
+  rejectionReasons: ReturnType<typeof validateRowsForImport>["rejectionReasons"],
+  hasReviewRows: boolean,
+): string {
+  const primaryReason = rejectionReasons[0];
+  const detail = primaryReason
+    ? formatRowRejectionReason(primaryReason)
+    : "données incomplètes";
+
+  if (hasReviewRows) {
+    return `${fileName} : ${detail} — complétez les champs dans la fenêtre d'ajout.`;
+  }
+
+  return `${fileName} : aucune ligne valide (${detail}). Vérifiez que le client final (débiteur), la référence et l'échéance sont lisibles.`;
+}
 
 export function classifyServerImportFiles(files: File[]): {
   pdfs: File[];
@@ -61,23 +87,41 @@ async function processPdfFile(
 ): Promise<ServerImportFileResult> {
   const validationError = validatePdfFile(file);
   if (validationError) {
-    return { source: file.name, rows: [], errors: [`${file.name} : ${validationError}`] };
+    return {
+      source: file.name,
+      errors: [`${file.name} : ${validationError}`],
+      reviewQueue: [],
+    };
   }
 
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
     const extraction = await extractInvoiceFromPdf(buffer, file.name, issuer);
-    const { accepted, rejected, issuerRejected } = validateRowsForImport(
+    const { rejected, issuerRejected, rejectionReasons } = validateRowsForImport(
       extraction.rows,
       issuer,
     );
 
+    const reviewQueue = extraction.rows
+      .map((row) => {
+        const fields = mapLlmRowToReviewPayload(row);
+        if (!fields) return null;
+        const meta = getLlmRowReviewMeta(row);
+        return {
+          fields,
+          fileName: file.name,
+          ambigu: meta.ambigu,
+          notes: meta.notes,
+        };
+      })
+      .filter((item): item is ImportReviewQueueItem => item !== null);
+
     const errors: string[] = [];
-    if (accepted.length === 0) {
+    if (reviewQueue.length === 0) {
       errors.push(
-        `${file.name} : aucune ligne valide — vérifiez que le client final (débiteur), la référence et l'échéance sont lisibles.`,
+        buildNoValidRowsMessage(file.name, rejectionReasons, false),
       );
-    } else {
+    } else if (rejected > 0) {
       const rejectionMsg = formatRejectionMessage(
         file.name,
         rejected,
@@ -86,14 +130,14 @@ async function processPdfFile(
       if (rejectionMsg) errors.push(rejectionMsg);
     }
 
-    return { source: file.name, rows: accepted, errors };
+    return { source: file.name, errors, reviewQueue };
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Erreur d'extraction IA.";
     return {
       source: file.name,
-      rows: [],
       errors: [`${file.name} : ${message}`],
+      reviewQueue: [],
     };
   }
 }
@@ -104,23 +148,41 @@ async function processCsvFile(
 ): Promise<ServerImportFileResult> {
   const validationError = validateCsvFile(file);
   if (validationError) {
-    return { source: file.name, rows: [], errors: [`${file.name} : ${validationError}`] };
+    return {
+      source: file.name,
+      errors: [`${file.name} : ${validationError}`],
+      reviewQueue: [],
+    };
   }
 
   try {
     const csvText = await file.text();
     const extraction = await extractInvoiceFromCsvText(csvText, file.name, issuer);
-    const { accepted, rejected, issuerRejected } = validateRowsForImport(
+    const { rejected, issuerRejected, rejectionReasons } = validateRowsForImport(
       extraction.rows,
       issuer,
     );
 
+    const reviewQueue = extraction.rows
+      .map((row) => {
+        const fields = mapLlmRowToReviewPayload(row);
+        if (!fields) return null;
+        const meta = getLlmRowReviewMeta(row);
+        return {
+          fields,
+          fileName: file.name,
+          ambigu: meta.ambigu,
+          notes: meta.notes,
+        };
+      })
+      .filter((item): item is ImportReviewQueueItem => item !== null);
+
     const errors: string[] = [];
-    if (accepted.length === 0) {
+    if (reviewQueue.length === 0) {
       errors.push(
-        `${file.name} : aucune ligne valide (client final, référence et échéance J+1 requis).`,
+        buildNoValidRowsMessage(file.name, rejectionReasons, false),
       );
-    } else {
+    } else if (rejected > 0) {
       const rejectionMsg = formatRejectionMessage(
         file.name,
         rejected,
@@ -129,14 +191,14 @@ async function processCsvFile(
       if (rejectionMsg) errors.push(rejectionMsg);
     }
 
-    return { source: file.name, rows: accepted, errors };
+    return { source: file.name, errors, reviewQueue };
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Erreur d'extraction IA.";
     return {
       source: file.name,
-      rows: [],
       errors: [`${file.name} : ${message}`],
+      reviewQueue: [],
     };
   }
 }
@@ -145,43 +207,43 @@ export async function processServerImportFiles(
   files: File[],
   issuer: IssuerContext,
 ): Promise<{
-  rows: ValidatedInvoiceRow[];
+  reviewQueue: ImportReviewQueueItem[];
   errors: string[];
 }> {
   const errors: string[] = [];
-  const rows: ValidatedInvoiceRow[] = [];
+  const reviewQueue: ImportReviewQueueItem[] = [];
 
   if (files.length === 0) {
-    return { rows, errors: ["Aucun fichier sélectionné."] };
+    return { reviewQueue, errors: ["Aucun fichier sélectionné."] };
   }
 
   const { pdfs, csvs, invalid } = classifyServerImportFiles(files);
 
   if (invalid.length > 0) {
-    return { rows, errors: ["Formats acceptés : PDF et CSV."] };
+    return { reviewQueue, errors: ["Formats acceptés : PDF et CSV."] };
   }
 
   if (pdfs.length > 0 && csvs.length > 0) {
     return {
-      rows,
+      reviewQueue,
       errors: ["Importez soit un fichier CSV, soit des PDF — pas les deux."],
     };
   }
 
   if (csvs.length > 1) {
-    return { rows, errors: ["Un seul fichier CSV à la fois."] };
+    return { reviewQueue, errors: ["Un seul fichier CSV à la fois."] };
   }
 
   if (csvs.length === 1) {
     const result = await processCsvFile(csvs[0], issuer);
     errors.push(...result.errors);
-    rows.push(...result.rows);
-    return { rows, errors };
+    reviewQueue.push(...result.reviewQueue);
+    return { reviewQueue, errors };
   }
 
   if (pdfs.length > IMPORT_LIMITS.MAX_PDF_FILES) {
     return {
-      rows,
+      reviewQueue,
       errors: [`Maximum ${IMPORT_LIMITS.MAX_PDF_FILES} PDF par import.`],
     };
   }
@@ -189,10 +251,10 @@ export async function processServerImportFiles(
   for (const pdf of pdfs) {
     const result = await processPdfFile(pdf, issuer);
     errors.push(...result.errors);
-    rows.push(...result.rows);
+    reviewQueue.push(...result.reviewQueue);
   }
 
-  return { rows, errors };
+  return { reviewQueue, errors };
 }
 
 export { applyValidatedRowsToTable };

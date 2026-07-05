@@ -36,19 +36,18 @@ export async function POST(request: Request) {
       email: MVP_DEMO_PROFILE.email,
     };
 
-    const { rows, errors: extractionErrors } = await processServerImportFiles(
+    const { reviewQueue, errors: extractionErrors } = await processServerImportFiles(
       files,
       issuer,
     );
 
-    if (rows.length === 0) {
+    if (reviewQueue.length === 0) {
       return NextResponse.json(
         {
           error:
             extractionErrors[0] ??
-            "Aucune ligne valide extraite. Vérifiez que le client final (débiteur) est identifiable.",
+            "Aucune facture exploitable. Vérifiez que le client final (débiteur) est identifiable.",
           errors: extractionErrors,
-          importedCount: 0,
         },
         { status: 422 },
       );
@@ -56,8 +55,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ok: true,
-      rows,
-      importedCount: rows.length,
+      reviewQueue,
       errors: extractionErrors,
     });
   } catch (error) {

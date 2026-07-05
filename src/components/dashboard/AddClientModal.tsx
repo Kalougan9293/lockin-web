@@ -29,12 +29,17 @@ import { TableTargetSelect } from "./TableTargetSelect";
 type AddClientModalProps = {
   open: boolean;
   onClose: () => void;
-  onSubmit: (valuesByLabel: Record<string, string>) => void;
+  /** Retourner true pour garder la modale ouverte (file d'import). */
+  onSubmit: (valuesByLabel: Record<string, string>) => boolean | void;
   /** Préremplissage après import PDF — seuls les champs détectés sont ouverts. */
   importedFields?: Record<string, string>;
   sourceFileName?: string;
-  /** Nombre de factures PDF encore en attente après celle-ci. */
-  remainingImportCount?: number;
+  /** Progression dans une file d'import (ex. 2 / 10). */
+  importProgress?: { current: number; total: number };
+  /** L'IA signale une incertitude sur cette facture. */
+  importAmbigu?: boolean;
+  /** Notes d'extraction IA (calcul échéance, email orphelin, etc.). */
+  importReviewNotes?: string;
   targetTable?: {
     tables: TableSummary[];
     value: string;
@@ -142,7 +147,9 @@ export function AddClientModal({
   onSubmit,
   importedFields,
   sourceFileName,
-  remainingImportCount = 0,
+  importProgress,
+  importAmbigu = false,
+  importReviewNotes,
   targetTable,
 }: AddClientModalProps) {
   const { dateFormat } = useUserPreferences();
@@ -300,8 +307,10 @@ export function AddClientModal({
       }
     }
 
-    onSubmit(payload);
-    onClose();
+    const stayOpen = onSubmit(payload) === true;
+    if (!stayOpen) {
+      onClose();
+    }
   }
 
   if (!open) return null;
@@ -327,18 +336,19 @@ export function AddClientModal({
             Ajouter un client
           </h2>
 
-          {sourceFileName ? (
+          {sourceFileName || importProgress ? (
             <div className="mt-2 space-y-2.5 text-center">
-              <p className="truncate px-1 text-sm font-medium text-white/90">
-                {sourceFileName}
-              </p>
-              {remainingImportCount > 0 ? (
+              {sourceFileName ? (
+                <p className="truncate px-1 text-sm font-medium text-white/90">
+                  {sourceFileName}
+                </p>
+              ) : null}
+              {importProgress ? (
                 <p
                   className="w-full rounded-xl border border-amber-400/55 bg-amber-500/20 px-4 py-2.5 text-center text-sm font-semibold text-amber-50 shadow-md shadow-amber-950/35 ring-1 ring-amber-300/30"
                   role="status"
                 >
-                  Encore {remainingImportCount} facture
-                  {remainingImportCount > 1 ? "s" : ""}
+                  Facture {importProgress.current} / {importProgress.total} à valider
                 </p>
               ) : null}
             </div>
@@ -347,6 +357,21 @@ export function AddClientModal({
           {isImportMode ? (
             <p className="mt-3 text-center text-sm font-semibold text-red-500">
               Vérifier bien les informations
+            </p>
+          ) : null}
+
+          {isImportMode && importAmbigu ? (
+            <p
+              role="alert"
+              className="mt-3 rounded-xl border border-amber-400/40 bg-amber-500/15 px-4 py-2.5 text-center text-sm text-amber-100"
+            >
+              L&apos;IA n&apos;est pas certaine de cette extraction — vérifiez chaque champ.
+            </p>
+          ) : null}
+
+          {isImportMode && importReviewNotes ? (
+            <p className="mt-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-center text-xs leading-relaxed text-brand-muted">
+              {importReviewNotes}
             </p>
           ) : null}
 

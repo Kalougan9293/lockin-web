@@ -126,8 +126,8 @@ function RowDeleteColumn({
   headerSpacerClassName?: string;
 }) {
   return (
-    <div className="flex w-8 shrink-0 flex-col pl-1.5">
-      <div className={`${headerSpacerClassName} shrink-0`} aria-hidden />
+    <div className="flex w-9 shrink-0 flex-col border-l border-white/[0.12] bg-brand-surface pl-1.5 shadow-[-12px_0_24px_-12px_rgba(0,0,0,0.75)]">
+      <div className={`${headerSpacerClassName} shrink-0 bg-brand-surface`} aria-hidden />
       {Array.from({ length: totalRows }).map((_, rowIndex) => {
         const isDataRow = rowIndex < rows.length;
 
@@ -991,8 +991,9 @@ export function TableauGrid({
   return (
     <>
       {DragPreview}
-      <div className="w-max">
-        <div className="grid w-max grid-cols-[auto_3px_auto]">
+      <div className="flex w-full max-w-full items-start">
+        <div className="min-w-0 flex-1 overflow-x-auto">
+          <div className="grid w-max grid-cols-[auto_3px_auto]">
           <div
             className="col-start-1 row-start-1 mb-5 min-w-0 self-end overflow-hidden"
             data-tutorial="table-title"
@@ -1104,7 +1105,7 @@ export function TableauGrid({
             <TableSeparator />
           </div>
 
-          <div className="col-start-3 row-start-2 flex items-start gap-1.5">
+          <div className="col-start-3 row-start-2">
             <div className="relative min-w-0">
               <span
                 aria-hidden
@@ -1156,13 +1157,25 @@ export function TableauGrid({
                 </div>
               </div>
             </div>
-
-            <RowDeleteColumn
-              rows={rows}
-              totalRows={totalRows}
-              onDeleteRow={onDeleteRow}
-            />
           </div>
+        </div>
+        </div>
+
+        <div className="flex shrink-0 flex-col">
+          <div
+            aria-hidden
+            className="mb-5 flex flex-col items-center gap-1 px-1 opacity-0 pointer-events-none select-none"
+          >
+            <span className="h-8 w-8" />
+            <span className="font-sans text-[10px] font-medium uppercase tracking-[0.18em]">
+              Relances
+            </span>
+          </div>
+          <RowDeleteColumn
+            rows={rows}
+            totalRows={totalRows}
+            onDeleteRow={onDeleteRow}
+          />
         </div>
       </div>
 

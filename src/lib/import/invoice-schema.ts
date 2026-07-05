@@ -14,6 +14,8 @@ export const llmInvoiceRowSchema = z.object({
   echeance: z.string(),
   reference: z.string(),
   numero: z.string(),
+  ambigu: z.boolean(),
+  notes: z.string(),
 });
 
 export const llmExtractionSchema = z.object({
@@ -69,8 +71,26 @@ export const INVOICE_EXTRACTION_JSON_SCHEMA = {
             description:
               "Numéro de téléphone du client final / débiteur, ou chaîne vide",
           },
+          ambigu: {
+            type: "boolean",
+            description:
+              "true si doute sur émetteur vs client ou champ critique incertain",
+          },
+          notes: {
+            type: "string",
+            description:
+              "Motif d'ambiguïté, calcul d'échéance ou email orphelin — chaîne vide sinon",
+          },
         },
-        required: ["nom", "email", "echeance", "reference", "numero"],
+        required: [
+          "nom",
+          "email",
+          "echeance",
+          "reference",
+          "numero",
+          "ambigu",
+          "notes",
+        ],
         additionalProperties: false,
       },
     },
@@ -83,6 +103,9 @@ function normalizeIsoDate(raw: string): string | null {
   const trimmed = raw.trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
 
+  const isoDateTime = trimmed.match(/^(\d{4}-\d{2}-\d{2})[T\s]/);
+  if (isoDateTime) return isoDateTime[1];
+
   const fr = trimmed.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
   if (fr) {
     const day = fr[1].padStart(2, "0");
@@ -93,6 +116,106 @@ function normalizeIsoDate(raw: string): string | null {
   }
 
   return null;
+}
+
+export type RowRejectionReason =
+  | "missing_name"
+  | "missing_reference"
+  | "invalid_due_date"
+  | "due_date_past"
+  | "issuer_match";
+
+export function formatRowRejectionReason(reason: RowRejectionReason): string {
+  switch (reason) {
+    case "missing_name":
+      return "nom du client final introuvable";
+    case "missing_reference":
+      return "référence de facture introuvable";
+    case "invalid_due_date":
+      return "date d'échéance illisible ou format non reconnu";
+    case "due_date_past":
+      return "échéance passée ou aujourd'hui (minimum demain, J+1)";
+    case "issuer_match":
+      return "coordonnées de l'émetteur détectées au lieu du client final";
+    default:
+      return "données incomplètes";
+  }
+}
+
+export function getRowRejectionReason(
+  row: LlmInvoiceRow,
+  issuer?: IssuerContext,
+): RowRejectionReason | null {
+  const nom = row.nom.trim();
+  if (!nom) return "missing_name";
+
+  const reference = row.reference.trim();
+  if (!reference) return "missing_reference";
+
+  const echeanceIso = normalizeIsoDate(row.echeance);
+  if (!echeanceIso) return "invalid_due_date";
+
+  if (validateDueDateForRelance(echeanceIso)) return "due_date_past";
+
+  let email = row.email.trim();
+  if (email && !z.string().email().safeParse(email).success) {
+    email = "";
+  }
+
+  const candidate: ValidatedInvoiceRow = {
+    Nom: nom,
+    Mail: email,
+    Échéance: echeanceIso,
+    Référence: reference,
+    Numéro: row.numero.trim(),
+  };
+
+  const parsed = validatedInvoiceRowSchema.safeParse(candidate);
+  if (!parsed.success) return "invalid_due_date";
+
+  if (issuer && rowMatchesIssuer(parsed.data, issuer)) {
+    return "issuer_match";
+  }
+
+  return null;
+}
+
+/** Préremplissage modale — inclut les lignes partielles pour validation manuelle. */
+export function mapLlmRowToReviewPayload(
+  row: LlmInvoiceRow,
+): Record<string, string> | null {
+  const nom = row.nom.trim();
+  const reference = row.reference.trim();
+  const echeanceRaw = row.echeance.trim();
+  const email = row.email.trim();
+
+  const hasContent =
+    nom.length > 0 ||
+    reference.length > 0 ||
+    echeanceRaw.length > 0 ||
+    email.length > 0;
+
+  if (!hasContent) return null;
+
+  const echeanceIso = normalizeIsoDate(echeanceRaw) ?? echeanceRaw;
+
+  return {
+    Nom: nom,
+    Mail: email,
+    Échéance: echeanceIso,
+    Référence: reference,
+    Numéro: row.numero.trim(),
+  };
+}
+
+export function getLlmRowReviewMeta(row: LlmInvoiceRow): {
+  ambigu: boolean;
+  notes: string;
+} {
+  return {
+    ambigu: row.ambigu,
+    notes: row.notes.trim(),
+  };
 }
 
 export function mapLlmRowToTablePayload(
@@ -168,25 +291,30 @@ export function validateRowsForImport(
   accepted: ValidatedInvoiceRow[];
   rejected: number;
   issuerRejected: number;
+  rejectionReasons: RowRejectionReason[];
 } {
   const accepted: ValidatedInvoiceRow[] = [];
   let issuerRejected = 0;
+  const rejectionReasons: RowRejectionReason[] = [];
 
   for (const row of rows) {
-    const withoutIssuerCheck = mapLlmRowToTablePayload(row);
-    if (!withoutIssuerCheck) continue;
-
-    if (issuer && rowMatchesIssuer(withoutIssuerCheck, issuer)) {
-      issuerRejected += 1;
+    const reason = getRowRejectionReason(row, issuer);
+    if (reason) {
+      rejectionReasons.push(reason);
+      if (reason === "issuer_match") issuerRejected += 1;
       continue;
     }
 
-    accepted.push(withoutIssuerCheck);
+    const mapped = mapLlmRowToTablePayload(row, issuer);
+    if (!mapped) continue;
+
+    accepted.push(mapped);
   }
 
   return {
     accepted,
     rejected: rows.length - accepted.length,
     issuerRejected,
+    rejectionReasons,
   };
 }
