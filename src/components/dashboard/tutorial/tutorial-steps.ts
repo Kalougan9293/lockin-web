@@ -16,7 +16,7 @@ export const DASHBOARD_TUTORIAL_STEPS: TutorialStep[] = [
   {
     target: '[data-tutorial="table-left"]',
     message:
-      "À gauche : vos colonnes client (nom, mail, montant, échéance…). Ajoutez-les, masquez-les et réorganisez-les selon vos besoins.",
+      "Vos colonnes client (nom, mail, montant, échéance…). Ajoutez-les, masquez-les et réorganisez-les selon vos besoins.",
   },
   {
     target: '[data-tutorial="configure-btn"]',
@@ -26,6 +26,6 @@ export const DASHBOARD_TUTORIAL_STEPS: TutorialStep[] = [
   {
     target: '[data-tutorial="table-right"]',
     message:
-      'À droite : les dates de relance en un coup d\'œil. Appuyez sur « PAYE ? » pour arrêter les relances instantanément.',
+      'Les dates de relance en un coup d\'œil. Appuyez sur « PAYE ? » pour arrêter les relances instantanément.',
   },
 ];

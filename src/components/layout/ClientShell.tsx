@@ -1,6 +1,7 @@
 import { LockInLogo } from "@/components/brand/LockInLogo";
 import { AuthenticatedProfileMenu } from "@/components/auth/AuthenticatedProfileMenu";
 import { UserPreferencesProvider } from "@/contexts/UserPreferencesContext";
+import { ImportZoneProvider } from "@/contexts/ImportZoneContext";
 import { TutorialProvider } from "@/contexts/TutorialContext";
 
 type ClientShellProps = {
@@ -16,7 +17,8 @@ export function ClientShell({
 }: ClientShellProps) {
   return (
     <UserPreferencesProvider>
-      <TutorialProvider>
+      <ImportZoneProvider>
+        <TutorialProvider>
         <div className="flex min-h-screen flex-col">
           <header className="sticky top-0 z-50 border-b border-white/10 bg-brand-dark/90 backdrop-blur-md">
             <div className="mx-auto flex h-16 w-full max-w-[88rem] items-center justify-between px-4 sm:px-6 lg:px-8">
@@ -32,7 +34,8 @@ export function ClientShell({
             {children}
           </main>
         </div>
-      </TutorialProvider>
+        </TutorialProvider>
+      </ImportZoneProvider>
     </UserPreferencesProvider>
   );
 }

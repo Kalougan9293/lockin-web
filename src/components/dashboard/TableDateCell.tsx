@@ -1,15 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
 import type { DateFormatPreference } from "@/lib/preferences/date-format";
-import {
-  formatDateForDisplay,
-  formatDateInputAsYouType,
-  getDatePlaceholder,
-  parseDateInputToIso,
-} from "@/lib/preferences/date-format";
 import { getColumnFieldName } from "@/types/tableau";
+
+import { DateTextInput } from "./DateTextInput";
 
 type TableDateCellProps = {
   /** Valeur stockée (ISO de préférence). */
@@ -27,30 +21,13 @@ export function TableDateCell({
   ariaLabel,
   onChange,
 }: TableDateCellProps) {
-  const [draft, setDraft] = useState(() => formatDateForDisplay(value, dateFormat));
-
-  useEffect(() => {
-    setDraft(formatDateForDisplay(value, dateFormat));
-  }, [value, dateFormat]);
-
-  function commitDraft(nextDraft: string) {
-    setDraft(nextDraft);
-    onChange(parseDateInputToIso(nextDraft, dateFormat));
-  }
-
   return (
-    <input
-      type="text"
-      inputMode="numeric"
+    <DateTextInput
+      value={value}
+      dateFormat={dateFormat}
       name={getColumnFieldName(columnLabel)}
-      autoComplete="off"
-      value={draft}
-      placeholder={getDatePlaceholder(dateFormat)}
-      aria-label={ariaLabel}
-      onChange={(event) => {
-        setDraft(formatDateInputAsYouType(event.target.value, dateFormat));
-      }}
-      onBlur={() => commitDraft(draft)}
+      ariaLabel={ariaLabel}
+      onChange={onChange}
       className="w-full min-w-[3ch] bg-transparent text-center text-sm text-white/90 outline-none placeholder:text-brand-muted/40 focus:text-white"
     />
   );

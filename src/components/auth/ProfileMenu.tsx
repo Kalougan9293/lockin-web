@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
+import { LinkPendingSpinner } from "@/components/navigation/link-pending-feedback";
+
 const menuItems = [
   { href: "/signup", label: "S'inscrire" },
   { href: "/login", label: "Connexion" },
@@ -68,17 +70,19 @@ export function ProfileMenu() {
       {open ? (
         <div
           role="menu"
-          className="absolute right-0 mt-2 w-40 overflow-hidden rounded-xl border border-white/10 bg-brand-card py-1 shadow-xl shadow-black/40 animate-in fade-in zoom-in-95 duration-150"
+          className="absolute right-0 mt-2 w-44 overflow-hidden rounded-xl border border-white/10 bg-brand-card py-1 shadow-xl shadow-black/40 animate-in fade-in zoom-in-95 duration-150"
         >
           {menuItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
+              prefetch
               role="menuitem"
               onClick={() => setOpen(false)}
-              className="block px-4 py-2.5 text-sm text-brand-muted transition-colors hover:bg-white/5 hover:text-white"
+              className="flex items-center gap-2 px-4 py-2.5 text-sm text-brand-muted transition-colors hover:bg-white/5 hover:text-white"
             >
-              {item.label}
+              <span className="min-w-0 flex-1">{item.label}</span>
+              <LinkPendingSpinner />
             </Link>
           ))}
         </div>

@@ -132,3 +132,44 @@ export function formatDateInputAsYouType(
   if (digits.length <= 6) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
   return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
 }
+
+export type DateSegmentIndex = 0 | 1 | 2;
+
+/** Plage de caractères pour jour/mois/année (ou année/mois/jour en ISO). */
+export function getDateSegmentRangeByIndex(
+  segmentIndex: DateSegmentIndex,
+  format: DateFormatPreference,
+): { start: number; end: number } {
+  if (format === "fr") {
+    return (
+      [
+        { start: 0, end: 2 },
+        { start: 3, end: 5 },
+        { start: 6, end: 10 },
+      ] as const
+    )[segmentIndex];
+  }
+
+  return (
+    [
+      { start: 0, end: 4 },
+      { start: 5, end: 7 },
+      { start: 8, end: 10 },
+    ] as const
+  )[segmentIndex];
+}
+
+export function getDateSegmentIndexFromClickRatio(ratio: number): DateSegmentIndex {
+  if (ratio < 1 / 3) return 0;
+  if (ratio < 2 / 3) return 1;
+  return 2;
+}
+
+export function clampDateSegmentSelection(
+  range: { start: number; end: number },
+  valueLength: number,
+): { start: number; end: number } {
+  const start = Math.min(range.start, valueLength);
+  const end = Math.max(start, Math.min(range.end, valueLength));
+  return { start, end };
+}

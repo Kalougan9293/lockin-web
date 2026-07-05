@@ -26,6 +26,7 @@ export function serializeCronRelanceItems(items: CronRelanceItem[]): {
     smsBody: item.smsBody,
     sendEmail: item.sendEmail,
     sendSms: item.sendSms,
+    ...(item.cc ? { cc: item.cc } : {}),
     emphasisValues: [...(item.emphasisValues ?? [])],
     scheduledFor:
       normalizeDateOnlyInput(item.scheduledFor) ?? item.scheduledFor.trim(),

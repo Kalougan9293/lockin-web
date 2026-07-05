@@ -161,13 +161,19 @@ type TableColumnProps = {
   getCellRawValue?: (rowIndex: number, columnId: string) => string;
   onCellChange?: (rowIndex: number, columnId: string, value: string) => void;
   showHeader?: boolean;
-  compressed?: boolean;
-  onToggleCompress?: () => void;
+  columnWidthCh: number;
+  minColumnWidthCh: number;
+  resizable?: boolean;
+  onResizeStart?: (
+    event: React.MouseEvent,
+    currentWidthCh: number,
+    minWidthCh: number,
+  ) => void;
 };
 
 const REMOVE_BUTTON_CH = 2.25;
-const COMPRESS_BUTTON_CH = 2;
 const COLUMN_WIDTH_PAD_CH = 0.35;
+const MIN_COLUMN_LABEL_CHARS = 4;
 const RIGHT_COLUMN_WIDTH_PAD_CH = 1.5;
 /** Largeur minimale d'une colonne relance (texte « Prévu : DD/MM »). */
 const DEFAULT_RELANCE_COLUMN_MIN_WIDTH = "7rem";
@@ -175,22 +181,6 @@ const DEFAULT_RELANCE_COLUMN_MIN_WIDTH = "7rem";
 const DEFAULT_STATUT_COLUMN_MIN_WIDTH = "5.75rem";
 /** Largeur de la colonne Progression (badge + bouton timeline). */
 const PROGRESSION_COLUMN_WIDTH = "12.75rem";
-
-function normalizeColumnLabel(label: string) {
-  return label
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/\p{M}/gu, "");
-}
-
-/** Libellé court en-tête quand la colonne est compressée. */
-function getCompressedColumnLabel(label: string): string {
-  const key = normalizeColumnLabel(label);
-  if (key === "reference") return "Ref";
-  if (key === "montant") return "€";
-  if (key === "numero") return "06";
-  return label;
-}
 
 function getColumnCharWidth(
   column: ColumnDef,
@@ -203,42 +193,29 @@ function getColumnCharWidth(
   return base + extraControlsCh;
 }
 
-function computeColumnStyle(
+function getMinColumnWidthCh(
+  column: ColumnDef,
+  reserveRemoveButton: boolean,
+): number {
+  const labelChars = Math.min(column.label.length, MIN_COLUMN_LABEL_CHARS);
+  const controlsCh = reserveRemoveButton ? REMOVE_BUTTON_CH : 0;
+  return labelChars + controlsCh + COLUMN_WIDTH_PAD_CH;
+}
+
+function computeDefaultColumnWidthCh(
   column: ColumnDef,
   rows: ClientRow[],
   getLength: (rowIndex: number, columnId: string) => number,
-  options: {
-    reserveRemoveButton?: boolean;
-    reserveCompressButton?: boolean;
-    compressed?: boolean;
-  } = {},
-) {
-  const {
-    reserveRemoveButton = false,
-    reserveCompressButton = false,
-    compressed = false,
-  } = options;
-
-  const controlsCh =
-    (reserveRemoveButton ? REMOVE_BUTTON_CH : 0) +
-    (reserveCompressButton ? COMPRESS_BUTTON_CH : 0);
-
-  if (compressed) {
-    const shortLabel = getCompressedColumnLabel(column.label);
-    const columnCharWidth = Math.max(shortLabel.length, 3) + controlsCh;
-    return {
-      width: `${columnCharWidth + COLUMN_WIDTH_PAD_CH}ch`,
-      minWidth: `${columnCharWidth + COLUMN_WIDTH_PAD_CH}ch`,
-    };
-  }
-
-  const columnCharWidth = getColumnCharWidth(
-    column,
-    rows,
-    getLength,
-    controlsCh,
+  reserveRemoveButton: boolean,
+): number {
+  const controlsCh = reserveRemoveButton ? REMOVE_BUTTON_CH : 0;
+  return (
+    getColumnCharWidth(column, rows, getLength, controlsCh) + COLUMN_WIDTH_PAD_CH
   );
-  return { width: `${columnCharWidth + COLUMN_WIDTH_PAD_CH}ch` };
+}
+
+function computeColumnStyle(widthCh: number) {
+  return { width: `${widthCh}ch` };
 }
 
 function getStatutColumnCharWidth(column: RightColumnDef) {
@@ -273,50 +250,36 @@ function TableSeparator() {
   );
 }
 
-function CompressColumnButton({
-  compressed,
-  onClick,
-  columnLabel,
+function ColumnResizeHandle({
+  onResizeStart,
 }: {
-  compressed: boolean;
-  onClick: () => void;
-  columnLabel: string;
+  onResizeStart: (event: React.MouseEvent) => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={
-        compressed
-          ? `Développer la colonne ${columnLabel}`
-          : `Compresser la colonne ${columnLabel}`
-      }
-      aria-pressed={compressed}
-      title={compressed ? "Développer" : "Compresser"}
-      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded transition-colors hover:bg-white/10 ${
-        compressed ? "text-violet-200" : "text-white/45 hover:text-violet-200"
-      }`}
-    >
-      <svg
-        className="h-3.5 w-3.5"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.85"
-        aria-hidden="true"
-      >
-        {compressed ? (
-          <>
-            <path strokeLinecap="round" d="M9 8l-3 3 3 3M15 8l3 3-3 3" />
-          </>
-        ) : (
-          <>
-            <path strokeLinecap="round" d="M7 8l-3 3 3 3M17 8l3 3-3 3" />
-          </>
-        )}
-      </svg>
-    </button>
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Redimensionner la colonne"
+      onMouseDown={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onResizeStart(event);
+      }}
+      className="absolute -right-[3px] top-0 z-20 h-full w-[6px] cursor-col-resize touch-none select-none hover:bg-violet-400/30 active:bg-violet-400/45"
+    />
   );
+}
+
+function measureChPixelWidth(anchor: HTMLElement): number {
+  const probe = document.createElement("span");
+  probe.textContent = "0";
+  probe.style.font = getComputedStyle(anchor).font;
+  probe.style.position = "absolute";
+  probe.style.visibility = "hidden";
+  document.body.appendChild(probe);
+  const width = probe.getBoundingClientRect().width || 8;
+  document.body.removeChild(probe);
+  return width;
 }
 
 function RowDeleteButton({ onClick }: { onClick: () => void }) {
@@ -562,47 +525,29 @@ function TableColumn({
   getCellRawValue,
   onCellChange,
   showHeader = true,
-  compressed = false,
-  onToggleCompress,
+  columnWidthCh,
+  minColumnWidthCh,
+  resizable = false,
+  onResizeStart,
 }: TableColumnProps) {
   const itemProps = draggable && bindItem ? bindItem(column.id) : null;
   const handleProps = draggable && bindHandle ? bindHandle(column.id) : null;
   const cellsEditable = Boolean(onCellChange && getCellRawValue);
 
   const hasRemoveButton = editable && Boolean(onRemove);
-  const hasCompressButton = editable && Boolean(onToggleCompress);
   const isDateColumn = isDateColumnLabel(column.label);
   const isAmountColumn = isAmountColumnLabel(column.label);
 
-  const columnStyle = computeColumnStyle(
-    column,
-    rows,
-    (rowIndex, columnId) => {
-      const raw =
-        getCellRawValue?.(rowIndex, columnId) ?? getCellValue(rowIndex, columnId);
-      const display = isDateColumn
-        ? formatDateForDisplay(raw, dateFormat)
-        : isAmountColumn
-          ? formatAmountForDisplay(raw)
-          : raw;
-      return display.length || 1;
-    },
-    {
-      reserveRemoveButton: hasRemoveButton,
-      reserveCompressButton: hasCompressButton,
-      compressed,
-    },
-  );
-
-  const headerLabel = compressed
-    ? getCompressedColumnLabel(column.label)
-    : column.label;
+  const columnStyle = {
+    ...computeColumnStyle(columnWidthCh),
+    minWidth: `${minColumnWidthCh}ch`,
+  };
 
   return (
     <div
       data-drag-item-id={itemProps?.["data-drag-item-id"]}
       style={columnStyle}
-      className={`shrink-0 border-r ${TABLE_BORDER} transition-[opacity,box-shadow] duration-150 ${itemProps?.className ?? ""}`}
+      className={`relative shrink-0 border-r ${TABLE_BORDER} transition-[opacity,box-shadow] duration-150 ${itemProps?.className ?? ""}`}
     >
       {showHeader ? (
       <div
@@ -610,20 +555,11 @@ function TableColumn({
       >
         <span
           {...(handleProps ?? {})}
-          title={
-            compressed && headerLabel !== column.label ? column.label : undefined
-          }
+          title={column.label}
           className={`${dashboardColumnHeaderClassName} min-w-0 flex-1 truncate text-center ${handleProps?.className ?? ""}`}
         >
-          {headerLabel}
+          {column.label}
         </span>
-        {hasCompressButton ? (
-          <CompressColumnButton
-            compressed={compressed}
-            onClick={onToggleCompress!}
-            columnLabel={column.label}
-          />
-        ) : null}
         {hasRemoveButton ? (
           <button
             type="button"
@@ -638,27 +574,25 @@ function TableColumn({
       </div>
       ) : null}
 
+      {resizable && onResizeStart ? (
+        <ColumnResizeHandle
+          onResizeStart={(event) =>
+            onResizeStart(event, columnWidthCh, minColumnWidthCh)
+          }
+        />
+      ) : null}
+
       {Array.from({ length: totalRows }).map((_, rowIndex) => {
         const isDataRow = rowIndex < rows.length;
         const rowPaid = isDataRow ? isRowPaid(rows[rowIndex]) : false;
         const displayValue = isDataRow ? getCellValue(rowIndex, column.id) : "";
-        const showCompressedValue =
-          compressed && isDataRow && Boolean(displayValue?.trim());
 
         return (
           <div
             key={rowIndex}
             className={`flex ${TABLE_DATA_ROW_HEIGHT} items-center justify-center border-b ${TABLE_CELL_BORDER} px-0.5 text-center ${dataRowSurfaceClass(rowIndex, rowPaid)}`}
           >
-            {showCompressedValue ? (
-              <span
-                className="w-full text-sm text-white/90"
-                title={displayValue}
-                aria-label={`${column.label}, ligne ${rowIndex + 1} : ${displayValue}`}
-              >
-                …
-              </span>
-            ) : isDataRow && cellsEditable ? (
+            {isDataRow && cellsEditable ? (
               isDateColumn ? (
                 <TableDateCell
                   value={getCellRawValue!(rowIndex, column.id)}
@@ -688,13 +622,16 @@ function TableColumn({
                 name={getColumnFieldName(column.label)}
                 autoComplete={getColumnAutocomplete(column.label)}
                 aria-label={`${column.label}, ligne ${rowIndex + 1}`}
-                className="w-full min-w-[3ch] bg-transparent text-center text-sm text-white/90 outline-none placeholder:text-brand-muted/40 focus:text-white"
+                className="w-full min-w-0 truncate bg-transparent text-center text-sm text-white/90 outline-none placeholder:text-brand-muted/40 focus:text-white"
                 placeholder="—"
               />
               )
             ) : isDataRow ? (
-              <span className="w-full whitespace-nowrap text-center text-sm text-white/90">
-                {getCellValue(rowIndex, column.id) || (
+              <span
+                className="w-full truncate text-sm text-white/90"
+                title={displayValue || undefined}
+              >
+                {displayValue || (
                   <span className="text-brand-muted/40">—</span>
                 )}
               </span>
@@ -882,9 +819,14 @@ export function TableauGrid({
   simulateRelances = false,
 }: TableauGridProps) {
   const { dateFormat } = useUserPreferences();
-  const [compressedColumnIds, setCompressedColumnIds] = useState<Set<string>>(
-    () => new Set(),
-  );
+  const [columnWidthsCh, setColumnWidthsCh] = useState<Record<string, number>>({});
+  const columnResizeRef = useRef<{
+    columnId: string;
+    startX: number;
+    startWidthCh: number;
+    minWidthCh: number;
+    chPx: number;
+  } | null>(null);
   const [progressDrawerRowIndex, setProgressDrawerRowIndex] = useState<
     number | null
   >(null);
@@ -917,26 +859,87 @@ export function TableauGrid({
       axis: "x",
     });
 
+  useEffect(() => {
+    function handleMouseMove(event: MouseEvent) {
+      const session = columnResizeRef.current;
+      if (!session) return;
+
+      const deltaCh = (event.clientX - session.startX) / session.chPx;
+      const nextWidthCh = Math.max(
+        session.minWidthCh,
+        session.startWidthCh + deltaCh,
+      );
+
+      setColumnWidthsCh((current) => ({
+        ...current,
+        [session.columnId]: nextWidthCh,
+      }));
+    }
+
+    function handleMouseUp() {
+      if (!columnResizeRef.current) return;
+      columnResizeRef.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, []);
+
+  function beginColumnResize(
+    columnId: string,
+    event: React.MouseEvent,
+    currentWidthCh: number,
+    minWidthCh: number,
+  ) {
+    const handle = event.currentTarget as HTMLElement;
+    const columnEl = handle.parentElement;
+    const headerLabel = columnEl?.querySelector("span");
+    const chPx = measureChPixelWidth(
+      (headerLabel ?? columnEl ?? handle) as HTMLElement,
+    );
+    columnResizeRef.current = {
+      columnId,
+      startX: event.clientX,
+      startWidthCh: currentWidthCh,
+      minWidthCh,
+      chPx,
+    };
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  }
+
+  function getColumnLength(
+    rowIndex: number,
+    columnId: string,
+    column: ColumnDef,
+  ) {
+    const raw =
+      getCellRawValue(rowIndex, columnId) ??
+      getCellValue(rowIndex, columnId);
+    if (isDateColumnLabel(column.label)) {
+      return formatDateForDisplay(raw, dateFormat).length || 1;
+    }
+    if (isAmountColumnLabel(column.label)) {
+      return formatAmountForDisplay(raw).length || 1;
+    }
+    return raw.length || 1;
+  }
+
   function hideLeftColumn(id: string) {
-    setCompressedColumnIds((current) => {
-      if (!current.has(id)) return current;
-      const next = new Set(current);
-      next.delete(id);
+    setColumnWidthsCh((current) => {
+      if (!(id in current)) return current;
+      const next = { ...current };
+      delete next[id];
       return next;
     });
     onHideLeftColumn(id);
-  }
-
-  function toggleColumnCompressed(columnId: string) {
-    setCompressedColumnIds((current) => {
-      const next = new Set(current);
-      if (next.has(columnId)) {
-        next.delete(columnId);
-      } else {
-        next.add(columnId);
-      }
-      return next;
-    });
   }
 
   function getCellRawValue(rowIndex: number, columnId: string) {
@@ -1052,7 +1055,18 @@ export function TableauGrid({
             onAddClient={onAddClient}
             addRowDisabled={addRowDisabled}
           />
-          {leftColumns.map((column) => (
+          {leftColumns.map((column) => {
+            const minColumnWidthCh = getMinColumnWidthCh(column, true);
+            const defaultColumnWidthCh = computeDefaultColumnWidthCh(
+              column,
+              rows,
+              (rowIndex, columnId) => getColumnLength(rowIndex, columnId, column),
+              true,
+            );
+            const columnWidthCh =
+              columnWidthsCh[column.id] ?? defaultColumnWidthCh;
+
+            return (
             <TableColumn
               key={column.id}
               column={column}
@@ -1064,14 +1078,19 @@ export function TableauGrid({
               bindHandle={bindColumnHandle}
               rows={rows}
               totalRows={totalRows}
-              compressed={compressedColumnIds.has(column.id)}
-              onToggleCompress={() => toggleColumnCompressed(column.id)}
+              columnWidthCh={columnWidthCh}
+              minColumnWidthCh={minColumnWidthCh}
+              resizable
+              onResizeStart={(event, currentWidthCh, minWidthCh) =>
+                beginColumnResize(column.id, event, currentWidthCh, minWidthCh)
+              }
               onRemove={() => hideLeftColumn(column.id)}
               getCellValue={getCellValue}
               getCellRawValue={getCellRawValue}
               onCellChange={handleCellChange}
             />
-          ))}
+            );
+          })}
           <AddColumnButton
             availableLabels={addableColumnLabels}
             accentClass="bg-violet-500/16"

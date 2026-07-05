@@ -17,6 +17,7 @@ export type TableauRow = {
   name: string;
   left_columns: ColumnDef[];
   hidden_left_columns: ColumnDef[];
+  cc_creditor: boolean;
   created_at: string;
 };
 
@@ -101,12 +102,14 @@ export type Database = {
           name?: string;
           left_columns?: ColumnDef[];
           hidden_left_columns?: ColumnDef[];
+          cc_creditor?: boolean;
           created_at?: string;
         };
         Update: {
           name?: string;
           left_columns?: ColumnDef[];
           hidden_left_columns?: ColumnDef[];
+          cc_creditor?: boolean;
         };
         Relationships: [
           {

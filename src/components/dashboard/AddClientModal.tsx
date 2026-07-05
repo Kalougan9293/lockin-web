@@ -96,6 +96,46 @@ function getBubbleClasses(label: string) {
   return `rounded-full border px-3 py-1.5 text-xs font-semibold transition-all duration-200 hover:scale-[1.03] ${palette.off}`;
 }
 
+function isRequiredModalFieldLabel(label: string): boolean {
+  const normalized = label.trim().toLowerCase();
+  return normalized === "mail" || normalized === "échéance" || normalized === "echeance";
+}
+
+function getMailValue(values: Record<string, string>): string {
+  return (values.Mail ?? values.mail ?? values.Email ?? "").trim();
+}
+
+function getEcheanceRawValue(values: Record<string, string>): string {
+  return (values.Échéance ?? values.Echeance ?? "").trim();
+}
+
+function isManualAddReady(values: Record<string, string>): boolean {
+  return getMailValue(values).length > 0 && getEcheanceRawValue(values).length > 0;
+}
+
+function getManualAddError(values: Record<string, string>): string | null {
+  if (!getMailValue(values)) {
+    return "Renseignez l'adresse e-mail du client.";
+  }
+  if (!getEcheanceRawValue(values)) {
+    return "Renseignez la date d'échéance.";
+  }
+  return null;
+}
+
+function ModalFieldLabel({ label }: { label: string }) {
+  if (!isRequiredModalFieldLabel(label)) {
+    return <>{label}</>;
+  }
+
+  return (
+    <>
+      {label}{" "}
+      <span className="font-normal text-brand-muted/75">(obligatoire)</span>
+    </>
+  );
+}
+
 export function AddClientModal({
   open,
   onClose,
@@ -122,6 +162,11 @@ export function AddClientModal({
 
     return [...pool, "Autres"];
   }, [activeFields, customFields]);
+
+  const canSubmitManual = useMemo(() => {
+    if (isImportMode) return true;
+    return isManualAddReady(values);
+  }, [isImportMode, values]);
 
   const handleFieldReorder = useCallback((next: string[]) => {
     setActiveFields(next);
@@ -174,6 +219,7 @@ export function AddClientModal({
   }, [open, onClose]);
 
   function deactivateField(label: string) {
+    if (!isImportMode && isRequiredModalFieldLabel(label)) return;
     setActiveFields((current) => current.filter((entry) => entry !== label));
   }
 
@@ -212,6 +258,14 @@ export function AddClientModal({
 
     const payload = normalizeImportFields(payloadInput, dateFormat);
 
+    if (!isImportMode) {
+      const manualError = getManualAddError(values);
+      if (manualError) {
+        setError(manualError);
+        return;
+      }
+    }
+
     if (Object.keys(payload).length === 0) {
       setError(
         isImportMode
@@ -221,26 +275,29 @@ export function AddClientModal({
       return;
     }
 
-    const hasEcheanceField = activeFields.some(
-      (label) => label.toLowerCase() === "échéance" || label.toLowerCase() === "echeance",
-    );
-    const echeanceValue =
-      payload.Échéance?.trim() ??
-      payloadInput.Échéance?.trim() ??
-      payloadInput.Echeance?.trim() ??
-      "";
+    if (isImportMode) {
+      const hasEcheanceField = activeFields.some(
+        (label) =>
+          label.toLowerCase() === "échéance" || label.toLowerCase() === "echeance",
+      );
+      const echeanceValue =
+        payload.Échéance?.trim() ??
+        payloadInput.Échéance?.trim() ??
+        payloadInput.Echeance?.trim() ??
+        "";
 
-    if (hasEcheanceField && !echeanceValue) {
-      setError("Renseignez la date d'échéance pour planifier les relances.");
-      return;
-    }
+      if (hasEcheanceField && !echeanceValue) {
+        setError("Renseignez la date d'échéance pour planifier les relances.");
+        return;
+      }
 
-    const dueDateError = validateDueDateForRelance(
-      getDueDateFromPayload(payload) || echeanceValue,
-    );
-    if (hasEcheanceField && dueDateError) {
-      setError(dueDateError);
-      return;
+      const dueDateError = validateDueDateForRelance(
+        getDueDateFromPayload(payload) || echeanceValue,
+      );
+      if (hasEcheanceField && dueDateError) {
+        setError(dueDateError);
+        return;
+      }
     }
 
     onSubmit(payload);
@@ -330,16 +387,18 @@ export function AddClientModal({
                       {...handleProps}
                       className={`text-sm font-medium text-white ${handleProps.className}`}
                     >
-                      {label}
+                      <ModalFieldLabel label={label} />
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => deactivateField(label)}
-                      aria-label={`Replier le champ ${label} en bulle`}
-                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-xs text-brand-muted transition-colors hover:bg-red-500/15 hover:text-red-300"
-                    >
-                      ×
-                    </button>
+                    {isImportMode || !isRequiredModalFieldLabel(label) ? (
+                      <button
+                        type="button"
+                        onClick={() => deactivateField(label)}
+                        aria-label={`Replier le champ ${label} en bulle`}
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-xs text-brand-muted transition-colors hover:bg-red-500/15 hover:text-red-300"
+                      >
+                        ×
+                      </button>
+                    ) : null}
                   </div>
                   {isDateColumnLabel(label) ? (
                     <PreferenceDateField
@@ -413,7 +472,8 @@ export function AddClientModal({
               </button>
               <button
                 type="submit"
-                className="btn-hover-grow flex-1 rounded-xl bg-brand-accent px-4 py-3 text-sm font-semibold text-white"
+                disabled={!isImportMode && !canSubmitManual}
+                className="btn-hover-grow flex-1 rounded-xl bg-brand-accent px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Ajouter
               </button>

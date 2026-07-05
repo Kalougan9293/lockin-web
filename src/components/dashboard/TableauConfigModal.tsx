@@ -18,9 +18,13 @@ import {
 type TableauConfigModalProps = {
   open: boolean;
   initialSteps: RelanceStep[];
+  initialCcCreditor: boolean;
   leftColumns: ColumnDef[];
   onClose: () => void;
-  onSubmit: (steps: RelanceStep[]) => void;
+  onSubmit: (payload: {
+    relanceSteps: RelanceStep[];
+    ccCreditor: boolean;
+  }) => void;
 };
 
 const SMS_MAX_LENGTH = 160;
@@ -99,11 +103,13 @@ function normalizeStepForUi(step: RelanceStep): RelanceStep {
 export function TableauConfigModal({
   open,
   initialSteps,
+  initialCcCreditor,
   leftColumns,
   onClose,
   onSubmit,
 }: TableauConfigModalProps) {
   const [steps, setSteps] = useState<RelanceStep[]>(initialSteps);
+  const [ccCreditor, setCcCreditor] = useState(initialCcCreditor);
   const [activeStepId, setActiveStepId] = useState<string | null>(null);
   const [flashError, setFlashError] = useState<string | null>(null);
   const messageRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
@@ -136,9 +142,10 @@ export function TableauConfigModal({
 
     const next = source.map((step) => normalizeStepForUi(step));
     setSteps(next);
+    setCcCreditor(initialCcCreditor);
     setActiveStepId(next[0]?.id ?? null);
     setFlashError(null);
-  }, [open, initialSteps]);
+  }, [open, initialSteps, initialCcCreditor]);
 
   useEffect(() => {
     if (!open) return;
@@ -289,7 +296,10 @@ export function TableauConfigModal({
       }
     }
 
-    onSubmit(steps.map((step) => normalizeStepForUi(step)));
+    onSubmit({
+      relanceSteps: steps.map((step) => normalizeStepForUi(step)),
+      ccCreditor,
+    });
     onClose();
   }
 
@@ -519,6 +529,21 @@ export function TableauConfigModal({
                 </tr>
               );
             })}
+            <tr className="border-b border-white/[0.06] bg-white/[0.02]">
+              <td colSpan={5} className="px-4 py-4 sm:px-6">
+                <label className="flex cursor-pointer items-center justify-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={ccCreditor}
+                    onChange={(event) => setCcCreditor(event.target.checked)}
+                    className="h-4 w-4 shrink-0 rounded border-white/20 bg-white/[0.04] text-brand-accent focus:ring-brand-accent/40"
+                  />
+                  <span className="text-sm font-medium text-white">
+                    Me mettre en copie (CC) sur chaque relance e-mail
+                  </span>
+                </label>
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>

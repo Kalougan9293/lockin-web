@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { TableSummary } from "@/types/tableau";
 
@@ -17,7 +17,12 @@ type ImportPromptProps = {
   isProcessing?: boolean;
   error?: string | null;
   addManualDisabled?: boolean;
+  isDemoWorkspace?: boolean;
 };
+
+const DEMO_FILE_NOTICE_MS = 4000;
+const DEMO_FILE_NOTICE =
+  "Cette option est accessible qu'en compte connecté.";
 
 function ImportSectionDivider({ label }: { label?: string }) {
   if (!label) {
@@ -50,9 +55,27 @@ export function ImportPrompt({
   isProcessing = false,
   error = null,
   addManualDisabled = false,
+  isDemoWorkspace = false,
 }: ImportPromptProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [demoFileNotice, setDemoFileNotice] = useState(false);
+  const demoNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (demoNoticeTimerRef.current) clearTimeout(demoNoticeTimerRef.current);
+    };
+  }, []);
+
+  function showDemoFileNotice() {
+    setDemoFileNotice(true);
+    if (demoNoticeTimerRef.current) clearTimeout(demoNoticeTimerRef.current);
+    demoNoticeTimerRef.current = setTimeout(() => {
+      setDemoFileNotice(false);
+      demoNoticeTimerRef.current = null;
+    }, DEMO_FILE_NOTICE_MS);
+  }
 
   const handleFiles = useCallback(
     (fileList: FileList | File[] | null | undefined) => {
@@ -65,7 +88,7 @@ export function ImportPrompt({
   function handleDragOver(event: React.DragEvent) {
     event.preventDefault();
     event.stopPropagation();
-    if (!isProcessing) setIsDragging(true);
+    if (!isProcessing && !isDemoWorkspace) setIsDragging(true);
   }
 
   function handleDragLeave(event: React.DragEvent) {
@@ -78,11 +101,19 @@ export function ImportPrompt({
     event.preventDefault();
     event.stopPropagation();
     setIsDragging(false);
+    if (isDemoWorkspace) {
+      showDemoFileNotice();
+      return;
+    }
     if (isProcessing) return;
     handleFiles(event.dataTransfer.files);
   }
 
   function openFilePicker() {
+    if (isDemoWorkspace) {
+      showDemoFileNotice();
+      return;
+    }
     if (isProcessing) return;
     inputRef.current?.click();
   }
@@ -128,23 +159,48 @@ export function ImportPrompt({
         <ImportSectionDivider />
 
         <div
-          className={`group rounded-lg border-2 border-dashed px-4 py-3.5 text-center transition-all ${
-            isDragging
-              ? "border-violet-400/55 bg-violet-400/12 ring-1 ring-violet-400/20"
-              : "border-violet-400/30 bg-violet-500/[0.07] ring-1 ring-violet-400/10 hover:border-violet-400/45 hover:bg-violet-500/[0.1]"
+          className={`relative rounded-lg border-2 border-dashed px-4 py-3.5 text-center transition-all ${
+            isDemoWorkspace
+              ? "cursor-not-allowed border-violet-400/20 bg-violet-500/[0.04] opacity-75"
+              : `group ${
+                  isDragging
+                    ? "border-violet-400/55 bg-violet-400/12 ring-1 ring-violet-400/20"
+                    : "border-violet-400/30 bg-violet-500/[0.07] ring-1 ring-violet-400/10 hover:border-violet-400/45 hover:bg-violet-500/[0.1]"
+                }`
           }`}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
+          {demoFileNotice ? (
+            <div
+              role="status"
+              className="absolute inset-x-3 top-3 z-10 rounded-lg border border-amber-400/50 bg-amber-500/25 px-3 py-2 text-center text-sm font-medium text-amber-50 shadow-lg shadow-amber-950/30 ring-1 ring-amber-300/30"
+            >
+              {DEMO_FILE_NOTICE}
+            </div>
+          ) : null}
+
           <button
             type="button"
             onClick={openFilePicker}
             disabled={isProcessing}
-            aria-label="Glisser des factures PDF, un CSV, ou cliquer pour parcourir"
-            className="flex w-full flex-col items-center gap-2 disabled:cursor-not-allowed"
+            aria-label={
+              isDemoWorkspace
+                ? "Import de fichiers réservé aux comptes connectés"
+                : "Glisser des factures PDF, un CSV, ou cliquer pour parcourir"
+            }
+            className={`flex w-full flex-col items-center gap-2 disabled:cursor-not-allowed ${
+              isDemoWorkspace ? "cursor-not-allowed" : ""
+            }`}
           >
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-brand-surface/80 transition-colors group-hover:border-violet-400/30 group-hover:bg-violet-400/10">
+            <div
+              className={`flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-brand-surface/80 transition-colors ${
+                isDemoWorkspace
+                  ? ""
+                  : "group-hover:border-violet-400/30 group-hover:bg-violet-400/10"
+              }`}
+            >
               {isProcessing ? (
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-violet-300/30 border-t-violet-300" />
               ) : (
@@ -170,7 +226,13 @@ export function ImportPrompt({
               )}
             </div>
 
-            <p className="max-w-[16rem] text-sm font-light leading-snug text-brand-muted transition-colors group-hover:text-white/85">
+            <p
+              className={`max-w-[16rem] text-sm font-light leading-snug transition-colors ${
+                isDemoWorkspace
+                  ? "text-brand-muted/80"
+                  : "text-brand-muted group-hover:text-white/85"
+              }`}
+            >
               {isProcessing ? (
                 "Lecture des fichiers…"
               ) : (

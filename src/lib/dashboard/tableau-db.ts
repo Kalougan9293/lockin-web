@@ -57,6 +57,7 @@ export function mapTableauToTableData(tableau: TableauWithRelations): TableData 
       hiddenLeftColumns: tableau.hidden_left_columns as ColumnDef[],
       rows,
       relanceSteps,
+      ccCreditor: tableau.cc_creditor ?? false,
     }),
   );
 }
@@ -185,6 +186,7 @@ export async function insertFullTable(
     name: table.name,
     left_columns: table.leftColumns,
     hidden_left_columns: table.hiddenLeftColumns,
+    cc_creditor: table.ccCreditor,
   });
 
   if (tableauError) throw tableauError;
@@ -212,7 +214,10 @@ export async function insertFullTable(
 
 export async function updateTableMeta(
   supabase: Supabase,
-  table: Pick<TableData, "id" | "name" | "leftColumns" | "hiddenLeftColumns">,
+  table: Pick<
+    TableData,
+    "id" | "name" | "leftColumns" | "hiddenLeftColumns" | "ccCreditor"
+  >,
 ): Promise<void> {
   const { error } = await supabase
     .from("tableaux")
@@ -220,6 +225,7 @@ export async function updateTableMeta(
       name: table.name,
       left_columns: table.leftColumns,
       hidden_left_columns: table.hiddenLeftColumns,
+      cc_creditor: table.ccCreditor,
     })
     .eq("id", table.id);
 
@@ -299,6 +305,7 @@ export async function deleteTable(
 export function tableMetaChanged(prev: TableData, next: TableData): boolean {
   return (
     prev.name !== next.name ||
+    prev.ccCreditor !== next.ccCreditor ||
     JSON.stringify(prev.leftColumns) !== JSON.stringify(next.leftColumns) ||
     JSON.stringify(prev.hiddenLeftColumns) !==
       JSON.stringify(next.hiddenLeftColumns)

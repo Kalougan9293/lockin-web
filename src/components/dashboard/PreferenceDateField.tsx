@@ -1,16 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
-import { AuthField } from "@/components/auth/AuthField";
 import type { DateFormatPreference } from "@/lib/preferences/date-format";
-import {
-  formatDateForDisplay,
-  formatDateInputAsYouType,
-  getDatePlaceholder,
-  parseDateInputToIso,
-} from "@/lib/preferences/date-format";
 import { getColumnFieldName } from "@/types/tableau";
+
+import { DateTextInput } from "./DateTextInput";
 
 type PreferenceDateFieldProps = {
   id: string;
@@ -31,34 +24,15 @@ export function PreferenceDateField({
   onChange,
   className,
 }: PreferenceDateFieldProps) {
-  const [draft, setDraft] = useState(() => formatDateForDisplay(value, dateFormat));
-
-  useEffect(() => {
-    setDraft(formatDateForDisplay(value, dateFormat));
-  }, [value, dateFormat]);
-
-  function commitDraft(nextDraft: string) {
-    setDraft(nextDraft);
-    onChange(parseDateInputToIso(nextDraft, dateFormat));
-  }
-
   return (
-    <AuthField
+    <DateTextInput
       id={id}
-      label=""
       name={getColumnFieldName(name)}
-      type="text"
-      inputMode="numeric"
-      autoComplete="off"
-      placeholder={getDatePlaceholder(dateFormat)}
-      value={draft}
+      value={value}
+      dateFormat={dateFormat}
       disabled={disabled}
-      onChange={(event) => {
-        const formatted = formatDateInputAsYouType(event.target.value, dateFormat);
-        setDraft(formatted);
-      }}
-      onBlur={() => commitDraft(draft)}
-      className={className}
+      onChange={onChange}
+      className={`w-full rounded-xl border border-white/10 bg-brand-dark px-4 py-3 text-sm text-white placeholder:text-brand-muted/70 transition-colors focus:border-brand-accent/50 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 disabled:cursor-not-allowed disabled:opacity-50 ${className ?? ""}`}
     />
   );
 }

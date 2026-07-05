@@ -2,10 +2,11 @@ import type { CronRelanceItem } from "./relance-deliveries";
 
 export type CronRelanceDraftItem = Omit<
   CronRelanceItem,
-  "body" | "bodyFormat" | "smsBody"
+  "body" | "bodyFormat" | "smsBody" | "cc"
 > & {
   messageBody: string;
   smsMessageBody: string;
+  ccCreditor?: boolean;
 };
 
 function normalizeEmail(email: string): string {
@@ -100,6 +101,7 @@ function mergeRecipientGroup(items: CronRelanceDraftItem[]): CronRelanceDraftIte
     smsMessageBody: sendSms ? buildMergedSmsBody(normalized) : "",
     sendEmail,
     sendSms,
+    ccCreditor: normalized.some((item) => item.ccCreditor),
     emphasisValues: mergeEmphasisValues(normalized),
     scheduledFor: normalized
       .map((item) => item.scheduledFor)

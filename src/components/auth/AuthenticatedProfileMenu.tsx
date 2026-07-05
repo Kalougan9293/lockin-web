@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { signOutAction } from "@/app/actions/auth";
 import { getProfileAction } from "@/app/actions/profile";
 import { ContactModal } from "@/components/dashboard/ContactModal";
+import { useImportZone } from "@/contexts/ImportZoneContext";
 import { useTutorial } from "@/contexts/TutorialContext";
 const ProfileMenuPanel = dynamic(
   () => import("@/components/dashboard/ProfileMenuPanel").then((mod) => mod.ProfileMenuPanel),
@@ -28,6 +29,7 @@ export function AuthenticatedProfileMenu({
 }: AuthenticatedProfileMenuProps) {
   const demoMode = isDemoWorkspace;
   const { requestTutorial } = useTutorial();
+  const { importZoneVisible, toggleImportZone } = useImportZone();
   const [open, setOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -238,6 +240,18 @@ export function AuthenticatedProfileMenu({
               className="block w-full px-4 py-2.5 text-left text-sm text-brand-muted transition-colors hover:bg-white/5 hover:text-white"
             >
               Tutoriel
+            </button>
+
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                toggleImportZone();
+              }}
+              className="block w-full px-4 py-2.5 text-left text-sm text-brand-muted transition-colors hover:bg-white/5 hover:text-white"
+            >
+              {importZoneVisible ? "Masquer l'import" : "Voir l'import"}
             </button>
 
             <form action={signOutAction}>

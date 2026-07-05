@@ -29,6 +29,19 @@ export async function applyValidatedRowsToTable(
   rows: ValidatedInvoiceRow[],
 ): Promise<ImportApplyResult> {
   const tables = await fetchAllTablesForUser(supabase, userId);
+  const result = applyValidatedRowsLocally(tables, tableId, rows);
+
+  await applyTableDiff(supabase, tables.find((t) => t.id === tableId)!, result.table);
+
+  return result;
+}
+
+/** Fusion locale (mode démo) — aucune écriture Supabase. */
+export function applyValidatedRowsLocally(
+  tables: TableData[],
+  tableId: string,
+  rows: ValidatedInvoiceRow[],
+): ImportApplyResult {
   const table = tables.find((entry) => entry.id === tableId);
 
   if (!table) {
@@ -49,8 +62,6 @@ export async function applyValidatedRowsToTable(
   if (!isTableRowsWithinLimits(tables, tableId, nextTable.rows)) {
     throw new Error("Import refusé : dépassement des limites du forfait.");
   }
-
-  await applyTableDiff(supabase, table, nextTable);
 
   const prevIds = new Set(table.rows.map((row) => row.id));
   const importedRows = nextTable.rows.filter((row) => !prevIds.has(row.id));

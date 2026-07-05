@@ -61,6 +61,8 @@ export type CronRelanceItem = {
   smsBody: string;
   sendEmail: boolean;
   sendSms: boolean;
+  /** E-mail du créancier en copie (si cc_creditor activé sur le tableau). */
+  cc?: string;
   /** Montants et échéances formatés à mettre en gras dans le HTML. */
   emphasisValues?: string[];
   scheduledFor: string;
@@ -349,6 +351,7 @@ export async function collectDueRelancesForCron(
           smsMessageBody: needsSms ? resolveSmsBody(step, row, columns) : "",
           sendEmail: needsEmail,
           sendSms: needsSms,
+          ccCreditor: table.ccCreditor,
           emphasisValues: needsEmail
             ? getRelanceEmphasisValues(row, columns)
             : [],
@@ -365,10 +368,16 @@ export async function collectDueRelancesForCron(
 
   return consolidateRelanceCronItems(items).map((item) => {
     const creditor = getCreditorContext(creditorContexts, item.userId);
-    const { messageBody, smsMessageBody, sendEmail, sendSms, ...rest } = item;
+    const { messageBody, smsMessageBody, sendEmail, sendSms, ccCreditor, ...rest } =
+      item;
+
+    const creditorEmail = creditor.email.trim();
+    const cc =
+      ccCreditor && sendEmail && creditorEmail ? creditorEmail : undefined;
 
     return {
       ...rest,
+      ...(cc ? { cc } : {}),
       body: sendEmail
         ? buildRelanceEmailHtml(
             messageBody,

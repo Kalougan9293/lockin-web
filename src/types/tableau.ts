@@ -141,18 +141,8 @@ export const DEFAULT_RELANCE_STEPS: RelanceStep[] = [
       "Bonjour [Nom],\n\nVotre facture arrive bientôt à échéance le [Échéance]. Nous vous adressons ce message afin d'anticiper son règlement.\n\nMerci beaucoup.",
   },
   {
-    id: "relance-j2",
-    name: "Relance 2",
-    days: 2,
-    channel: DEFAULT_RELANCE_STEP_CHANNEL,
-    smsTemplate:
-      "Bonjour [Nom], facture [Référence] de [Montant] échue le [Échéance]. Merci de procéder au règlement.",
-    messageTemplate:
-      "Bonjour [Nom],\n\nNous vous rappelons que votre facture d'un montant de [Montant] est arrivée à échéance le [Échéance].\n\nSauf erreur de notre part, cette facture semble toujours en attente de règlement.",
-  },
-  {
     id: "relance-j10",
-    name: "Relance 3",
+    name: "Relance 2",
     days: 10,
     channel: DEFAULT_RELANCE_STEP_CHANNEL,
     smsTemplate:
@@ -162,7 +152,7 @@ export const DEFAULT_RELANCE_STEPS: RelanceStep[] = [
   },
   {
     id: "relance-j30",
-    name: "Relance 4",
+    name: "Relance 3",
     days: 30,
     channel: DEFAULT_RELANCE_STEP_CHANNEL,
     smsTemplate:
@@ -192,6 +182,8 @@ export type TableData = {
   hiddenLeftColumns: ColumnDef[];
   rows: ClientRow[];
   relanceSteps: RelanceStep[];
+  /** Mettre le prestataire en CC sur chaque relance e-mail. */
+  ccCreditor: boolean;
 };
 
 export const DEFAULT_LEFT_COLUMNS: ColumnDef[] = [
@@ -396,6 +388,7 @@ export function createTableData(index = 1): TableData {
       hiddenLeftColumns: [],
       rows: [],
       relanceSteps: [],
+      ccCreditor: false,
     }),
   );
 }
@@ -410,7 +403,7 @@ function buildDefaultRelanceSteps(): RelanceStep[] {
   }));
 }
 
-/** Copie fraîche des 4 relances par défaut (ids uniques) pour l’UI. */
+/** Copie fraîche des 3 relances par défaut (ids uniques) pour l’UI. */
 export function buildDefaultRelanceStepsForUi(): RelanceStep[] {
   return buildDefaultRelanceSteps();
 }
@@ -424,7 +417,7 @@ export function relanceStepsLookUnconfigured(steps: RelanceStep[]): boolean {
 }
 
 /**
- * Réinjecte les 4 relances par défaut si le tableau n'en a aucune (legacy)
+ * Réinjecte les 3 relances par défaut si le tableau n'en a aucune (legacy)
  * ou si la config en base est incomplète / placeholder (≠ démo).
  */
 export function ensureDefaultRelanceSteps(table: TableData): TableData {

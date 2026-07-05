@@ -4,6 +4,8 @@ import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { useImportZone } from "@/contexts/ImportZoneContext";
+import { useTutorial } from "@/contexts/TutorialContext";
 import { useDashboardTables } from "@/hooks/useDashboardTables";
 import { useDemoSession } from "@/hooks/useDemoSession";
 import {
@@ -52,6 +54,8 @@ export function DashboardWorkspace({
   initialDashboardData = null,
   isDemoWorkspace = false,
 }: DashboardWorkspaceProps) {
+  const { requestTutorial } = useTutorial();
+  const { importZoneVisible } = useImportZone();
   const { sessionKey: demoSessionKey } = useDemoSession();
   const {
     tables,
@@ -126,13 +130,6 @@ export function DashboardWorkspace({
 
     setImportError(null);
     setImportSuccess(null);
-
-    if (isDemoWorkspace) {
-      setImportError(
-        "L'import IA nécessite un compte — rien n'est enregistré en mode démo.",
-      );
-      return;
-    }
 
     if (getImportRowCapacity(tables, tableId) === 0) {
       setImportError("Limite de lignes atteinte — import impossible.");
@@ -232,10 +229,19 @@ export function DashboardWorkspace({
   return (
     <>
       {isDemoWorkspace ? (
-        <p className="mb-4 text-center text-sm font-semibold text-red-500">
-          Mode démo : rien n&apos;est enregistré, aucun e-mail n&apos;est
-          envoyé. Créez un compte pour envoyer des relances.
-        </p>
+        <div className="mb-4 flex flex-col items-center gap-3">
+          <p className="text-center text-sm font-semibold text-red-500">
+            Mode démo : rien n&apos;est enregistré, aucun e-mail n&apos;est envoyé.
+            Juste pour découvrir
+          </p>
+          <button
+            type="button"
+            onClick={requestTutorial}
+            className="rounded-xl border-2 border-[#ff8c00] bg-[#ff6b00]/20 px-6 py-2.5 text-sm font-bold tracking-wide text-[#ffb347] shadow-[0_0_18px_rgba(255,140,0,0.55)] ring-1 ring-[#ff8c00]/70 transition hover:bg-[#ff6b00]/35 hover:text-[#ffd9a0] hover:shadow-[0_0_24px_rgba(255,140,0,0.7)]"
+          >
+            Tutoriel
+          </button>
+        </div>
       ) : null}
 
       {loadError ? (
@@ -256,20 +262,23 @@ export function DashboardWorkspace({
         </p>
       ) : null}
 
-      <ImportPrompt
-        tables={tableSummaries}
-        selectedTableId={activeTableId}
-        onSelectedTableIdChange={setActiveTableId}
-        onAddManual={() => openAddClient(activeTableId)}
-        onFilesSelected={handleFilesSelected}
-        onAddTable={() => void handleAddTable()}
-        canAddTable={canCreateTable}
-        isProcessing={importLoading}
-        error={importError}
+      {importZoneVisible ? (
+        <ImportPrompt
+          tables={tableSummaries}
+          selectedTableId={activeTableId}
+          onSelectedTableIdChange={setActiveTableId}
+          onAddManual={() => openAddClient(activeTableId)}
+          onFilesSelected={handleFilesSelected}
+          onAddTable={() => void handleAddTable()}
+          canAddTable={canCreateTable}
+          isProcessing={importLoading}
+          error={importError}
         addManualDisabled={!canAddRowToActiveTable}
+        isDemoWorkspace={isDemoWorkspace}
       />
+      ) : null}
 
-      <section className="w-full pt-4">
+      <section className={`w-full ${importZoneVisible ? "pt-4" : ""}`}>
         <div className="w-full overflow-x-auto">
           <div className="mx-auto w-max min-w-0 max-w-none">
             <TableauGrid
@@ -351,10 +360,15 @@ export function DashboardWorkspace({
         <TableauConfigModal
           open
           initialSteps={configTable.relanceSteps}
+          initialCcCreditor={configTable.ccCreditor}
           leftColumns={configTable.leftColumns}
           onClose={() => setConfigTargetId(null)}
-          onSubmit={(relanceSteps) => {
-            updateTable(configTable.id, (table) => ({ ...table, relanceSteps }));
+          onSubmit={({ relanceSteps, ccCreditor }) => {
+            updateTable(configTable.id, (table) => ({
+              ...table,
+              relanceSteps,
+              ccCreditor,
+            }));
             setConfigTargetId(null);
           }}
         />
