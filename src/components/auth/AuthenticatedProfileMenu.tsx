@@ -3,8 +3,8 @@
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 
-import { signOutAction } from "@/app/actions/auth";
 import { getProfileAction } from "@/app/actions/profile";
+import { SignOutForm } from "@/components/auth/SignOutForm";
 import { ContactModal } from "@/components/dashboard/ContactModal";
 import { useImportZone } from "@/contexts/ImportZoneContext";
 import { useTutorial } from "@/contexts/TutorialContext";
@@ -254,15 +254,7 @@ export function AuthenticatedProfileMenu({
               {importZoneVisible ? "Masquer l'import" : "Voir l'import"}
             </button>
 
-            <form action={signOutAction}>
-              <button
-                type="submit"
-                role="menuitem"
-                className="block w-full px-4 py-2.5 text-left text-sm text-brand-muted transition-colors hover:bg-white/5 hover:text-white"
-              >
-                Déconnexion
-              </button>
-            </form>
+            <SignOutForm variant="menu" />
           </div>
         ) : null}
       </div>

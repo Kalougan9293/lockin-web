@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 
 import { signUpAction, type AuthActionState } from "@/app/actions/auth";
+import { FormPendingSubmitButton } from "@/components/navigation/link-pending-feedback";
 import { ACTIVITY_DOMAINS } from "@/lib/auth/activity-domains";
 
 import { AuthCard } from "./AuthCard";
@@ -14,7 +15,7 @@ import { PasswordCriteria } from "./PasswordCriteria";
 const initialState: AuthActionState = {};
 
 export function SignUpForm() {
-  const [state, formAction, isPending] = useActionState(signUpAction, initialState);
+  const [state, formAction] = useActionState(signUpAction, initialState);
   const [password, setPassword] = useState("");
 
   if (state.success) {
@@ -130,13 +131,12 @@ export function SignUpForm() {
           </p>
         ) : null}
 
-        <button
-          type="submit"
-          disabled={isPending}
-          className="btn-hover-grow w-full rounded-xl bg-brand-accent px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+        <FormPendingSubmitButton
+          pendingLabel="Inscription en cours…"
+          className="btn-hover-grow w-full rounded-xl bg-brand-accent px-4 py-3 text-sm font-semibold disabled:cursor-wait disabled:opacity-90"
         >
-          {isPending ? "Inscription en cours…" : "S'inscrire"}
-        </button>
+          S&apos;inscrire
+        </FormPendingSubmitButton>
       </form>
     </AuthCard>
   );

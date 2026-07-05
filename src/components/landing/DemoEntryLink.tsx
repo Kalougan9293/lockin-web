@@ -3,7 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
-import { useBodyWaitCursor } from "@/components/navigation/link-pending-feedback";
+import {
+  InlinePendingSpinner,
+  useBodyWaitCursor,
+} from "@/components/navigation/link-pending-feedback";
 import { buildDemoDashboardUrl } from "@/lib/mvp-demo";
 
 export function DemoEntryLink() {
@@ -27,10 +30,7 @@ export function DemoEntryLink() {
     >
       {isPending ? (
         <>
-          <span
-            className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"
-            aria-hidden
-          />
+          <InlinePendingSpinner size="md" className="border-white/30 border-t-white" />
           Chargement…
         </>
       ) : (

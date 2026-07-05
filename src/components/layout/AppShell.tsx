@@ -1,4 +1,4 @@
-import { signOutAction } from "@/app/actions/auth";
+import { SignOutForm } from "@/components/auth/SignOutForm";
 import { LockInLogo } from "@/components/brand/LockInLogo";
 
 type AppShellProps = {
@@ -15,14 +15,7 @@ export function AppShell({ title, description, children }: AppShellProps) {
       <header className="border-b border-white/5 bg-brand-dark/80 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-center gap-6 px-6">
           <LockInLogo />
-          <form action={signOutAction}>
-            <button
-              type="submit"
-              className="rounded-lg border border-white/10 px-3 py-1.5 text-center text-sm text-brand-muted transition-colors hover:border-white/20 hover:text-white"
-            >
-              Déconnexion
-            </button>
-          </form>
+          <SignOutForm variant="header" />
         </div>
       </header>
 

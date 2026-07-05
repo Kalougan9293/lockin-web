@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState } from "react";
 
 import { signInAction, type AuthActionState } from "@/app/actions/auth";
+import { FormPendingSubmitButton } from "@/components/navigation/link-pending-feedback";
 
 import { AuthCard } from "./AuthCard";
 import { AuthField } from "./AuthField";
@@ -11,7 +12,7 @@ import { AuthField } from "./AuthField";
 const initialState: AuthActionState = {};
 
 export function SignInForm() {
-  const [state, formAction, isPending] = useActionState(signInAction, initialState);
+  const [state, formAction] = useActionState(signInAction, initialState);
 
   return (
     <AuthCard
@@ -49,13 +50,12 @@ export function SignInForm() {
           </p>
         ) : null}
 
-        <button
-          type="submit"
-          disabled={isPending}
-          className="btn-hover-grow w-full rounded-xl bg-brand-accent px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+        <FormPendingSubmitButton
+          pendingLabel="Connexion…"
+          className="btn-hover-grow w-full rounded-xl bg-brand-accent px-4 py-3 text-sm font-semibold disabled:cursor-wait disabled:opacity-90"
         >
-          {isPending ? "Connexion…" : "Se connecter"}
-        </button>
+          Se connecter
+        </FormPendingSubmitButton>
       </form>
     </AuthCard>
   );

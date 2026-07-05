@@ -8,6 +8,7 @@ import {
   startImpersonationAction,
 } from "@/app/actions/admin";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { useBodyWaitCursor } from "@/components/navigation/link-pending-feedback";
 import type { AdminProviderRow } from "@/lib/admin/queries";
 
 type AdminProvidersTableProps = {
@@ -30,6 +31,7 @@ export function AdminProvidersTable({ providers }: AdminProvidersTableProps) {
   const [deleteTarget, setDeleteTarget] = useState<AdminProviderRow | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  useBodyWaitCursor(isPending);
 
   function handleImpersonate(provider: AdminProviderRow) {
     setActionError(null);

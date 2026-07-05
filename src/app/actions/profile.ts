@@ -68,7 +68,6 @@ export async function updateProfileAction(
     .update({
       prenom_client: prenom,
       nom_societe: nomSociete,
-      updated_at: new Date().toISOString(),
     })
     .eq("id_client", user.id);
 

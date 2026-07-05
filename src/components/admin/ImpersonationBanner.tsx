@@ -3,6 +3,10 @@
 import { useTransition } from "react";
 
 import { stopImpersonationAction } from "@/app/actions/admin";
+import {
+  InlinePendingSpinner,
+  useBodyWaitCursor,
+} from "@/components/navigation/link-pending-feedback";
 import type { ImpersonationContext } from "@/lib/admin/impersonation";
 
 type ImpersonationBannerProps = {
@@ -11,6 +15,7 @@ type ImpersonationBannerProps = {
 
 export function ImpersonationBanner({ context }: ImpersonationBannerProps) {
   const [isPending, startTransition] = useTransition();
+  useBodyWaitCursor(isPending);
 
   return (
     <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-400/30 bg-gradient-to-r from-amber-500/15 via-violet-500/10 to-fuchsia-500/10 px-4 py-3">
@@ -25,10 +30,18 @@ export function ImpersonationBanner({ context }: ImpersonationBannerProps) {
       <button
         type="button"
         disabled={isPending}
+        aria-busy={isPending}
         onClick={() => startTransition(() => stopImpersonationAction())}
-        className="shrink-0 rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-white/15 disabled:opacity-60"
+        className="flex shrink-0 items-center gap-2 rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-white/15 disabled:cursor-wait disabled:opacity-90"
       >
-        {isPending ? "Retour…" : "Quitter l'incarnation"}
+        {isPending ? (
+          <>
+            <InlinePendingSpinner size="md" className="border-white/30 border-t-white" />
+            Retour…
+          </>
+        ) : (
+          "Quitter l'incarnation"
+        )}
       </button>
     </div>
   );

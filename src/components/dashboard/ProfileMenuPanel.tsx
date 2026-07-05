@@ -12,6 +12,11 @@ import {
 import { AuthField } from "@/components/auth/AuthField";
 import { PasswordCriteria } from "@/components/auth/PasswordCriteria";
 import { DeleteAccountModal } from "@/components/dashboard/DeleteAccountModal";
+import {
+  FormPendingSubmitButton,
+  InlinePendingSpinner,
+  useBodyWaitCursor,
+} from "@/components/navigation/link-pending-feedback";
 
 const initialState: ProfileActionState = {};
 
@@ -31,7 +36,7 @@ function downloadCsvFile(csv: string, filename: string) {
 }
 
 export function ProfileMenuPanel() {
-  const [state, formAction, isPending] = useActionState(
+  const [state, formAction] = useActionState(
     updateProfileAction,
     initialState,
   );
@@ -42,6 +47,7 @@ export function ProfileMenuPanel() {
   const [exportError, setExportError] = useState<string | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [isExporting, startExportTransition] = useTransition();
+  useBodyWaitCursor(isExporting);
 
   useEffect(() => {
     setLoading(true);
@@ -138,13 +144,12 @@ export function ProfileMenuPanel() {
             </p>
           ) : null}
 
-          <button
-            type="submit"
-            disabled={isPending}
-            className="w-full rounded-lg bg-brand-accent px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+          <FormPendingSubmitButton
+            pendingLabel="Enregistrement…"
+            className="w-full rounded-lg bg-brand-accent px-3 py-2 text-xs font-semibold text-white disabled:cursor-wait disabled:opacity-90"
           >
-            {isPending ? "Enregistrement…" : "Enregistrer"}
-          </button>
+            Enregistrer
+          </FormPendingSubmitButton>
 
           <div className="space-y-2 border-t border-white/10 pt-3">
             <p className="text-[11px] font-medium uppercase tracking-wide text-brand-muted/80">
@@ -154,9 +159,17 @@ export function ProfileMenuPanel() {
               type="button"
               onClick={handleExportData}
               disabled={isExporting}
-              className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-60"
+              aria-busy={isExporting}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-white/[0.06] disabled:cursor-wait disabled:opacity-90"
             >
-              {isExporting ? "Export en cours…" : "Exporter mes données"}
+              {isExporting ? (
+                <>
+                  <InlinePendingSpinner size="md" />
+                  Export en cours…
+                </>
+              ) : (
+                "Exporter mes données"
+              )}
             </button>
             {exportError ? (
               <p className="rounded-lg border border-red-400/20 bg-red-400/10 px-2.5 py-2 text-[11px] text-red-300">

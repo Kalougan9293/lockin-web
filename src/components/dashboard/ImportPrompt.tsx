@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useBodyWaitCursor } from "@/components/navigation/link-pending-feedback";
 import type { TableSummary } from "@/types/tableau";
 
 import { TableTargetSelect } from "./TableTargetSelect";
@@ -57,6 +58,7 @@ export function ImportPrompt({
   addManualDisabled = false,
   isDemoWorkspace = false,
 }: ImportPromptProps) {
+  useBodyWaitCursor(isProcessing);
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [demoFileNotice, setDemoFileNotice] = useState(false);

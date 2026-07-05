@@ -4,6 +4,10 @@ import { useEffect, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 
 import { deleteAccountAction } from "@/app/actions/profile";
+import {
+  InlinePendingSpinner,
+  useBodyWaitCursor,
+} from "@/components/navigation/link-pending-feedback";
 
 type DeleteAccountModalProps = {
   open: boolean;
@@ -14,6 +18,7 @@ export function DeleteAccountModal({ open, onClose }: DeleteAccountModalProps) {
   const [error, setError] = useState<string | null>(null);
   const [confirmText, setConfirmText] = useState("");
   const [isPending, startTransition] = useTransition();
+  useBodyWaitCursor(isPending);
 
   useEffect(() => {
     if (!open) return;
@@ -108,9 +113,17 @@ export function DeleteAccountModal({ open, onClose }: DeleteAccountModalProps) {
             <button
               type="submit"
               disabled={!canConfirm || isPending}
-              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
+              aria-busy={isPending}
+              className="flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-500 disabled:cursor-wait disabled:opacity-90"
             >
-              {isPending ? "Suppression…" : "Supprimer définitivement"}
+              {isPending ? (
+                <>
+                  <InlinePendingSpinner size="md" className="border-white/30 border-t-white" />
+                  Suppression…
+                </>
+              ) : (
+                "Supprimer définitivement"
+              )}
             </button>
           </div>
         </form>

@@ -175,13 +175,15 @@ export function DashboardWorkspace({
     }
   }
 
-  function confirmDelete() {
+  async function confirmDelete() {
     if (!deleteTargetId) return;
 
-    const remaining = tables.filter((table) => table.id !== deleteTargetId);
-    void removeTable(deleteTargetId);
+    const targetId = deleteTargetId;
+    const remaining = tables.filter((table) => table.id !== targetId);
 
-    if (deleteTargetId === activeTableId && remaining[0]) {
+    await removeTable(targetId);
+
+    if (targetId === activeTableId && remaining[0]) {
       setActiveTableId(remaining[0].id);
     }
 
