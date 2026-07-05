@@ -10,7 +10,7 @@ import {
   type IssuerContext,
 } from "./issuer-context";
 
-const MODEL = "claude-3-5-sonnet-20241022";
+const MODEL = "claude-3-5-sonnet-latest";
 
 function buildSystemPrompt(issuer: IssuerContext): string {
   const issuerBlock = buildIssuerPromptBlock(issuer);
@@ -105,6 +105,17 @@ function getClient(): Anthropic {
   return new Anthropic({ apiKey });
 }
 
+function formatAnthropicError(error: unknown): string {
+  if (error && typeof error === "object" && "status" in error) {
+    const status = (error as { status?: number }).status;
+    if (status === 401) {
+      return "clé API Anthropic invalide — vérifiez ANTHROPIC_API_KEY dans lockin-web/.env.local (local) ou les variables Vercel (prod).";
+    }
+  }
+
+  return error instanceof Error ? error.message : "Erreur d'extraction IA.";
+}
+
 function extractJsonFromMessage(message: Anthropic.Messages.Message): string | null {
   for (const block of message.content) {
     if (block.type === "text" && block.text.trim()) {
@@ -149,34 +160,47 @@ async function callAnthropic(
 
     return data;
   } catch (structuredError) {
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: 4096,
-      system: `${system}\nRéponds uniquement avec un objet JSON valide, sans markdown.`,
-      messages: [{ role: "user", content: userContent }],
-    });
-
-    const jsonText = extractJsonFromMessage(response);
-    if (!jsonText) {
-      const message =
-        structuredError instanceof Error
-          ? structuredError.message
-          : "Réponse IA vide.";
-      throw new Error(message);
+    if (
+      structuredError &&
+      typeof structuredError === "object" &&
+      "status" in structuredError &&
+      (structuredError as { status?: number }).status === 401
+    ) {
+      throw new Error(formatAnthropicError(structuredError));
     }
 
-    const cleaned = jsonText
-      .replace(/^```json\s*/i, "")
-      .replace(/^```\s*/i, "")
-      .replace(/\s*```$/i, "")
-      .trim();
+    try {
+      const response = await client.messages.create({
+        model: MODEL,
+        max_tokens: 4096,
+        system: `${system}\nRéponds uniquement avec un objet JSON valide, sans markdown.`,
+        messages: [{ role: "user", content: userContent }],
+      });
 
-    const { data, error } = parseLlmExtraction(cleaned);
-    if (!data) {
-      throw new Error(error ?? "Réponse IA invalide.");
+      const jsonText = extractJsonFromMessage(response);
+      if (!jsonText) {
+        const message =
+          structuredError instanceof Error
+            ? structuredError.message
+            : "Réponse IA vide.";
+        throw new Error(message);
+      }
+
+      const cleaned = jsonText
+        .replace(/^```json\s*/i, "")
+        .replace(/^```\s*/i, "")
+        .replace(/\s*```$/i, "")
+        .trim();
+
+      const { data, error } = parseLlmExtraction(cleaned);
+      if (!data) {
+        throw new Error(error ?? "Réponse IA invalide.");
+      }
+
+      return data;
+    } catch (fallbackError) {
+      throw new Error(formatAnthropicError(fallbackError));
     }
-
-    return data;
   }
 }
 
