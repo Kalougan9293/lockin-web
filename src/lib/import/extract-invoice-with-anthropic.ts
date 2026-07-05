@@ -10,7 +10,7 @@ import {
   type IssuerContext,
 } from "./issuer-context";
 
-const MODEL = "claude-3-5-sonnet-latest";
+const MODEL = "claude-sonnet-4-6";
 
 function buildSystemPrompt(issuer: IssuerContext): string {
   const issuerBlock = buildIssuerPromptBlock(issuer);
