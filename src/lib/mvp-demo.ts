@@ -24,6 +24,14 @@ export function isDemoDashboardUrl(
   return isEphemeralDemoUrl(searchParams);
 }
 
+/** Démo éphémère (?demo=1) prime sur la session ; MVP demo sans login si pas de compte. */
+export function shouldUseDemoWorkspace(
+  isEphemeralDemo: boolean,
+  hasAuthenticatedUser: boolean,
+): boolean {
+  return isEphemeralDemo || (!hasAuthenticatedUser && isMvpDemoMode());
+}
+
 export function buildDemoDashboardUrl(): string {
   return `/dashboard?${DEMO_SEARCH_PARAM}=1&${DEMO_SESSION_PARAM}=${Date.now()}`;
 }

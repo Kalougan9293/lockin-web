@@ -12,7 +12,7 @@ import {
 import { isAdminEmail } from "@/lib/auth/redirect";
 import { getCurrentUser } from "@/lib/auth/session";
 import { loadDashboardDataForUser } from "@/lib/dashboard/load-dashboard-data";
-import { DEMO_SEARCH_PARAM, isMvpDemoMode } from "@/lib/mvp-demo";
+import { DEMO_SEARCH_PARAM, shouldUseDemoWorkspace } from "@/lib/mvp-demo";
 
 export const dynamic = "force-dynamic";
 
@@ -28,8 +28,7 @@ export default async function ClientDashboardPage({
   const isEphemeralDemo = demoParam === "1" || demoParam?.[0] === "1";
 
   const user = await getCurrentUser();
-  const isDemoWorkspace =
-    !user && (isEphemeralDemo || isMvpDemoMode());
+  const isDemoWorkspace = shouldUseDemoWorkspace(isEphemeralDemo, Boolean(user));
 
   let initialDisplayName: string | null = null;
 
@@ -41,7 +40,7 @@ export default async function ClientDashboardPage({
     if (isAdminEmail(user.email) && !impersonatedId) {
       redirect("/admin");
     }
-  } else if (!user && !isEphemeralDemo && !isMvpDemoMode()) {
+  } else if (!user && !shouldUseDemoWorkspace(isEphemeralDemo, false)) {
     redirect("/login");
   }
 

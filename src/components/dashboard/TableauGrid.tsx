@@ -875,9 +875,6 @@ export function TableauGrid({
   const [progressDrawerRowIndex, setProgressDrawerRowIndex] = useState<
     number | null
   >(null);
-  const leftScrollRef = useRef<HTMLDivElement>(null);
-  const leftContentRef = useRef<HTMLDivElement>(null);
-  const [leftTableFlushRight, setLeftTableFlushRight] = useState(true);
   const totalRows = Math.max(MIN_EMPTY_ROWS, rows.length + 1);
   const allLeftColumns = [...leftColumns, ...hiddenLeftColumns];
   const addableColumnLabels = getAddableColumnLabels(
@@ -906,24 +903,6 @@ export function TableauGrid({
       onReorder: handleReorder,
       axis: "x",
     });
-
-  useEffect(() => {
-    const scrollEl = leftScrollRef.current;
-    const contentEl = leftContentRef.current;
-    if (!scrollEl || !contentEl) return;
-
-    const updateFlush = () => {
-      setLeftTableFlushRight(
-        contentEl.scrollWidth <= scrollEl.clientWidth + 1,
-      );
-    };
-
-    updateFlush();
-    const observer = new ResizeObserver(updateFlush);
-    observer.observe(scrollEl);
-    observer.observe(contentEl);
-    return () => observer.disconnect();
-  }, [leftColumns, rows, columnWidthsCh, totalRows]);
 
   useEffect(() => {
     function handleMouseMove(event: MouseEvent) {
@@ -1110,14 +1089,8 @@ export function TableauGrid({
         </div>
 
         <div className="flex w-full min-w-0 items-stretch">
-          <div
-            ref={leftScrollRef}
-            className="min-w-0 flex-1 overflow-x-auto"
-          >
-            <div
-              ref={leftContentRef}
-              className={`w-max ${leftTableFlushRight ? "ml-auto" : ""}`}
-            >
+          <div className="min-w-0 shrink overflow-x-auto">
+            <div className="w-max">
               <div
                 data-tutorial="table-left"
                 className={`rounded-bl-2xl border border-t ${TABLE_BORDER} border-r-0 bg-brand-surface shadow-xl shadow-violet-950/25 ring-1 ring-white/[0.07]`}

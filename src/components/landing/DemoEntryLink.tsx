@@ -1,7 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { useState } from "react";
 
 import {
   InlinePendingSpinner,
@@ -10,14 +9,13 @@ import {
 import { buildDemoDashboardUrl } from "@/lib/mvp-demo";
 
 export function DemoEntryLink() {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const [isPending, setIsPending] = useState(false);
   useBodyWaitCursor(isPending);
 
   function handleStartDemo() {
-    startTransition(() => {
-      router.push(buildDemoDashboardUrl());
-    });
+    setIsPending(true);
+    // Navigation complète : évite un rendu client en cache sans ?demo=1.
+    window.location.assign(buildDemoDashboardUrl());
   }
 
   return (
