@@ -227,9 +227,8 @@ export function DashboardWorkspace({
     try {
       const result = await importFilesViaApi(tableId, files);
 
-      const warningText = result.errors.slice(0, 2).join(" ");
-      if (warningText) {
-        setImportError(warningText);
+      if (result.reviewQueue.length === 0 && result.errors.length > 0) {
+        setImportError(result.errors[0]);
       }
 
       startImportReviewQueue(result.reviewQueue, tableId);
@@ -427,7 +426,6 @@ export function DashboardWorkspace({
               : undefined
           }
           importAmbigu={importQueue[importQueueIndex]?.ambigu}
-          importReviewNotes={importQueue[importQueueIndex]?.notes || undefined}
           key={
             importQueue.length > 0
               ? `import-${importQueueIndex}-${importQueue[importQueueIndex]?.fileName}`

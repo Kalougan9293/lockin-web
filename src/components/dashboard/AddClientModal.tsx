@@ -36,10 +36,8 @@ type AddClientModalProps = {
   sourceFileName?: string;
   /** Progression dans une file d'import (ex. 2 / 10). */
   importProgress?: { current: number; total: number };
-  /** L'IA signale une incertitude sur cette facture. */
+  /** L'IA signale une lecture difficile sur cette facture. */
   importAmbigu?: boolean;
-  /** Notes d'extraction IA (calcul échéance, email orphelin, etc.). */
-  importReviewNotes?: string;
   targetTable?: {
     tables: TableSummary[];
     value: string;
@@ -149,7 +147,6 @@ export function AddClientModal({
   sourceFileName,
   importProgress,
   importAmbigu = false,
-  importReviewNotes,
   targetTable,
 }: AddClientModalProps) {
   const { dateFormat } = useUserPreferences();
@@ -365,13 +362,8 @@ export function AddClientModal({
               role="alert"
               className="mt-3 rounded-xl border border-amber-400/40 bg-amber-500/15 px-4 py-2.5 text-center text-sm text-amber-100"
             >
-              L&apos;IA n&apos;est pas certaine de cette extraction — vérifiez chaque champ.
-            </p>
-          ) : null}
-
-          {isImportMode && importReviewNotes ? (
-            <p className="mt-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-center text-xs leading-relaxed text-brand-muted">
-              {importReviewNotes}
+              Nous n&apos;avons pas réussi à lire correctement cette facture.
+              Veuillez saisir les informations manuellement.
             </p>
           ) : null}
 

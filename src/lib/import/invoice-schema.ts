@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { validateDueDateForRelance } from "@/lib/dashboard/relance-schedule";
+import { parseAmountToStorage } from "@/lib/preferences/currency-format";
 
 import {
   rowMatchesIssuer,
@@ -14,6 +15,7 @@ export const llmInvoiceRowSchema = z.object({
   echeance: z.string(),
   reference: z.string(),
   numero: z.string(),
+  montant: z.string(),
   ambigu: z.boolean(),
   notes: z.string(),
 });
@@ -71,6 +73,11 @@ export const INVOICE_EXTRACTION_JSON_SCHEMA = {
             description:
               "Numéro de téléphone du client final / débiteur, ou chaîne vide",
           },
+          montant: {
+            type: "string",
+            description:
+              "Montant total TTC ou net à payer en euros (ex. 980.00 ou 1330.00), chaîne vide si introuvable",
+          },
           ambigu: {
             type: "boolean",
             description:
@@ -78,8 +85,7 @@ export const INVOICE_EXTRACTION_JSON_SCHEMA = {
           },
           notes: {
             type: "string",
-            description:
-              "Motif d'ambiguïté, calcul d'échéance ou email orphelin — chaîne vide sinon",
+            description: "Toujours une chaîne vide — ne pas remplir",
           },
         },
         required: [
@@ -88,6 +94,7 @@ export const INVOICE_EXTRACTION_JSON_SCHEMA = {
           "echeance",
           "reference",
           "numero",
+          "montant",
           "ambigu",
           "notes",
         ],
@@ -188,16 +195,19 @@ export function mapLlmRowToReviewPayload(
   const reference = row.reference.trim();
   const echeanceRaw = row.echeance.trim();
   const email = row.email.trim();
+  const montantRaw = row.montant.trim();
 
   const hasContent =
     nom.length > 0 ||
     reference.length > 0 ||
     echeanceRaw.length > 0 ||
-    email.length > 0;
+    email.length > 0 ||
+    montantRaw.length > 0;
 
   if (!hasContent) return null;
 
   const echeanceIso = normalizeIsoDate(echeanceRaw) ?? echeanceRaw;
+  const montantStored = montantRaw ? parseAmountToStorage(montantRaw) : "";
 
   return {
     Nom: nom,
@@ -205,6 +215,7 @@ export function mapLlmRowToReviewPayload(
     Échéance: echeanceIso,
     Référence: reference,
     Numéro: row.numero.trim(),
+    ...(montantStored ? { Montant: montantStored } : {}),
   };
 }
 
@@ -214,7 +225,7 @@ export function getLlmRowReviewMeta(row: LlmInvoiceRow): {
 } {
   return {
     ambigu: row.ambigu,
-    notes: row.notes.trim(),
+    notes: "",
   };
 }
 

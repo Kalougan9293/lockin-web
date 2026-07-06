@@ -67,20 +67,6 @@ export function classifyServerImportFiles(files: File[]): {
   return { pdfs, csvs, invalid };
 }
 
-function formatRejectionMessage(
-  fileName: string,
-  rejected: number,
-  issuerRejected: number,
-): string | null {
-  if (rejected === 0) return null;
-
-  if (issuerRejected > 0) {
-    return `${fileName} : ${issuerRejected} ligne(s) rejetée(s) — coordonnées de l'émetteur détectées au lieu du client final.`;
-  }
-
-  return `${fileName} : ${rejected} ligne(s) rejetée(s) (nom, référence, échéance J+1 ou validation échouée).`;
-}
-
 async function processPdfFile(
   file: File,
   issuer: IssuerContext,
@@ -97,7 +83,7 @@ async function processPdfFile(
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
     const extraction = await extractInvoiceFromPdf(buffer, file.name, issuer);
-    const { rejected, issuerRejected, rejectionReasons } = validateRowsForImport(
+    const { rejectionReasons } = validateRowsForImport(
       extraction.rows,
       issuer,
     );
@@ -121,13 +107,6 @@ async function processPdfFile(
       errors.push(
         buildNoValidRowsMessage(file.name, rejectionReasons, false),
       );
-    } else if (rejected > 0) {
-      const rejectionMsg = formatRejectionMessage(
-        file.name,
-        rejected,
-        issuerRejected,
-      );
-      if (rejectionMsg) errors.push(rejectionMsg);
     }
 
     return { source: file.name, errors, reviewQueue };
@@ -158,7 +137,7 @@ async function processCsvFile(
   try {
     const csvText = await file.text();
     const extraction = await extractInvoiceFromCsvText(csvText, file.name, issuer);
-    const { rejected, issuerRejected, rejectionReasons } = validateRowsForImport(
+    const { rejectionReasons } = validateRowsForImport(
       extraction.rows,
       issuer,
     );
@@ -182,13 +161,6 @@ async function processCsvFile(
       errors.push(
         buildNoValidRowsMessage(file.name, rejectionReasons, false),
       );
-    } else if (rejected > 0) {
-      const rejectionMsg = formatRejectionMessage(
-        file.name,
-        rejected,
-        issuerRejected,
-      );
-      if (rejectionMsg) errors.push(rejectionMsg);
     }
 
     return { source: file.name, errors, reviewQueue };

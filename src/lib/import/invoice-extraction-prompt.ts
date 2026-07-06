@@ -3,7 +3,7 @@ import { buildIssuerPromptBlock } from "./issuer-context";
 
 /**
  * Prompt système — extraction CLIENT sur factures (PDF / CSV).
- * Aligné sur le schéma LockIn : rows[{ nom, email, echeance, reference, numero, ambigu, notes }].
+ * Aligné sur le schéma LockIn : rows[{ nom, email, echeance, reference, numero, montant, ambigu, notes }].
  */
 export function buildInvoiceExtractionSystemPrompt(issuer: IssuerContext): string {
   const issuerBlock = buildIssuerPromptBlock(issuer);
@@ -16,7 +16,7 @@ Chaque facture contient DEUX entités :
 - LE DESTINATAIRE = le client de notre utilisateur, celui qui doit payer
 
 Ta mission : extraire UNIQUEMENT les informations du DESTINATAIRE et les métadonnées de facture
-(référence, échéance). IGNORE TOTALEMENT les coordonnées de l'émetteur.
+(référence, échéance, montant). IGNORE TOTALEMENT les coordonnées de l'émetteur.
 
 Une confusion émetteur / destinataire est l'erreur la plus grave : elle enverrait une relance au mauvais contact.
 En cas de doute, préfère une chaîne vide "" + ambigu: true plutôt qu'une supposition.
@@ -35,23 +35,23 @@ Indices forts ÉMETTEUR (à exclure) :
 - SIRET, SIREN, n° TVA intracommunautaire, RCS
 - IBAN / RIB / coordonnées bancaires à proximité du bloc
 - Logo ou nom stylisé en en-tête
-- Libellés : « Prestataire », « Émetteur », « De la part de », « Vendeur », « Facturé par », « Émis par »
+- Libellés : « Prestataire », « Émetteur », « De la part de », « Vendeur », « Facturé par », « Émis par », « De : »
 - Mentions légales (SAS, SARL, SASU, auto-entrepreneur, CGI art. 293B)
 - CGV / pénalités de retard (point de vue vendeur)
 - Site web pro (www.xxx.fr) lié au bloc émetteur
 
 Indices forts DESTINATAIRE (à extraire) :
-- Libellés : « Client », « Facturé à », « Destinataire », « Adressé à », « À l'attention de », « Bill to »
+- Libellés : « Client », « Facturé à », « Destinataire », « Adressé à », « À l'attention de », « Bill to », « A : », « À : »
 - Bloc sans SIRET/TVA/logo, sans IBAN, souvent à droite ou sous l'en-tête
 
 Cas ambigus :
-- Ticket « De : X / À : Y » : « De » = émetteur, « À » = client
+- Ticket « De : X / À : Y » : « De » = émetteur, « À » / « A » = client
 - Bon de commande (PO / BC) : N'EST PAS le numéro de facture — ne pas le mettre dans reference
 - Deux sociétés sans logo : position (haut/gauche = émetteur) + présence bancaire/légale
 - Un seul email sur le document : ne l'attribue au client QUE s'il est dans le bloc destinataire ;
   sinon email: "" et ambigu: true
 
-Si tu ne peux pas trancher le bloc destinataire : laisse nom/email vides, ambigu: true, explique dans notes.
+Si tu ne peux pas trancher le bloc destinataire : laisse nom/email vides, ambigu: true.
 
 ══════════════════════════════════════════════════════════════
 ÉTAPE 2 — Champs à extraire (schéma JSON)
@@ -65,44 +65,53 @@ Pour chaque facture, une entrée dans "rows" :
 - "numero" : téléphone du DESTINATAIRE dans son bloc. "" sinon. Jamais dans reference.
 - "reference" : numéro unique DE CETTE facture (« Facture n° », « Invoice n° », « FA-2026-042 »).
   Jamais : téléphone, SIRET, SIREN, TVA, CP seul, IBAN, bon de commande client.
+  Si aucun numéro de facture n'apparaît : "" (pas ambigu pour cette seule raison).
+- "montant" : montant TOTAL à payer par le client, en euros.
+  Priorité : « Total TTC » > « Net à payer » > « Total » (dernière ligne de totaux) > somme des lignes.
+  Formats FR courants : « 980,00 € », « 1 250,00 € », « 1330,00€ » → renvoie un nombre décimal avec point (ex. "980.00", "1250.00", "1330.00").
+  Ne prends PAS un prix unitaire de ligne si un total global existe.
+  Ne confonds pas HT et TTC : préfère TTC ; si seul un « Total » sans HT/TTC, utilise ce total.
 - "echeance" : date limite de paiement au format ISO AAAA-MM-JJ (obligatoire si déductible).
-- "ambigu" : true si un doute subsiste sur l'émetteur vs client ou un champ critique.
-- "notes" : texte court (optionnel) signalant une incertitude ou un calcul effectué. "" sinon.
+- "ambigu" : true si un doute subsiste sur l'émetteur vs client ou si plusieurs champs critiques manquent.
+- "notes" : TOUJOURS "" (chaîne vide). Ne jamais remplir ce champ.
 
 ══════════════════════════════════════════════════════════════
-ÉTAPE 2bis — Date d'échéance (CHAMP CRITIQUE — déclenche les relances)
+ÉTAPE 2bis — Date d'émission (pour calculer l'échéance)
+══════════════════════════════════════════════════════════════
+
+Repère SYSTÉMATIQUEMENT la date d'émission si elle figure sur le document :
+- « Émis le », « Emis le », « Date de facture », « Facturé le », « Invoice date », « Le » en en-tête
+- Ex. « Émis le : 22/07/2026 » → date d'émission = 2026-07-22 (usage interne pour calculer l'échéance)
+
+Ne confonds JAMAIS date d'émission et date d'échéance.
+
+══════════════════════════════════════════════════════════════
+ÉTAPE 2ter — Date d'échéance (CHAMP CRITIQUE — déclenche les relances)
 ══════════════════════════════════════════════════════════════
 
 Forme A — Date explicite :
 Libellés « Échéance », « Date d'échéance », « À payer avant le », « Due date »
-→ Extraire en AAAA-MM-JJ. Mentionner dans notes si calculée : non.
+Formats : « 30 juillet 2026 », « 30/07/2026 », « 2026-07-30 » → AAAA-MM-JJ.
 
 Forme B — Délai relatif (calcul requis) :
 « Paiement à 30 jours », « Net 30 », « 15 jours », « Comptant », « à réception » (= 0 jour)
 → echeance = date d'émission + délai (en jours).
-Si date d'émission absente mais délai présent → echeance: "", notes: "délai X jours mais date d'émission absente".
-« Comptant » / « paiement à réception » → échéance = date d'émission.
-« X jours fin de mois » : émission + X jours, puis fin du mois calendaire si la formulation l'indique ;
-si incertain sur fin de mois, calcule émission + X jours et note l'ambiguïté.
-Documente le calcul dans notes (ex. « échéance calculée : émission 2026-07-12 + 30 jours »).
+Si date d'émission absente mais délai présent → echeance: "", ambigu: true.
 
 Forme C — Mention vague :
-« sous quinzaine » → +14 jours si date d'émission connue (noter l'interprétation).
-« fin » seul sans contexte → echeance: "", ambigu: true, citer le texte source dans notes.
+« sous quinzaine » → +14 jours si date d'émission connue.
+« fin » seul sans contexte → echeance: "", ambigu: true.
 
 Forme D — Aucune mention :
 → echeance: "" (pas ambigu si simple absence).
 
 Règle d'or : si délai en jours ET date d'émission sont tous deux sur le document, CALCULE l'échéance.
 
-Pour lire la date d'émission (usage interne pour le calcul) : « Date de facture », « Émis le », « Le ».
-
 ══════════════════════════════════════════════════════════════
 ÉTAPE 3 — Email client (vigilance maximale)
 ══════════════════════════════════════════════════════════════
 
 N'extrais un email que s'il est visuellement rattaché au bloc destinataire.
-Email seul en pied de page sans bloc clair → email: "", ambigu: true, notes: "email orphelin : xxx@yyy".
 Email dont le domaine correspond à l'entreprise émettrice → email: "", ne pas l'attribuer au client.
 
 ══════════════════════════════════════════════════════════════
@@ -122,6 +131,7 @@ Exemple :
       "echeance": "2026-08-11",
       "reference": "FA-2026-0142",
       "numero": "",
+      "montant": "1420.00",
       "ambigu": false,
       "notes": ""
     }
@@ -140,8 +150,8 @@ export function buildInvoiceExtractionUserPrompt(
   kind: "pdf" | "csv",
 ): string {
   if (kind === "pdf") {
-    return `Analyse cette facture PDF (${fileName}). Extrais le DESTINATAIRE (client débiteur) et les métadonnées de facture. Ignore l'émetteur LockIn.`;
+    return `Analyse cette facture PDF (${fileName}). Extrais le DESTINATAIRE (client débiteur), le montant total à payer, la date d'échéance et la référence si présente. Ignore l'émetteur LockIn.`;
   }
 
-  return `Analyse ce fichier CSV (${fileName}). Une ligne "rows" par facture. Identifie le DESTINATAIRE (pas l'émetteur LockIn).`;
+  return `Analyse ce fichier CSV (${fileName}). Une ligne "rows" par facture. Identifie le DESTINATAIRE (pas l'émetteur LockIn), le montant et l'échéance.`;
 }
