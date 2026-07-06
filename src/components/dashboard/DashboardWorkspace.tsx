@@ -397,37 +397,14 @@ export function DashboardWorkspace({
               onDeleteRow={(rowIndex) =>
                 setDeleteRowTarget({ tableId: activeTable.id, rowIndex })
               }
+              onDeleteTable={() => setDeleteTargetId(activeTable.id)}
+              deleteTableDisabled={tables.length <= 1}
               onConfigure={() => setConfigTargetId(activeTable.id)}
               onRecoveryClick={(rowIndex) =>
                 setRecoveryTarget({ tableId: activeTable.id, rowIndex })
               }
               simulateRelances={isDemoWorkspace}
             />
-
-            <div className="mt-4 flex min-h-10 w-full items-center justify-end">
-              <button
-                type="button"
-                onClick={() => setDeleteTargetId(activeTable.id)}
-                aria-label="Effacer le tableau"
-                disabled={tables.length <= 1}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 transition-colors hover:bg-red-500/10 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-30"
-              >
-                <svg
-                  className="h-4 w-4"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.75"
-                  aria-hidden="true"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                  />
-                </svg>
-              </button>
-            </div>
         </div>
       </section>
 
