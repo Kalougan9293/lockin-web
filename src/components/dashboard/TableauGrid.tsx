@@ -1036,16 +1036,82 @@ export function TableauGrid({
   return (
     <>
       {DragPreview}
-      <div className="flex w-full max-w-full flex-col">
-        <div className="mb-5 flex w-full items-end">
+      <div className="flex w-full max-w-full min-w-0 items-start">
+        <div className="min-w-0 shrink overflow-x-auto">
           <div
-            className="min-w-0 flex-1 overflow-hidden"
+            className="mb-5 w-max min-w-0 overflow-hidden"
             data-tutorial="table-title"
           >
             <EditableTableTitle name={tableName} onRename={onTableRename} />
           </div>
+          <div className="w-max">
+            <div
+              data-tutorial="table-left"
+              className={`rounded-bl-2xl border border-t ${TABLE_BORDER} border-r-0 bg-brand-surface shadow-xl shadow-violet-950/25 ring-1 ring-white/[0.07]`}
+            >
+              <div className="flex shrink-0 bg-gradient-to-b from-violet-500/[0.12] to-brand-surface/80">
+                <RowNumberColumn
+                  rows={rows}
+                  totalRows={totalRows}
+                  onAddClient={onAddClient}
+                  addRowDisabled={addRowDisabled}
+                />
+                {leftColumns.map((column) => {
+                  const minColumnWidthCh = getMinColumnWidthCh(column, true);
+                  const defaultColumnWidthCh = computeDefaultColumnWidthCh(
+                    column,
+                    rows,
+                    (rowIndex, columnId) =>
+                      getColumnLength(rowIndex, columnId, column),
+                    true,
+                  );
+                  const columnWidthCh =
+                    columnWidthsCh[column.id] ?? defaultColumnWidthCh;
+
+                  return (
+                    <TableColumn
+                      key={column.id}
+                      column={column}
+                      dateFormat={dateFormat}
+                      headerClass="bg-violet-500/22 text-violet-100"
+                      editable
+                      draggable
+                      bindItem={bindColumnItem}
+                      bindHandle={bindColumnHandle}
+                      rows={rows}
+                      totalRows={totalRows}
+                      columnWidthCh={columnWidthCh}
+                      minColumnWidthCh={minColumnWidthCh}
+                      resizable
+                      onResizeStart={(event, currentWidthCh, minWidthCh) =>
+                        beginColumnResize(
+                          column.id,
+                          event,
+                          currentWidthCh,
+                          minWidthCh,
+                        )
+                      }
+                      onRemove={() => hideLeftColumn(column.id)}
+                      getCellValue={getCellValue}
+                      getCellRawValue={getCellRawValue}
+                      onCellChange={handleCellChange}
+                    />
+                  );
+                })}
+                <AddColumnButton
+                  availableLabels={addableColumnLabels}
+                  accentClass="bg-violet-500/16"
+                  totalRows={totalRows}
+                  onAdd={(label) => onAddLeftColumn(label)}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid shrink-0 grid-cols-[3px_auto_2rem]">
           <div
-            className="flex shrink-0 flex-col items-center gap-1 px-1"
+            className="col-start-2 row-start-1 mb-5 flex flex-col items-center gap-1 px-1"
             data-tutorial="configure-zone"
           >
             <button
@@ -1085,151 +1151,80 @@ export function TableauGrid({
               Relances
             </span>
           </div>
-          <div className="w-8 shrink-0" aria-hidden />
-        </div>
 
-        <div className="flex w-full min-w-0 items-stretch">
-          <div className="min-w-0 shrink overflow-x-auto">
-            <div className="w-max">
-              <div
-                data-tutorial="table-left"
-                className={`rounded-bl-2xl border border-t ${TABLE_BORDER} border-r-0 bg-brand-surface shadow-xl shadow-violet-950/25 ring-1 ring-white/[0.07]`}
-              >
-                <div className="flex shrink-0 bg-gradient-to-b from-violet-500/[0.12] to-brand-surface/80">
-                  <RowNumberColumn
+          <div className="col-start-1 row-start-2 self-stretch">
+            <TableSeparator />
+          </div>
+          <div className="col-start-2 row-start-2 relative min-w-0">
+            <span
+              aria-hidden
+              className="pointer-events-none absolute -top-2.5 left-4 right-4 h-2.5 rounded-t-lg border border-b-0 border-fuchsia-400/20 bg-fuchsia-500/[0.04]"
+            />
+            <div
+              data-tutorial="table-right"
+              className={`relative overflow-hidden rounded-br-2xl border border-t ${TABLE_BORDER} border-fuchsia-400/15 bg-brand-surface shadow-xl shadow-fuchsia-950/20 ring-1 ring-fuchsia-400/10`}
+            >
+              <div className="h-px bg-gradient-to-r from-transparent via-fuchsia-400/30 to-transparent" />
+              <div className="flex shrink-0 bg-gradient-to-b from-fuchsia-500/[0.11] to-brand-surface/80">
+                <div className="relative flex overflow-visible">
+                  {progressionColumn ? (
+                    <RightTableColumn
+                      key={progressionColumn.id}
+                      column={progressionColumn}
+                      rows={rows}
+                      totalRows={totalRows}
+                      allLeftColumns={allLeftColumns}
+                      relanceSteps={relanceSteps}
+                      deliveries={deliveries}
+                      simulateRelances={simulateRelances}
+                      expandForRecovery={hasRecoveryRows}
+                      onStatusChange={handleStatusChange}
+                      onOpenProgressTimeline={setProgressDrawerRowIndex}
+                    />
+                  ) : null}
+                  <RecoveryRowOverlays
+                    rows={rows}
+                    allLeftColumns={allLeftColumns}
+                    relanceSteps={relanceSteps}
+                    onRecoveryClick={onRecoveryClick}
+                  />
+                </div>
+                <TableSeparator />
+                {statutColumns.map((column) => (
+                  <RightTableColumn
+                    key={column.id}
+                    column={column}
                     rows={rows}
                     totalRows={totalRows}
-                    onAddClient={onAddClient}
-                    addRowDisabled={addRowDisabled}
+                    allLeftColumns={allLeftColumns}
+                    relanceSteps={relanceSteps}
+                    deliveries={deliveries}
+                    simulateRelances={simulateRelances}
+                    onStatusChange={handleStatusChange}
                   />
-                  {leftColumns.map((column) => {
-                    const minColumnWidthCh = getMinColumnWidthCh(column, true);
-                    const defaultColumnWidthCh = computeDefaultColumnWidthCh(
-                      column,
-                      rows,
-                      (rowIndex, columnId) =>
-                        getColumnLength(rowIndex, columnId, column),
-                      true,
-                    );
-                    const columnWidthCh =
-                      columnWidthsCh[column.id] ?? defaultColumnWidthCh;
-
-                    return (
-                      <TableColumn
-                        key={column.id}
-                        column={column}
-                        dateFormat={dateFormat}
-                        headerClass="bg-violet-500/22 text-violet-100"
-                        editable
-                        draggable
-                        bindItem={bindColumnItem}
-                        bindHandle={bindColumnHandle}
-                        rows={rows}
-                        totalRows={totalRows}
-                        columnWidthCh={columnWidthCh}
-                        minColumnWidthCh={minColumnWidthCh}
-                        resizable
-                        onResizeStart={(event, currentWidthCh, minWidthCh) =>
-                          beginColumnResize(
-                            column.id,
-                            event,
-                            currentWidthCh,
-                            minWidthCh,
-                          )
-                        }
-                        onRemove={() => hideLeftColumn(column.id)}
-                        getCellValue={getCellValue}
-                        getCellRawValue={getCellRawValue}
-                        onCellChange={handleCellChange}
-                      />
-                    );
-                  })}
-                  <AddColumnButton
-                    availableLabels={addableColumnLabels}
-                    accentClass="bg-violet-500/16"
-                    totalRows={totalRows}
-                    onAdd={(label) => onAddLeftColumn(label)}
-                  />
-                </div>
+                ))}
               </div>
             </div>
           </div>
+          <div className="col-start-3 row-start-2">
+            <RowDeleteColumn
+              rows={rows}
+              totalRows={totalRows}
+              onDeleteRow={onDeleteRow}
+              headerSpacerClassName="h-11"
+            />
+          </div>
 
-          <div className="flex shrink-0 flex-col">
-            <div className="flex items-stretch">
-              <TableSeparator />
-              <div className="relative min-w-0">
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute -top-2.5 left-4 right-4 h-2.5 rounded-t-lg border border-b-0 border-fuchsia-400/20 bg-fuchsia-500/[0.04]"
+          {onDeleteTable ? (
+            <>
+              <div className="col-start-2 col-end-3 row-start-3 mt-4 flex min-h-10 justify-end">
+                <TableDeleteButton
+                  onClick={onDeleteTable}
+                  disabled={deleteTableDisabled}
                 />
-                <div
-                  data-tutorial="table-right"
-                  className={`relative overflow-hidden rounded-br-2xl border border-t ${TABLE_BORDER} border-fuchsia-400/15 bg-brand-surface shadow-xl shadow-fuchsia-950/20 ring-1 ring-fuchsia-400/10`}
-                >
-                  <div className="h-px bg-gradient-to-r from-transparent via-fuchsia-400/30 to-transparent" />
-                  <div className="flex shrink-0 bg-gradient-to-b from-fuchsia-500/[0.11] to-brand-surface/80">
-                    <div className="relative flex overflow-visible">
-                      {progressionColumn ? (
-                        <RightTableColumn
-                          key={progressionColumn.id}
-                          column={progressionColumn}
-                          rows={rows}
-                          totalRows={totalRows}
-                          allLeftColumns={allLeftColumns}
-                          relanceSteps={relanceSteps}
-                          deliveries={deliveries}
-                          simulateRelances={simulateRelances}
-                          expandForRecovery={hasRecoveryRows}
-                          onStatusChange={handleStatusChange}
-                          onOpenProgressTimeline={setProgressDrawerRowIndex}
-                        />
-                      ) : null}
-                      <RecoveryRowOverlays
-                        rows={rows}
-                        allLeftColumns={allLeftColumns}
-                        relanceSteps={relanceSteps}
-                        onRecoveryClick={onRecoveryClick}
-                      />
-                    </div>
-                    <TableSeparator />
-                    {statutColumns.map((column) => (
-                      <RightTableColumn
-                        key={column.id}
-                        column={column}
-                        rows={rows}
-                        totalRows={totalRows}
-                        allLeftColumns={allLeftColumns}
-                        relanceSteps={relanceSteps}
-                        deliveries={deliveries}
-                        simulateRelances={simulateRelances}
-                        onStatusChange={handleStatusChange}
-                      />
-                    ))}
-                  </div>
-                </div>
               </div>
-              <RowDeleteColumn
-                rows={rows}
-                totalRows={totalRows}
-                onDeleteRow={onDeleteRow}
-                headerSpacerClassName="h-11"
-              />
-            </div>
-
-            {onDeleteTable ? (
-              <div className="mt-4 flex min-h-10 w-full items-center">
-                <div className="w-[3px] shrink-0" aria-hidden />
-                <div className="flex min-w-0 flex-1 justify-end">
-                  <TableDeleteButton
-                    onClick={onDeleteTable}
-                    disabled={deleteTableDisabled}
-                  />
-                </div>
-                <div className="w-8 shrink-0" aria-hidden />
-              </div>
-            ) : null}
-          </div>
+            </>
+          ) : null}
         </div>
       </div>
 
