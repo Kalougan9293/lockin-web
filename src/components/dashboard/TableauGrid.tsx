@@ -1036,14 +1036,57 @@ export function TableauGrid({
   return (
     <>
       {DragPreview}
-      <div className="flex w-full max-w-full min-w-0 items-start">
-        <div className="min-w-0 shrink overflow-x-auto">
-          <div
-            className="mb-5 w-max min-w-0 overflow-hidden"
-            data-tutorial="table-title"
+      <div className="grid w-max max-w-full min-w-0 grid-cols-[minmax(0,max-content)_3px_auto_2rem]">
+        <div
+          className="col-start-1 row-start-1 mb-5 min-w-0 self-end overflow-hidden"
+          data-tutorial="table-title"
+        >
+          <EditableTableTitle name={tableName} onRename={onTableRename} />
+        </div>
+        <div
+          className="col-start-3 row-start-1 mb-5 flex flex-col items-center gap-1 self-end px-1"
+          data-tutorial="configure-zone"
+        >
+          <button
+            type="button"
+            data-tutorial="configure-btn"
+            onClick={onConfigure}
+            className="group inline-flex items-center gap-2.5 transition-opacity hover:opacity-90"
           >
-            <EditableTableTitle name={tableName} onRename={onTableRename} />
-          </div>
+            <span
+              className={`${configureLabelClassName} whitespace-nowrap ${dashboardTitleGradientClassName}`}
+            >
+              Configurer
+            </span>
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-fuchsia-400/30 bg-fuchsia-500/10 text-fuchsia-200/75 shadow-sm shadow-fuchsia-950/20 transition-all group-hover:border-fuchsia-300/45 group-hover:bg-fuchsia-500/15 group-hover:text-fuchsia-100">
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.75"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+              </svg>
+            </span>
+          </button>
+          <span className="font-sans text-[10px] font-medium uppercase tracking-[0.18em] text-fuchsia-300/40">
+            Relances
+          </span>
+        </div>
+        <div className="col-start-4 row-start-1 mb-5 w-8 shrink-0 self-end" aria-hidden />
+
+        <div className="col-start-1 row-start-2 min-w-0 overflow-x-auto">
           <div className="w-max">
             <div
               data-tutorial="table-left"
@@ -1109,123 +1152,79 @@ export function TableauGrid({
           </div>
         </div>
 
-        <div className="grid shrink-0 grid-cols-[3px_auto_2rem]">
-          <div
-            className="col-start-2 row-start-1 mb-5 flex flex-col items-center gap-1 px-1"
-            data-tutorial="configure-zone"
-          >
-            <button
-              type="button"
-              data-tutorial="configure-btn"
-              onClick={onConfigure}
-              className="group inline-flex items-center gap-2.5 transition-opacity hover:opacity-90"
-            >
-              <span
-                className={`${configureLabelClassName} whitespace-nowrap ${dashboardTitleGradientClassName}`}
-              >
-                Configurer
-              </span>
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-fuchsia-400/30 bg-fuchsia-500/10 text-fuchsia-200/75 shadow-sm shadow-fuchsia-950/20 transition-all group-hover:border-fuchsia-300/45 group-hover:bg-fuchsia-500/15 group-hover:text-fuchsia-100">
-                <svg
-                  className="h-4 w-4"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.75"
-                  aria-hidden="true"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z"
-                  />
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                  />
-                </svg>
-              </span>
-            </button>
-            <span className="font-sans text-[10px] font-medium uppercase tracking-[0.18em] text-fuchsia-300/40">
-              Relances
-            </span>
-          </div>
+        <div className="col-start-2 row-start-2 self-stretch">
+          <TableSeparator />
+        </div>
 
-          <div className="col-start-1 row-start-2 self-stretch">
-            <TableSeparator />
-          </div>
-          <div className="col-start-2 row-start-2 relative min-w-0">
-            <span
-              aria-hidden
-              className="pointer-events-none absolute -top-2.5 left-4 right-4 h-2.5 rounded-t-lg border border-b-0 border-fuchsia-400/20 bg-fuchsia-500/[0.04]"
-            />
-            <div
-              data-tutorial="table-right"
-              className={`relative overflow-hidden rounded-br-2xl border border-t ${TABLE_BORDER} border-fuchsia-400/15 bg-brand-surface shadow-xl shadow-fuchsia-950/20 ring-1 ring-fuchsia-400/10`}
-            >
-              <div className="h-px bg-gradient-to-r from-transparent via-fuchsia-400/30 to-transparent" />
-              <div className="flex shrink-0 bg-gradient-to-b from-fuchsia-500/[0.11] to-brand-surface/80">
-                <div className="relative flex overflow-visible">
-                  {progressionColumn ? (
-                    <RightTableColumn
-                      key={progressionColumn.id}
-                      column={progressionColumn}
-                      rows={rows}
-                      totalRows={totalRows}
-                      allLeftColumns={allLeftColumns}
-                      relanceSteps={relanceSteps}
-                      deliveries={deliveries}
-                      simulateRelances={simulateRelances}
-                      expandForRecovery={hasRecoveryRows}
-                      onStatusChange={handleStatusChange}
-                      onOpenProgressTimeline={setProgressDrawerRowIndex}
-                    />
-                  ) : null}
-                  <RecoveryRowOverlays
-                    rows={rows}
-                    allLeftColumns={allLeftColumns}
-                    relanceSteps={relanceSteps}
-                    onRecoveryClick={onRecoveryClick}
-                  />
-                </div>
-                <TableSeparator />
-                {statutColumns.map((column) => (
+        <div className="col-start-3 row-start-2 relative min-w-0">
+          <span
+            aria-hidden
+            className="pointer-events-none absolute -top-2.5 left-4 right-4 h-2.5 rounded-t-lg border border-b-0 border-fuchsia-400/20 bg-fuchsia-500/[0.04]"
+          />
+          <div
+            data-tutorial="table-right"
+            className={`relative overflow-hidden rounded-br-2xl border border-t ${TABLE_BORDER} border-fuchsia-400/15 bg-brand-surface shadow-xl shadow-fuchsia-950/20 ring-1 ring-fuchsia-400/10`}
+          >
+            <div className="h-px bg-gradient-to-r from-transparent via-fuchsia-400/30 to-transparent" />
+            <div className="flex shrink-0 bg-gradient-to-b from-fuchsia-500/[0.11] to-brand-surface/80">
+              <div className="relative flex overflow-visible">
+                {progressionColumn ? (
                   <RightTableColumn
-                    key={column.id}
-                    column={column}
+                    key={progressionColumn.id}
+                    column={progressionColumn}
                     rows={rows}
                     totalRows={totalRows}
                     allLeftColumns={allLeftColumns}
                     relanceSteps={relanceSteps}
                     deliveries={deliveries}
                     simulateRelances={simulateRelances}
+                    expandForRecovery={hasRecoveryRows}
                     onStatusChange={handleStatusChange}
+                    onOpenProgressTimeline={setProgressDrawerRowIndex}
                   />
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="col-start-3 row-start-2">
-            <RowDeleteColumn
-              rows={rows}
-              totalRows={totalRows}
-              onDeleteRow={onDeleteRow}
-              headerSpacerClassName="h-11"
-            />
-          </div>
-
-          {onDeleteTable ? (
-            <>
-              <div className="col-start-2 col-end-3 row-start-3 mt-4 flex min-h-10 justify-end">
-                <TableDeleteButton
-                  onClick={onDeleteTable}
-                  disabled={deleteTableDisabled}
+                ) : null}
+                <RecoveryRowOverlays
+                  rows={rows}
+                  allLeftColumns={allLeftColumns}
+                  relanceSteps={relanceSteps}
+                  onRecoveryClick={onRecoveryClick}
                 />
               </div>
-            </>
-          ) : null}
+              <TableSeparator />
+              {statutColumns.map((column) => (
+                <RightTableColumn
+                  key={column.id}
+                  column={column}
+                  rows={rows}
+                  totalRows={totalRows}
+                  allLeftColumns={allLeftColumns}
+                  relanceSteps={relanceSteps}
+                  deliveries={deliveries}
+                  simulateRelances={simulateRelances}
+                  onStatusChange={handleStatusChange}
+                />
+              ))}
+            </div>
+          </div>
         </div>
+
+        <div className="col-start-4 row-start-2">
+          <RowDeleteColumn
+            rows={rows}
+            totalRows={totalRows}
+            onDeleteRow={onDeleteRow}
+            headerSpacerClassName="h-11"
+          />
+        </div>
+
+        {onDeleteTable ? (
+          <div className="col-start-3 row-start-3 mt-4 flex min-h-10 justify-end">
+            <TableDeleteButton
+              onClick={onDeleteTable}
+              disabled={deleteTableDisabled}
+            />
+          </div>
+        ) : null}
       </div>
 
       <RelanceProgressDrawer
