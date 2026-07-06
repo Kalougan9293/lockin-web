@@ -106,6 +106,7 @@ export function DashboardWorkspace({
   const canAddRowToActiveTable = activeTable
     ? canAddRowToTable(tables, activeTable.id)
     : false;
+  const isEmptyTable = activeTable.rows.length === 0;
 
   useEffect(() => {
     if (!tables.length) return;
@@ -359,7 +360,11 @@ export function DashboardWorkspace({
       ) : null}
 
       <section className={`w-full ${importZoneVisible ? "pt-4" : ""}`}>
-        <div className="w-full max-w-full">
+        <div
+          className={
+            isEmptyTable ? "mx-auto w-max max-w-full" : "w-full max-w-full"
+          }
+        >
           <TableauGrid
               tableName={activeTable.name}
               onTableRename={(name) =>

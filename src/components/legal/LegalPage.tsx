@@ -14,7 +14,7 @@ export function LegalPage({ title, children }: LegalPageProps) {
 
       <h1 className="mb-2 text-3xl font-bold tracking-tight text-white">{title}</h1>
       <p className="mb-10 text-sm text-brand-muted">
-        Dernière mise à jour : 11 juin 2026 ·{" "}
+        Dernière mise à jour : 6 juillet 2026 ·{" "}
         <Link href="/" className="text-violet-300 hover:text-violet-200">
           Retour à l&apos;accueil
         </Link>

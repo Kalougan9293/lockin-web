@@ -49,9 +49,11 @@ export function DateTextInput({
   }
 
   function selectSegment(
-    input: HTMLInputElement,
+    input: HTMLInputElement | null,
     segmentIndex: 0 | 1 | 2,
   ) {
+    if (!input) return;
+
     const range = clampDateSegmentSelection(
       getDateSegmentRangeByIndex(segmentIndex, dateFormat),
       input.value.length,
@@ -85,8 +87,9 @@ export function DateTextInput({
       return;
     }
 
+    const input = event.currentTarget;
     requestAnimationFrame(() => {
-      selectSegment(event.currentTarget, 0);
+      selectSegment(input, 0);
     });
   }
 

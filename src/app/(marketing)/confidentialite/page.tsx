@@ -82,15 +82,19 @@ export default function ConfidentialitePage() {
         données sont hébergées pour vous permettre d&apos;utiliser le Service.
       </p>
       <p>
-        <strong>Import PDF :</strong> lorsque vous importez une facture PDF,
-        l&apos;extraction du texte et la détection des champs sont effectuées
-        dans votre navigateur. Le fichier PDF n&apos;est pas envoyé ni stocké
-        sur nos serveurs. Seules les valeurs que vous validez dans
-        l&apos;interface sont enregistrées.
+        <strong>Import PDF :</strong> lorsque vous importez une facture PDF, le
+        fichier est transmis de façon sécurisée (HTTPS) à nos serveurs pour une
+        extraction automatique des champs par intelligence artificielle. Le
+        fichier PDF n&apos;est pas conservé sur nos serveurs après traitement.
+        Seules les valeurs que vous validez dans l&apos;interface sont
+        enregistrées.
       </p>
       <p>
-        <strong>Import CSV :</strong> le fichier est lu localement ; seules les
-        lignes que vous importez effectivement sont enregistrées.
+        <strong>Import CSV :</strong> lorsque vous importez un fichier CSV, son
+        contenu est transmis de façon sécurisée à nos serveurs pour une
+        extraction et structuration par intelligence artificielle. Le fichier
+        n&apos;est pas conservé sur nos serveurs après traitement ; seules les
+        lignes que vous validez sont enregistrées.
       </p>
 
       <h3>3.3. Configuration des relances</h3>
@@ -203,8 +207,13 @@ export default function ConfidentialitePage() {
           de l&apos;Union européenne).
         </li>
         <li>
-          <strong>Vercel, Inc.</strong> — hébergement et exécution de
+          <strong>Netlify, Inc.</strong> — hébergement et exécution de
           l&apos;application web (infrastructure cloud).
+        </li>
+        <li>
+          <strong>Anthropic, PBC</strong> — extraction automatique des champs
+          lors de l&apos;import de factures PDF ou CSV (traitement IA
+          transitoire, sans conservation du fichier source).
         </li>
         <li>
           <strong>Prestataire d&apos;e-mails</strong> (SMTP ou service
@@ -274,8 +283,8 @@ export default function ConfidentialitePage() {
 
       <h2>9. Transferts hors Union européenne</h2>
       <p>
-        Certains sous-traitants (notamment Vercel ou Supabase selon la région
-        configurée) peuvent traiter des données hors de l&apos;Espace économique
+        Certains sous-traitants (notamment Netlify, Anthropic ou Supabase selon
+        la région configurée) peuvent traiter des données hors de l&apos;Espace économique
         européen. Dans ce cas, nous veillons à ce que des garanties appropriées
         soient en place (décision d&apos;adéquation, clauses contractuelles
         types, etc.).

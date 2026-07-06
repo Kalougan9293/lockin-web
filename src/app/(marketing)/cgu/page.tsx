@@ -97,9 +97,10 @@ export default function CguPage() {
           20 fichiers et 5 Mo par fichier) ou CSV (jusqu&apos;à 1 Mo).
         </li>
         <li>
-          L&apos;extraction automatique des champs depuis un PDF est réalisée
-          dans votre navigateur ; le fichier PDF lui-même{" "}
-          <strong>n&apos;est pas conservé</strong> sur nos serveurs. Seules les
+          L&apos;extraction automatique des champs depuis un PDF ou un CSV est
+          réalisée sur nos serveurs via un service d&apos;intelligence
+          artificielle (Anthropic) ; le fichier source{" "}
+          <strong>n&apos;est pas conservé</strong> après traitement. Seules les
           informations que vous validez ou corrigez sont enregistrées.
         </li>
         <li>

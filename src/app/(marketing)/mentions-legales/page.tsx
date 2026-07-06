@@ -59,17 +59,17 @@ export default function MentionsLegalesPage() {
       <h2>Hébergement</h2>
       <p>
         <strong>Application web</strong> — hébergée par{" "}
-        <strong>Vercel, Inc.</strong>
+        <strong>Netlify, Inc.</strong>
         <br />
-        440 N Barranca Avenue #4133, Covina, CA 91723, États-Unis
+        101 2nd Street, San Francisco, CA 94105, États-Unis
         <br />
         <a
-          href="https://vercel.com"
+          href="https://www.netlify.com"
           className="text-violet-300 hover:text-violet-200"
           target="_blank"
           rel="noopener noreferrer"
         >
-          vercel.com
+          netlify.com
         </a>
       </p>
       <p>
@@ -137,8 +137,13 @@ export default function MentionsLegalesPage() {
 
       <h2>Crédits</h2>
       <p>
-        Interface et développement : LockIn. Extraction PDF : traitement local
-        via bibliothèque PDF.js (Mozilla).
+        Interface et développement : LockIn. Extraction automatique des factures
+        (PDF, CSV) : service d&apos;intelligence artificielle{" "}
+        <strong>Anthropic</strong> (voir la{" "}
+        <a href="/confidentialite" className="text-violet-300 hover:text-violet-200">
+          politique de confidentialité
+        </a>
+        ).
       </p>
     </LegalPage>
   );

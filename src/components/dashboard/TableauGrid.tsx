@@ -126,19 +126,27 @@ function RowDeleteColumn({
   headerSpacerClassName?: string;
 }) {
   return (
-    <div className="flex w-9 shrink-0 flex-col border-l border-white/[0.12] bg-brand-surface pl-1.5 shadow-[-12px_0_24px_-12px_rgba(0,0,0,0.75)]">
-      <div className={`${headerSpacerClassName} shrink-0 bg-brand-surface`} aria-hidden />
+    <div className="flex w-8 shrink-0 flex-col items-center">
+      <div className={`${headerSpacerClassName} shrink-0`} aria-hidden />
       {Array.from({ length: totalRows }).map((_, rowIndex) => {
         const isDataRow = rowIndex < rows.length;
+
+        if (!isDataRow) {
+          return (
+            <div
+              key={rowIndex}
+              className={`${TABLE_DATA_ROW_HEIGHT} shrink-0`}
+              aria-hidden
+            />
+          );
+        }
 
         return (
           <div
             key={rowIndex}
             className={`flex ${TABLE_DATA_ROW_HEIGHT} shrink-0 items-center justify-center`}
           >
-            {isDataRow ? (
-              <RowDeleteButton onClick={() => onDeleteRow(rowIndex)} />
-            ) : null}
+            <RowDeleteButton onClick={() => onDeleteRow(rowIndex)} />
           </div>
         );
       })}
