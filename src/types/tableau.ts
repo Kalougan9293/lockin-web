@@ -195,6 +195,9 @@ export const DEFAULT_LEFT_COLUMNS: ColumnDef[] = [
 
 export const DEFAULT_MODAL_FIELDS = ["Nom", "Mail", "Montant", "Échéance"] as const;
 
+/** Toujours visibles dans la modale d'import (même vides) — champs clés pour les relances. */
+export const IMPORT_ALWAYS_VISIBLE_MODAL_FIELDS = ["Mail", "Échéance"] as const;
+
 export const OPTIONAL_CLIENT_BUBBLES = [
   "Date",
   "Numéro",
@@ -217,7 +220,7 @@ export const MODAL_FIELD_POOL = [
 export function resolveActiveFieldsFromImport(
   fields: Record<string, string>,
 ): string[] {
-  const active = MODAL_FIELD_POOL.filter((label) => fields[label]?.trim());
+  const fromValues = MODAL_FIELD_POOL.filter((label) => fields[label]?.trim());
   const customs = Object.keys(fields).filter(
     (key) =>
       fields[key]?.trim() &&
@@ -225,7 +228,25 @@ export function resolveActiveFieldsFromImport(
         (label) => label.toLowerCase() === key.toLowerCase(),
       ),
   );
-  return [...active, ...customs];
+
+  const wanted = new Set(
+    [...IMPORT_ALWAYS_VISIBLE_MODAL_FIELDS, ...fromValues, ...customs].map(
+      (label) => label.toLowerCase(),
+    ),
+  );
+
+  const ordered = MODAL_FIELD_POOL.filter((label) =>
+    wanted.has(label.toLowerCase()),
+  );
+
+  const extraCustoms = customs.filter(
+    (label) =>
+      !MODAL_FIELD_POOL.some(
+        (entry) => entry.toLowerCase() === label.toLowerCase(),
+      ),
+  );
+
+  return [...ordered, ...extraCustoms];
 }
 
 /** @deprecated Utiliser DEFAULT_MODAL_FIELDS + OPTIONAL_CLIENT_BUBBLES */

@@ -5,8 +5,14 @@ import {
   getImpersonatedUserId,
   resolveDashboardUserId,
 } from "@/lib/admin/impersonation";
-import { fetchCreditorContexts, getCreditorContext } from "@/lib/dashboard/creditor-context";
+import { fetchIssuerForImport } from "@/lib/import/fetch-issuer-for-import";
+import {
+  assertImportQuota,
+  countIaCallsForFiles,
+  recordImportUsage,
+} from "@/lib/import/import-usage";
 import { processServerImportFiles } from "@/lib/import/process-server-import";
+import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
@@ -57,14 +63,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Accès refusé." }, { status: 403 });
     }
 
-    const creditorContexts = await fetchCreditorContexts(admin, [userId]);
-    const creditor = getCreditorContext(creditorContexts, userId);
-    const issuer = {
-      companyName: creditor.companyName,
-      email: creditor.email,
-    };
+    const requestedIaCalls = countIaCallsForFiles(files);
+    const quotaError = await assertImportQuota(admin, userId, requestedIaCalls);
+    if (quotaError) {
+      return NextResponse.json({ error: quotaError }, { status: 429 });
+    }
+
+    const supabase = await createClient();
+    const {
+      data: { user: sessionUser },
+    } = await supabase.auth.getUser();
+
+    const issuer = await fetchIssuerForImport(
+      admin,
+      userId,
+      sessionUser?.email,
+      sessionUser?.user_metadata,
+    );
 
     const { reviewQueue, errors } = await processServerImportFiles(files, issuer);
+
+    if (requestedIaCalls > 0) {
+      await recordImportUsage(admin, userId, requestedIaCalls);
+    }
 
     if (reviewQueue.length === 0) {
       return NextResponse.json(

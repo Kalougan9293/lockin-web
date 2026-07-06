@@ -13,6 +13,7 @@ export const llmInvoiceRowSchema = z.object({
   nom: z.string(),
   email: z.string(),
   echeance: z.string(),
+  date_emission: z.string(),
   reference: z.string(),
   numero: z.string(),
   montant: z.string(),
@@ -63,6 +64,11 @@ export const INVOICE_EXTRACTION_JSON_SCHEMA = {
             description:
               "Date limite de paiement de la facture au format ISO AAAA-MM-JJ",
           },
+          date_emission: {
+            type: "string",
+            description:
+              "Date d'émission de la facture au format ISO AAAA-MM-JJ — distincte de l'échéance",
+          },
           reference: {
             type: "string",
             description:
@@ -92,6 +98,7 @@ export const INVOICE_EXTRACTION_JSON_SCHEMA = {
           "nom",
           "email",
           "echeance",
+          "date_emission",
           "reference",
           "numero",
           "montant",
@@ -194,6 +201,7 @@ export function mapLlmRowToReviewPayload(
   const nom = row.nom.trim();
   const reference = row.reference.trim();
   const echeanceRaw = row.echeance.trim();
+  const dateEmissionRaw = row.date_emission.trim();
   const email = row.email.trim();
   const montantRaw = row.montant.trim();
 
@@ -201,12 +209,16 @@ export function mapLlmRowToReviewPayload(
     nom.length > 0 ||
     reference.length > 0 ||
     echeanceRaw.length > 0 ||
+    dateEmissionRaw.length > 0 ||
     email.length > 0 ||
     montantRaw.length > 0;
 
   if (!hasContent) return null;
 
   const echeanceIso = normalizeIsoDate(echeanceRaw) ?? echeanceRaw;
+  const dateEmissionIso = dateEmissionRaw
+    ? normalizeIsoDate(dateEmissionRaw) ?? dateEmissionRaw
+    : "";
   const montantStored = montantRaw ? parseAmountToStorage(montantRaw) : "";
 
   return {
@@ -216,6 +228,7 @@ export function mapLlmRowToReviewPayload(
     Référence: reference,
     Numéro: row.numero.trim(),
     ...(montantStored ? { Montant: montantStored } : {}),
+    ...(dateEmissionIso ? { Date: dateEmissionIso } : {}),
   };
 }
 

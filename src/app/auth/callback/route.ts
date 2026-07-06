@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { ensureClientFromAuthUser } from "@/lib/auth/ensure-client";
 import { getDashboardPathForEmail } from "@/lib/auth/redirect";
 import { createClient } from "@/lib/supabase/server";
 
@@ -15,6 +16,13 @@ export async function GET(request: Request) {
       const {
         data: { user },
       } = await supabase.auth.getUser();
+
+      if (user) {
+        const clientError = await ensureClientFromAuthUser(supabase, user);
+        if (clientError) {
+          console.warn("[auth/callback] clients_lockin upsert:", clientError);
+        }
+      }
 
       const redirectPath = user?.email
         ? getDashboardPathForEmail(user.email)

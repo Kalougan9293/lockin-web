@@ -1,16 +1,12 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 
-import type { ActivityDomain } from "@/lib/auth/activity-domains";
+import type { ClientProfilePayload } from "@/lib/auth/client-from-user";
+import { buildClientPayloadFromAuthUser } from "@/lib/auth/client-from-user";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/types/database";
 
-type ClientPayload = {
-  idClient: string;
-  prenomClient: string;
-  nomSociete: string;
-  domaineActivite?: ActivityDomain;
-};
+type ClientPayload = ClientProfilePayload;
 
 function buildClientRow({
   idClient,
@@ -52,4 +48,11 @@ export async function ensureClientWithSession(
     .upsert(buildClientRow(payload), { onConflict: "id_client" });
 
   return error?.message ?? null;
+}
+
+export async function ensureClientFromAuthUser(
+  supabase: SupabaseClient<Database>,
+  user: User,
+): Promise<string | null> {
+  return ensureClientWithSession(supabase, buildClientPayloadFromAuthUser(user));
 }

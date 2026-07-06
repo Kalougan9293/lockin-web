@@ -10,6 +10,7 @@ import {
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useBodyWaitCursor } from "@/components/navigation/link-pending-feedback";
 import type { AdminProviderRow } from "@/lib/admin/queries";
+import type { VigilanceScore } from "@/lib/admin/vigilance-score";
 
 type AdminProvidersTableProps = {
   providers: AdminProviderRow[];
@@ -26,12 +27,24 @@ function formatInscriptionDate(iso: string) {
   }).format(date);
 }
 
+function vigilanceClassName(tone: VigilanceScore["tone"]): string {
+  if (tone === "alert") {
+    return "border-red-400/35 bg-red-500/15 text-red-200";
+  }
+  if (tone === "watch") {
+    return "border-amber-400/35 bg-amber-500/15 text-amber-100";
+  }
+  return "border-emerald-400/30 bg-emerald-500/10 text-emerald-100";
+}
+
 export function AdminProvidersTable({ providers }: AdminProvidersTableProps) {
   const router = useRouter();
   const [deleteTarget, setDeleteTarget] = useState<AdminProviderRow | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   useBodyWaitCursor(isPending);
+
+  const showRelances = providers.some((provider) => provider.relanceCount > 0);
 
   function handleImpersonate(provider: AdminProviderRow) {
     setActionError(null);
@@ -79,14 +92,18 @@ export function AdminProvidersTable({ providers }: AdminProvidersTableProps) {
           <table className="min-w-full text-center text-sm">
             <thead className="border-b border-white/10 bg-violet-500/10 text-xs uppercase tracking-wide text-brand-muted">
               <tr>
-                <th className="px-4 py-3.5 font-medium">Prénom</th>
-                <th className="px-4 py-3.5 font-medium">Société</th>
-                <th className="px-4 py-3.5 font-medium">Mail</th>
-                <th className="px-4 py-3.5 font-medium">Factures</th>
-                <th className="px-4 py-3.5 font-medium">Relances</th>
-                <th className="px-4 py-3.5 font-medium">Pays</th>
-                <th className="px-4 py-3.5 font-medium">Inscription</th>
-                <th className="px-4 py-3.5 font-medium">Actions</th>
+                <th className="px-3 py-3.5 font-medium">Prénom</th>
+                <th className="px-3 py-3.5 font-medium">Société</th>
+                <th className="px-3 py-3.5 font-medium">Mail</th>
+                <th className="px-2 py-3.5 font-medium">Fact.</th>
+                {showRelances ? (
+                  <th className="px-2 py-3.5 font-medium">Rel.</th>
+                ) : null}
+                <th className="px-2 py-3.5 font-medium" title="A–E : volume données · 1–5 : imports IA">
+                  Vig.
+                </th>
+                <th className="px-3 py-3.5 font-medium">Inscr.</th>
+                <th className="px-2 py-3.5 font-medium"> </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
@@ -95,25 +112,36 @@ export function AdminProvidersTable({ providers }: AdminProvidersTableProps) {
                   key={provider.id}
                   className="transition-colors hover:bg-white/[0.03]"
                 >
-                  <td className="px-4 py-3.5 font-medium text-white">
+                  <td className="px-3 py-3.5 font-medium text-white">
                     {provider.prenom}
                   </td>
-                  <td className="px-4 py-3.5 text-brand-muted">
+                  <td className="max-w-[8rem] truncate px-3 py-3.5 text-brand-muted">
                     {provider.nomSociete}
                   </td>
-                  <td className="px-4 py-3.5 text-brand-muted">{provider.email}</td>
-                  <td className="px-4 py-3.5 text-center tabular-nums text-white/90">
+                  <td className="max-w-[10rem] truncate px-3 py-3.5 text-brand-muted">
+                    {provider.email}
+                  </td>
+                  <td className="px-2 py-3.5 tabular-nums text-white/90">
                     {provider.invoiceCount}
                   </td>
-                  <td className="px-4 py-3.5 text-center tabular-nums text-white/90">
-                    {provider.relanceCount}
+                  {showRelances ? (
+                    <td className="px-2 py-3.5 tabular-nums text-white/90">
+                      {provider.relanceCount}
+                    </td>
+                  ) : null}
+                  <td className="px-2 py-3.5">
+                    <span
+                      title={provider.vigilance.tooltip}
+                      className={`inline-flex min-w-[2.5rem] justify-center rounded-md border px-1.5 py-0.5 text-xs font-semibold tabular-nums ${vigilanceClassName(provider.vigilance.tone)}`}
+                    >
+                      {provider.vigilance.label}
+                    </span>
                   </td>
-                  <td className="px-4 py-3.5 text-brand-muted">{provider.pays}</td>
-                  <td className="px-4 py-3.5 whitespace-nowrap text-brand-muted">
+                  <td className="whitespace-nowrap px-3 py-3.5 text-brand-muted">
                     {formatInscriptionDate(provider.dateInscription)}
                   </td>
-                  <td className="px-4 py-3.5">
-                    <div className="flex items-center justify-center gap-2">
+                  <td className="px-2 py-3.5">
+                    <div className="flex items-center justify-center gap-1.5">
                       <button
                         type="button"
                         disabled={isPending}

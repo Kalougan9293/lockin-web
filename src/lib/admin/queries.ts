@@ -1,11 +1,18 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatSupabaseError } from "@/lib/supabase/errors";
 import { isAdminEmail } from "@/lib/auth/redirect";
+import { getActivityDomainFromAuthUser } from "@/lib/auth/client-from-user";
+import { resolveMonthlyImportCount } from "@/lib/import/import-usage";
 
 import {
   buildActivityDomainStats,
   type ActivityDomainStat,
 } from "./activity-domain-stats";
+import {
+  buildVigilanceScore,
+  compareVigilanceDesc,
+  type VigilanceScore,
+} from "./vigilance-score";
 
 export type AdminKpis = {
   providerCount: number;
@@ -20,7 +27,7 @@ export type AdminProviderRow = {
   email: string;
   invoiceCount: number;
   relanceCount: number;
-  pays: string;
+  vigilance: VigilanceScore;
   dateInscription: string;
 };
 
@@ -59,6 +66,43 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
     (authUsersResult.data.users ?? []).map((user) => [user.id, user.email ?? ""]),
   );
 
+  const domaineById = new Map(
+    (authUsersResult.data.users ?? []).map((user) => [
+      user.id,
+      getActivityDomainFromAuthUser(user),
+    ]),
+  );
+
+  const clientsList = [...(clients ?? [])];
+  const domaineBackfill = clientsList
+    .filter((client) => !client.domaine_activite)
+    .flatMap((client) => {
+      const domaine = domaineById.get(client.id_client);
+      if (!domaine) return [];
+      return [{ id_client: client.id_client, domaine_activite: domaine }];
+    });
+
+  if (domaineBackfill.length > 0) {
+    const backfillResults = await Promise.all(
+      domaineBackfill.map((row) =>
+        admin
+          .from("clients_lockin")
+          .update({ domaine_activite: row.domaine_activite })
+          .eq("id_client", row.id_client),
+      ),
+    );
+
+    const backfillError = backfillResults.find((result) => result.error)?.error;
+    if (backfillError) {
+      console.warn("[admin] domaine_activite backfill:", backfillError.message);
+    } else {
+      for (const row of domaineBackfill) {
+        const client = clientsList.find((item) => item.id_client === row.id_client);
+        if (client) client.domaine_activite = row.domaine_activite;
+      }
+    }
+  }
+
   const tableauOwner = new Map(
     (tableaux ?? []).map((tableau) => [tableau.id, tableau.user_id]),
   );
@@ -70,18 +114,40 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
     invoiceCountByUser.set(ownerId, (invoiceCountByUser.get(ownerId) ?? 0) + 1);
   }
 
-  const providers: AdminProviderRow[] = (clients ?? [])
-    .map((client) => ({
-      id: client.id_client,
-      prenom: client.prenom_client,
-      nomSociete: client.nom_societe,
-      email: emailById.get(client.id_client) ?? "—",
-      invoiceCount: invoiceCountByUser.get(client.id_client) ?? 0,
-      relanceCount: 0,
-      pays: client.pays,
-      dateInscription: client.date_inscription,
-    }))
-    .filter((provider) => !isAdminEmail(provider.email));
+  const tableCountByUser = new Map<string, number>();
+  for (const tableau of tableaux ?? []) {
+    tableCountByUser.set(
+      tableau.user_id,
+      (tableCountByUser.get(tableau.user_id) ?? 0) + 1,
+    );
+  }
+
+  const providers: AdminProviderRow[] = clientsList
+    .map((client) => {
+      const invoiceCount = invoiceCountByUser.get(client.id_client) ?? 0;
+      const tableCount = tableCountByUser.get(client.id_client) ?? 0;
+      const importsIaThisMonth = resolveMonthlyImportCount(
+        client.imports_ia_count,
+        client.imports_ia_month,
+      );
+
+      return {
+        id: client.id_client,
+        prenom: client.prenom_client,
+        nomSociete: client.nom_societe,
+        email: emailById.get(client.id_client) ?? "—",
+        invoiceCount,
+        relanceCount: 0,
+        vigilance: buildVigilanceScore({
+          invoiceCount,
+          tableCount,
+          importsIaThisMonth,
+        }),
+        dateInscription: client.date_inscription,
+      };
+    })
+    .filter((provider) => !isAdminEmail(provider.email))
+    .sort((a, b) => compareVigilanceDesc(a.vigilance, b.vigilance));
 
   return {
     kpis: {
@@ -90,6 +156,6 @@ export async function fetchAdminDashboardData(): Promise<AdminDashboardData> {
       relanceCount: 0,
     },
     providers,
-    activityDomainStats: buildActivityDomainStats(clients ?? [], emailById),
+    activityDomainStats: buildActivityDomainStats(clientsList, emailById, domaineById),
   };
 }

@@ -16,6 +16,7 @@ import { isAmountColumnLabel } from "@/lib/preferences/currency-format";
 import { isDateColumnLabel } from "@/lib/preferences/date-format";
 import {
   DEFAULT_MODAL_FIELDS,
+  IMPORT_ALWAYS_VISIBLE_MODAL_FIELDS,
   MODAL_FIELD_POOL,
   getColumnAutocomplete,
   getColumnFieldName,
@@ -102,6 +103,13 @@ function getBubbleClasses(label: string) {
 function isRequiredModalFieldLabel(label: string): boolean {
   const normalized = label.trim().toLowerCase();
   return normalized === "mail" || normalized === "échéance" || normalized === "echeance";
+}
+
+function isImportAlwaysVisibleField(label: string): boolean {
+  const normalized = label.trim().toLowerCase();
+  return IMPORT_ALWAYS_VISIBLE_MODAL_FIELDS.some(
+    (entry) => entry.toLowerCase() === normalized,
+  );
 }
 
 function getMailValue(values: Record<string, string>): string {
@@ -223,6 +231,7 @@ export function AddClientModal({
   }, [open, onClose]);
 
   function deactivateField(label: string) {
+    if (isImportMode && isImportAlwaysVisibleField(label)) return;
     if (!isImportMode && isRequiredModalFieldLabel(label)) return;
     setActiveFields((current) => current.filter((entry) => entry !== label));
   }
@@ -406,7 +415,8 @@ export function AddClientModal({
                     >
                       <ModalFieldLabel label={label} />
                     </span>
-                    {isImportMode || !isRequiredModalFieldLabel(label) ? (
+                    {isImportMode && isImportAlwaysVisibleField(label) ? null : isImportMode ||
+                      !isRequiredModalFieldLabel(label) ? (
                       <button
                         type="button"
                         onClick={() => deactivateField(label)}

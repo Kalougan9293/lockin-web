@@ -4,7 +4,11 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { isActivityDomain } from "@/lib/auth/activity-domains";
-import { ensureClientWithAdmin, ensureClientWithSession } from "@/lib/auth/ensure-client";
+import {
+  ensureClientFromAuthUser,
+  ensureClientWithAdmin,
+  ensureClientWithSession,
+} from "@/lib/auth/ensure-client";
 import { getDashboardPathForEmail } from "@/lib/auth/redirect";
 import {
   getFirstError,
@@ -80,12 +84,12 @@ export async function signUpAction(
     };
   }
 
-  if (data.user && domaine) {
+  if (data.user) {
     const clientPayload = {
       idClient: data.user.id,
       prenomClient: input.prenom.trim(),
       nomSociete: input.nomSociete.trim(),
-      domaineActivite: domaine,
+      ...(domaine ? { domaineActivite: domaine } : {}),
     };
 
     const clientError = await ensureClientWithAdmin(clientPayload);
@@ -93,17 +97,11 @@ export async function signUpAction(
     if (clientError) {
       console.warn("[signUp] clients_lockin admin upsert:", clientError);
     }
-  }
 
-  if (data.session && data.user?.email && domaine) {
-    await ensureClientWithSession(supabase, {
-      idClient: data.user.id,
-      prenomClient: input.prenom.trim(),
-      nomSociete: input.nomSociete.trim(),
-      domaineActivite: domaine,
-    });
-
-    redirect(getDashboardPathForEmail(data.user.email));
+    if (data.session && data.user.email) {
+      await ensureClientWithSession(supabase, clientPayload);
+      redirect(getDashboardPathForEmail(data.user.email));
+    }
   }
 
   return {
@@ -145,14 +143,10 @@ export async function signInAction(
     return { error: "Impossible de récupérer votre session." };
   }
 
-  const metadata = user.user_metadata ?? {};
-  const domaineRaw = String(metadata.domaine_activite ?? "");
-  await ensureClientWithSession(supabase, {
-    idClient: user.id,
-    prenomClient: String(metadata.prenom_client ?? ""),
-    nomSociete: String(metadata.nom_societe ?? ""),
-    ...(isActivityDomain(domaineRaw) ? { domaineActivite: domaineRaw } : {}),
-  });
+  const clientError = await ensureClientFromAuthUser(supabase, user);
+  if (clientError) {
+    console.warn("[signIn] clients_lockin upsert:", clientError);
+  }
 
   redirect(getDashboardPathForEmail(user.email));
 }

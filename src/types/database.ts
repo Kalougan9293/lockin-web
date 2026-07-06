@@ -7,6 +7,8 @@ export type ClientLockin = {
   domaine_activite: string | null;
   forfait: "freemium" | "pro" | "enterprise";
   pays: string;
+  imports_ia_count?: number;
+  imports_ia_month?: string | null;
   date_inscription: string;
   updated_at?: string;
 };
@@ -81,6 +83,8 @@ export type Database = {
           domaine_activite?: string | null;
           forfait?: ClientLockin["forfait"];
           pays?: string;
+          imports_ia_count?: number;
+          imports_ia_month?: string | null;
           date_inscription?: string;
           updated_at?: string;
         };
@@ -90,6 +94,8 @@ export type Database = {
           domaine_activite?: string | null;
           forfait?: ClientLockin["forfait"];
           pays?: string;
+          imports_ia_count?: number;
+          imports_ia_month?: string | null;
           updated_at?: string;
         };
         Relationships: [];

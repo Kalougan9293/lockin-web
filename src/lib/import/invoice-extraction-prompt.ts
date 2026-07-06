@@ -3,7 +3,7 @@ import { buildIssuerPromptBlock } from "./issuer-context";
 
 /**
  * Prompt système — extraction CLIENT sur factures (PDF / CSV).
- * Aligné sur le schéma LockIn : rows[{ nom, email, echeance, reference, numero, montant, ambigu, notes }].
+ * Aligné sur le schéma LockIn : rows[{ nom, email, echeance, date_emission, reference, numero, montant, ambigu, notes }].
  */
 export function buildInvoiceExtractionSystemPrompt(issuer: IssuerContext): string {
   const issuerBlock = buildIssuerPromptBlock(issuer);
@@ -72,18 +72,26 @@ Pour chaque facture, une entrée dans "rows" :
   Ne prends PAS un prix unitaire de ligne si un total global existe.
   Ne confonds pas HT et TTC : préfère TTC ; si seul un « Total » sans HT/TTC, utilise ce total.
 - "echeance" : date limite de paiement au format ISO AAAA-MM-JJ (obligatoire si déductible).
+  NE PAS confondre avec la date d'émission.
+- "date_emission" : date d'émission / facturation au format ISO AAAA-MM-JJ.
+  Libellés courants : « Date d'émission », « Date d'émission : », « Émis le », « Emis le », « Facturé le », « Date de facture ».
+  Ex. « Date d'émission : 09/07/2026 » → "2026-07-09". Chaîne vide "" si absente.
+  Utilise ce champ UNIQUEMENT pour la date d'émission, jamais pour l'échéance.
 - "ambigu" : true si un doute subsiste sur l'émetteur vs client ou si plusieurs champs critiques manquent.
 - "notes" : TOUJOURS "" (chaîne vide). Ne jamais remplir ce champ.
 
 ══════════════════════════════════════════════════════════════
-ÉTAPE 2bis — Date d'émission (pour calculer l'échéance)
+ÉTAPE 2bis — Date d'émission (champ date_emission)
 ══════════════════════════════════════════════════════════════
 
-Repère SYSTÉMATIQUEMENT la date d'émission si elle figure sur le document :
-- « Émis le », « Emis le », « Date de facture », « Facturé le », « Invoice date », « Le » en en-tête
-- Ex. « Émis le : 22/07/2026 » → date d'émission = 2026-07-22 (usage interne pour calculer l'échéance)
+Repère la date d'émission dès qu'elle est lisible sur le document :
+- « Date d'émission : DD/MM/YYYY », « Émis le : … », « Emis le : … », « Facturé le », « Date de facture »
+- Souvent dans le bloc client ou sous le titre FACTURE
 
-Ne confonds JAMAIS date d'émission et date d'échéance.
+Renseigne "date_emission" au format AAAA-MM-JJ.
+Cette date sert aussi à calculer l'échéance (Forme B) mais reste distincte dans le JSON.
+
+Ne mets JAMAIS la date d'émission dans "echeance", ni l'inverse.
 
 ══════════════════════════════════════════════════════════════
 ÉTAPE 2ter — Date d'échéance (CHAMP CRITIQUE — déclenche les relances)
@@ -95,8 +103,8 @@ Formats : « 30 juillet 2026 », « 30/07/2026 », « 2026-07-30 » → AAAA-MM-
 
 Forme B — Délai relatif (calcul requis) :
 « Paiement à 30 jours », « Net 30 », « 15 jours », « Comptant », « à réception » (= 0 jour)
-→ echeance = date d'émission + délai (en jours).
-Si date d'émission absente mais délai présent → echeance: "", ambigu: true.
+→ echeance = date_emission + délai (en jours). Renseigne aussi date_emission si présente.
+Si date_emission absente mais délai présent → echeance: "", ambigu: true.
 
 Forme C — Mention vague :
 « sous quinzaine » → +14 jours si date d'émission connue.
@@ -129,6 +137,7 @@ Exemple :
       "nom": "SCI Résidence Les Terrasses",
       "email": "gestion@terrassesdulac.fr",
       "echeance": "2026-08-11",
+      "date_emission": "2026-07-12",
       "reference": "FA-2026-0142",
       "numero": "",
       "montant": "1420.00",
@@ -150,7 +159,7 @@ export function buildInvoiceExtractionUserPrompt(
   kind: "pdf" | "csv",
 ): string {
   if (kind === "pdf") {
-    return `Analyse cette facture PDF (${fileName}). Extrais le DESTINATAIRE (client débiteur), le montant total à payer, la date d'échéance et la référence si présente. Ignore l'émetteur LockIn.`;
+    return `Analyse cette facture PDF (${fileName}). Extrais le DESTINATAIRE (client débiteur), le montant total à payer, la date d'émission (date_emission), la date d'échéance et la référence si présente. Ignore l'émetteur LockIn.`;
   }
 
   return `Analyse ce fichier CSV (${fileName}). Une ligne "rows" par facture. Identifie le DESTINATAIRE (pas l'émetteur LockIn), le montant et l'échéance.`;

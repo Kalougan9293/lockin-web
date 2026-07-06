@@ -15,6 +15,7 @@ export type ActivityDomainStat = {
 export function buildActivityDomainStats(
   clients: ClientLockin[],
   emailById: Map<string, string>,
+  domaineById?: Map<string, string | null>,
 ): ActivityDomainStat[] {
   const counts = new Map<string, number>();
 
@@ -27,9 +28,11 @@ export function buildActivityDomainStats(
     const email = emailById.get(client.id_client) ?? "";
     if (isAdminEmail(email)) continue;
 
+    const fallbackDomaine = domaineById?.get(client.id_client) ?? null;
+    const rawDomaine = client.domaine_activite ?? fallbackDomaine;
     const label =
-      client.domaine_activite && isActivityDomain(client.domaine_activite)
-        ? client.domaine_activite
+      rawDomaine && isActivityDomain(rawDomaine)
+        ? rawDomaine
         : ACTIVITY_DOMAIN_UNSET_LABEL;
 
     counts.set(label, (counts.get(label) ?? 0) + 1);
