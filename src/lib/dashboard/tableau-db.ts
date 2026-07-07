@@ -1,4 +1,8 @@
-import { handlePaidLigneSideEffects } from "@/lib/dashboard/cancel-queued-deliveries";
+import {
+  cancelCancellableDeliveriesForTableau,
+  handleDueDateChangeSideEffects,
+  handlePaidLigneSideEffects,
+} from "@/lib/dashboard/cancel-queued-deliveries";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type {
@@ -270,7 +274,8 @@ export async function updateLigne(
   supabase: Supabase,
   row: ClientRow,
   previous?: ClientRow,
-): Promise<void> {
+  columns?: ColumnDef[],
+): Promise<{ dueDateChanged: boolean; becamePaid: boolean }> {
   const { error } = await supabase
     .from("lignes_factures")
     .update({ values: row.values })
@@ -278,7 +283,15 @@ export async function updateLigne(
 
   if (error) throw error;
 
-  await handlePaidLigneSideEffects(supabase, row, previous);
+  const dueDateChanged = await handleDueDateChangeSideEffects(
+    supabase,
+    row,
+    previous,
+    columns,
+  );
+  const becamePaid = await handlePaidLigneSideEffects(supabase, row, previous);
+
+  return { dueDateChanged, becamePaid };
 }
 
 export async function deleteLigne(
@@ -370,8 +383,11 @@ export async function applyTableDiff(
   }
 
   if (relanceStepsChanged(prev, next)) {
+    await cancelCancellableDeliveriesForTableau(supabase, next.id);
     await syncRelanceSteps(supabase, next.id, next.relanceSteps);
   }
+
+  const columns = [...next.leftColumns, ...next.hiddenLeftColumns];
 
   for (const row of getRemovedRows(prev.rows, next.rows)) {
     await deleteLigne(supabase, row.id);
@@ -383,6 +399,6 @@ export async function applyTableDiff(
 
   for (const row of getUpdatedRows(prev.rows, next.rows)) {
     const previous = prev.rows.find((entry) => entry.id === row.id);
-    await updateLigne(supabase, row, previous);
+    await updateLigne(supabase, row, previous, columns);
   }
 }

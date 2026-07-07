@@ -235,7 +235,7 @@ export function RecoveryDrawer({
                   </a>
                 </>
               ) : (
-                <span className="text-white/50"> · Numéro non renseigné</span>
+                <span className="text-white/50"> · Téléphone non renseigné</span>
               )}
             </p>
           </div>

@@ -4,6 +4,7 @@ import {
   addDaysDateOnly,
   formatDateOnlyIso,
   isDateOnOrBefore,
+  normalizeDateOnlyInput,
   parseDateOnly,
   startOfDay,
   todayDateOnly,
@@ -65,6 +66,38 @@ export function resolveDueDateValue(
   if (!dueColumn) return "";
 
   return row.values[dueColumn.id]?.trim() ?? "";
+}
+
+export function normalizeDueDateValue(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  return normalizeDateOnlyInput(trimmed) ?? trimmed;
+}
+
+export function resolveNormalizedDueDateValue(
+  row: ClientRow,
+  columns: ColumnDef[],
+): string {
+  return normalizeDueDateValue(resolveDueDateValue(row, columns));
+}
+
+/** Compare l'échéance persistée entre deux versions d'une ligne. */
+export function didDueDateChange(
+  previous: ClientRow,
+  next: ClientRow,
+  columns?: ColumnDef[],
+): boolean {
+  if (columns && columns.length > 0) {
+    return (
+      resolveNormalizedDueDateValue(previous, columns) !==
+      resolveNormalizedDueDateValue(next, columns)
+    );
+  }
+
+  return (
+    normalizeDueDateValue(previous.values.echeance ?? "") !==
+    normalizeDueDateValue(next.values.echeance ?? "")
+  );
 }
 
 export function rowMissingDueDate(row: ClientRow, columns: ColumnDef[]): boolean {

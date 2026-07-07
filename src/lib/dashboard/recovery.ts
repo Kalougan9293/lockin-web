@@ -108,8 +108,23 @@ export function extractRecoveryFields(
 
   return {
     clientName,
-    phone: getRowFieldValue(row, columns, "Numéro", "numero", "Téléphone", "Tel"),
-    reference: getRowFieldValue(row, columns, "Référence", "reference", "Facture"),
+    phone: getRowFieldValue(
+      row,
+      columns,
+      "Téléphone",
+      "Numéro",
+      "numero",
+      "Tel",
+      "Phone",
+    ),
+    reference: getRowFieldValue(
+      row,
+      columns,
+      "N°Facture",
+      "Référence",
+      "reference",
+      "Facture",
+    ),
     amount: amountRaw,
     amountDisplay: formatAmountForDisplay(amountRaw).replace(/\s*€$/, "") || "—",
     invoiceDate: getRowFieldValue(row, columns, "Date"),

@@ -501,7 +501,7 @@ export function TableauConfigModal({
                             }
                             onFocus={() => setActiveStepId(step.id)}
                             className={`${inputClass} resize-none border-emerald-400/15 py-2 text-left leading-snug focus:border-emerald-400/35 focus:ring-emerald-400/15`}
-                            placeholder="Bonjour [Nom], facture [Référence] à échéance le [Échéance]…"
+                            placeholder="Bonjour [Nom], facture [N°Facture] à échéance le [Échéance]…"
                           />
                           <p className="text-[10px] text-brand-muted/80">
                             Texte brut uniquement, {SMS_MAX_LENGTH} caractères max.

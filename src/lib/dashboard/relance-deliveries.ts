@@ -125,7 +125,8 @@ export function resolveRelanceMessageTemplate(
     ["Échéance", ["Échéance", "Echeance"]],
     ["Date", ["Date", "date"]],
     ["Mail", ["Mail", "Email"]],
-    ["Référence", ["Référence", "reference", "Facture"]],
+    ["N°Facture", ["N°Facture", "Référence", "reference", "Facture"]],
+    ["Téléphone", ["Téléphone", "Numéro", "numero", "Tel", "Phone"]],
   ];
 
   for (const [label, aliases] of standardFields) {
@@ -139,6 +140,12 @@ export function resolveRelanceMessageTemplate(
     resolved = resolved.replaceAll(`[${label}]`, value);
     if (label === "Échéance") {
       resolved = resolved.replaceAll("[Echeance]", value);
+    }
+    if (label === "N°Facture") {
+      resolved = resolved.replaceAll("[Référence]", value);
+    }
+    if (label === "Téléphone") {
+      resolved = resolved.replaceAll("[Numéro]", value);
     }
   }
 

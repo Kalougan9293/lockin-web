@@ -4,9 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { fetchRelanceDeliveriesForTableaux } from "@/lib/dashboard/fetch-relance-deliveries";
 import {
-  handlePaidLigneSideEffects,
+  cancelCancellableDeliveriesForLigne,
+  cancelCancellableDeliveriesForTableau,
   markDeliveriesCancelledLocally,
+  markDeliveriesCancelledLocallyForTableau,
 } from "@/lib/dashboard/cancel-queued-deliveries";
+import { didDueDateChange } from "@/lib/dashboard/relance-schedule";
 import {
   deleteLigne,
   deleteTable,
@@ -30,7 +33,7 @@ import {
   isTableRowsWithinLimits,
 } from "@/lib/dashboard/plan-limits";
 import type { RelanceDeliveryRow } from "@/types/database";
-import type { ClientRow, TableData } from "@/types/tableau";
+import type { ClientRow, ColumnDef, TableData } from "@/types/tableau";
 import { createTableData, ensureDefaultRelanceSteps, isRowPaid } from "@/types/tableau";
 
 import type { DashboardInitialData } from "@/types/dashboard";
@@ -68,11 +71,11 @@ async function apiPersistTableDiff(prev: TableData, next: TableData) {
   }
 }
 
-async function apiPersistRow(row: ClientRow) {
+async function apiPersistRow(row: ClientRow, previous?: ClientRow) {
   const response = await fetch("/api/dashboard/tableaux", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ row }),
+    body: JSON.stringify({ row, previous }),
   });
   const data = (await response.json()) as { error?: string };
   if (!response.ok) {
@@ -127,6 +130,8 @@ export function useDashboardTables(
   const rowTimersRef = useRef(
     new Map<string, ReturnType<typeof setTimeout>>(),
   );
+  const rowPersistSnapshotsRef = useRef(new Map<string, ClientRow>());
+  const rowPersistColumnsRef = useRef(new Map<string, ColumnDef[]>());
   const supabaseRef = useRef(createClient());
 
   useApiRef.current = impersonationMode;
@@ -137,20 +142,28 @@ export function useDashboardTables(
   }, []);
 
   const persistRowNow = useCallback(
-    async (row: ClientRow, previous?: ClientRow) => {
+    async (row: ClientRow, previous?: ClientRow, columns?: ColumnDef[]) => {
       if (!persistEnabledRef.current) return;
 
       try {
         if (useApiRef.current) {
-          await apiPersistRow(row);
-          if (isRowPaid(row) && !(previous && isRowPaid(previous))) {
+          await apiPersistRow(row, previous);
+          if (
+            (previous && didDueDateChange(previous, row, columns)) ||
+            (isRowPaid(row) && !(previous && isRowPaid(previous)))
+          ) {
             setDeliveries((current) =>
               markDeliveriesCancelledLocally(current, row.id),
             );
           }
         } else {
-          await updateLigne(supabaseRef.current, row, previous);
-          if (isRowPaid(row) && !(previous && isRowPaid(previous))) {
+          const { dueDateChanged, becamePaid } = await updateLigne(
+            supabaseRef.current,
+            row,
+            previous,
+            columns,
+          );
+          if (dueDateChanged || becamePaid) {
             setDeliveries((current) =>
               markDeliveriesCancelledLocally(current, row.id),
             );
@@ -168,18 +181,31 @@ export function useDashboardTables(
   );
 
   const scheduleRowPersist = useCallback(
-    (row: ClientRow) => {
+    (row: ClientRow, previous?: ClientRow, columns?: ColumnDef[]) => {
       if (!persistEnabledRef.current) return;
 
       const timers = rowTimersRef.current;
+      const snapshots = rowPersistSnapshotsRef.current;
+      const columnSnapshots = rowPersistColumnsRef.current;
       const existing = timers.get(row.id);
       if (existing) clearTimeout(existing);
+
+      if (previous && !snapshots.has(row.id)) {
+        snapshots.set(row.id, previous);
+      }
+      if (columns && !columnSnapshots.has(row.id)) {
+        columnSnapshots.set(row.id, columns);
+      }
 
       timers.set(
         row.id,
         setTimeout(() => {
           timers.delete(row.id);
-          void persistRowNow(row);
+          const snapshot = snapshots.get(row.id);
+          const columnSnapshot = columnSnapshots.get(row.id);
+          snapshots.delete(row.id);
+          columnSnapshots.delete(row.id);
+          void persistRowNow(row, snapshot, columnSnapshot);
         }, ROW_PERSIST_DEBOUNCE_MS),
       );
     },
@@ -193,6 +219,11 @@ export function useDashboardTables(
       try {
         if (useApiRef.current) {
           await apiPersistTableDiff(prev, next);
+          if (relanceStepsChanged(prev, next)) {
+            setDeliveries((current) =>
+              markDeliveriesCancelledLocallyForTableau(current, next.id),
+            );
+          }
           return;
         }
 
@@ -201,12 +232,21 @@ export function useDashboardTables(
         }
 
         if (relanceStepsChanged(prev, next)) {
+          await cancelCancellableDeliveriesForTableau(
+            supabaseRef.current,
+            next.id,
+          );
           await syncRelanceSteps(
             supabaseRef.current,
             next.id,
             next.relanceSteps,
           );
+          setDeliveries((current) =>
+            markDeliveriesCancelledLocallyForTableau(current, next.id),
+          );
         }
+
+        const columns = [...next.leftColumns, ...next.hiddenLeftColumns];
 
         for (const row of getRemovedRows(prev.rows, next.rows)) {
           await deleteLigne(supabaseRef.current, row.id);
@@ -219,9 +259,9 @@ export function useDashboardTables(
         for (const row of getUpdatedRows(prev.rows, next.rows)) {
           const previous = prev.rows.find((entry) => entry.id === row.id);
           if (previous && isPaymentStatusOnlyChange(previous, row)) {
-            void persistRowNow(row, previous);
+            void persistRowNow(row, previous, columns);
           } else {
-            scheduleRowPersist(row);
+            scheduleRowPersist(row, previous, columns);
           }
         }
       } catch (error) {

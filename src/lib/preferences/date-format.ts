@@ -165,6 +165,85 @@ export function getDateSegmentIndexFromClickRatio(ratio: number): DateSegmentInd
   return 2;
 }
 
+/** Segment (jour/mois/année) à partir de la position du curseur dans la valeur affichée. */
+export function getDateSegmentIndexFromCaret(
+  caretIndex: number,
+  format: DateFormatPreference,
+): DateSegmentIndex {
+  const caret = Math.max(0, caretIndex);
+
+  if (format === "fr") {
+    if (caret <= 2) return 0;
+    if (caret <= 5) return 1;
+    return 2;
+  }
+
+  if (caret <= 4) return 0;
+  if (caret <= 7) return 1;
+  return 2;
+}
+
+export function parseDraftParts(
+  value: string,
+  format: DateFormatPreference,
+): [string, string, string] {
+  const trimmed = value.trim();
+  if (!trimmed) return ["", "", ""];
+
+  if (format === "fr") {
+    const match = trimmed.match(/^(\d{0,2})(?:\/(\d{0,2})(?:\/(\d{0,4}))?)?$/);
+    if (match) {
+      return [match[1] ?? "", match[2] ?? "", match[3] ?? ""];
+    }
+  } else {
+    const match = trimmed.match(/^(\d{0,4})(?:-(\d{0,2})(?:-(\d{0,2}))?)?$/);
+    if (match) {
+      return [match[1] ?? "", match[2] ?? "", match[3] ?? ""];
+    }
+  }
+
+  const digits = trimmed.replace(/\D/g, "").slice(0, 8);
+  if (format === "fr") {
+    return [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 8)];
+  }
+
+  return [digits.slice(0, 4), digits.slice(4, 6), digits.slice(6, 8)];
+}
+
+export function assembleDraftParts(
+  parts: [string, string, string],
+  format: DateFormatPreference,
+): string {
+  const [first, second, third] = parts;
+
+  if (format === "fr") {
+    if (!first) return "";
+    if (!second) return first;
+    if (!third) return `${first}/${second}`;
+    return `${first}/${second}/${third}`;
+  }
+
+  if (!first) return "";
+  if (!second) return first;
+  if (!third) return `${first}-${second}`;
+  return `${first}-${second}-${third}`;
+}
+
+export function getDateSegmentMaxLengths(
+  format: DateFormatPreference,
+): [number, number, number] {
+  return format === "fr" ? [2, 2, 4] : [4, 2, 2];
+}
+
+export function isCompleteDateInput(
+  value: string,
+  format: DateFormatPreference,
+): boolean {
+  const iso = parseDateInputToIso(value, format);
+  if (!iso) return false;
+  return format === "fr" ? parseFrParts(value) !== null : parseIsoParts(value) !== null;
+}
+
 export function clampDateSegmentSelection(
   range: { start: number; end: number },
   valueLength: number,

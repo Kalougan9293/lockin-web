@@ -18,11 +18,36 @@ import {
 import { getAppOrigin } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 
+export type SignUpFormValues = {
+  prenom: string;
+  nomSociete: string;
+  domaineActivite: string;
+  email: string;
+  acceptCgu: boolean;
+};
+
 export type AuthActionState = {
   error?: string;
   success?: string;
   fieldErrors?: Record<string, string>;
+  values?: SignUpFormValues;
 };
+
+function toSignUpFormValues(input: {
+  prenom: string;
+  nomSociete: string;
+  domaineActivite: string;
+  email: string;
+  acceptCgu: boolean;
+}): SignUpFormValues {
+  return {
+    prenom: input.prenom,
+    nomSociete: input.nomSociete,
+    domaineActivite: input.domaineActivite,
+    email: input.email,
+    acceptCgu: input.acceptCgu,
+  };
+}
 
 async function getOrigin(): Promise<string> {
   const headersList = await headers();
@@ -53,6 +78,7 @@ export async function signUpAction(
     return {
       error: firstError,
       fieldErrors: fieldErrors as Record<string, string>,
+      values: toSignUpFormValues(input),
     };
   }
 
@@ -81,6 +107,7 @@ export async function signUpAction(
         error.message.includes("Failed to fetch")
           ? "Connexion Supabase impossible. Vérifiez NEXT_PUBLIC_SUPABASE_URL et NEXT_PUBLIC_SUPABASE_ANON_KEY dans lockin-web/.env.local."
           : error.message,
+      values: toSignUpFormValues(input),
     };
   }
 

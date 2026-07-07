@@ -5,6 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useBodyWaitCursor } from "@/components/navigation/link-pending-feedback";
 import type { TableSummary } from "@/types/tableau";
 
+import { ImportZoneToggleButton } from "./ImportZoneToggleButton";
+
 import { TableTargetSelect } from "./TableTargetSelect";
 
 type ImportPromptProps = {
@@ -25,25 +27,10 @@ const DEMO_FILE_NOTICE_MS = 4000;
 const DEMO_FILE_NOTICE =
   "Cette option est accessible qu'en compte connecté.";
 
-function ImportSectionDivider({ label }: { label?: string }) {
-  if (!label) {
-    return (
-      <div className="my-2.5 px-1" aria-hidden="true">
-        <div className="h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-      </div>
-    );
-  }
+const panelClass =
+  "flex min-h-[4.25rem] w-full min-w-0 flex-col rounded-xl border border-white/10 bg-brand-card/40 p-2 shadow-md shadow-violet-950/15 ring-1 ring-white/[0.06] sm:min-h-[4.5rem] sm:p-2.5";
 
-  return (
-    <div className="my-2.5 flex items-center gap-2.5 px-1">
-      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-      <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-brand-muted/70">
-        {label}
-      </span>
-      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-    </div>
-  );
-}
+import { DASHBOARD_CONTENT_BLEED_CLASS } from "@/lib/dashboard/content-bleed";
 
 export function ImportPrompt({
   tables,
@@ -121,7 +108,7 @@ export function ImportPrompt({
   }
 
   return (
-      <section className="mb-7 flex flex-col items-center">
+    <section className={`mb-4 ${DASHBOARD_CONTENT_BLEED_CLASS}`}>
       <input
         ref={inputRef}
         type="file"
@@ -136,20 +123,19 @@ export function ImportPrompt({
 
       <div
         data-tutorial="import-zone"
-        className={`w-full max-w-md rounded-xl border bg-brand-card/40 p-3 shadow-md shadow-violet-950/15 ring-1 transition-all sm:p-3.5 ${
-          isDragging
-            ? "border-violet-400/45 ring-violet-400/25"
-            : "border-white/10 ring-white/[0.06]"
-        } ${isProcessing ? "opacity-80" : ""}`}
+        className={`grid w-full grid-cols-1 gap-2 sm:grid-cols-3 sm:grid-rows-[auto_auto] sm:items-start sm:gap-x-3 sm:gap-y-1.5 ${
+          isProcessing ? "opacity-80" : ""
+        }`}
       >
         <div
-          className="rounded-lg border border-sky-400/25 bg-gradient-to-b from-sky-500/[0.09] to-indigo-500/[0.05] px-3 py-2.5 ring-1 ring-sky-400/10"
+          className={`${panelClass} order-1 justify-center border-sky-400/25 bg-gradient-to-b from-sky-500/[0.09] to-indigo-500/[0.05] ring-sky-400/10 sm:order-none sm:col-start-1 sm:row-start-1`}
           onClick={(event) => event.stopPropagation()}
           onKeyDown={(event) => event.stopPropagation()}
         >
           <TableTargetSelect
             id="import-target-table"
             tinted
+            compact
             tables={tables}
             value={selectedTableId}
             onChange={onSelectedTableIdChange}
@@ -158,17 +144,13 @@ export function ImportPrompt({
           />
         </div>
 
-        <ImportSectionDivider />
-
         <div
-          className={`relative rounded-lg border-2 border-dashed px-4 py-3.5 text-center transition-all ${
+          className={`${panelClass} relative order-2 justify-center border-dashed p-0 sm:order-none sm:col-start-2 sm:row-start-1 ${
             isDemoWorkspace
-              ? "cursor-not-allowed border-violet-400/20 bg-violet-500/[0.04] opacity-75"
-              : `group ${
-                  isDragging
-                    ? "border-violet-400/55 bg-violet-400/12 ring-1 ring-violet-400/20"
-                    : "border-violet-400/30 bg-violet-500/[0.07] ring-1 ring-violet-400/10 hover:border-violet-400/45 hover:bg-violet-500/[0.1]"
-                }`
+              ? "border-violet-400/20 bg-violet-500/[0.04]"
+              : isDragging
+                ? "border-violet-400/55 bg-violet-400/12 ring-violet-400/25"
+                : "border-violet-400/30 bg-violet-500/[0.07] ring-violet-400/10"
           }`}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
@@ -192,22 +174,26 @@ export function ImportPrompt({
                 ? "Import de fichiers réservé aux comptes connectés"
                 : "Glisser des factures PDF, un CSV, ou cliquer pour parcourir"
             }
-            className={`flex w-full flex-col items-center gap-2 disabled:cursor-not-allowed ${
-              isDemoWorkspace ? "cursor-not-allowed" : ""
+            className={`flex h-full w-full flex-row items-center justify-center gap-2 rounded-xl px-3 py-2 text-center disabled:cursor-not-allowed ${
+              isDemoWorkspace
+                ? "cursor-not-allowed opacity-75"
+                : "group hover:bg-violet-500/[0.06]"
             }`}
           >
             <div
-              className={`flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-brand-surface/80 transition-colors ${
+              className={`flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-md border transition-colors ${
                 isDemoWorkspace
-                  ? ""
-                  : "group-hover:border-violet-400/30 group-hover:bg-violet-400/10"
+                  ? "border-white/10 bg-brand-surface/80"
+                  : "border-violet-400/35 bg-violet-500/20 group-hover:border-violet-300/50 group-hover:bg-violet-500/30"
               }`}
             >
               {isProcessing ? (
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-violet-300/30 border-t-violet-300" />
               ) : (
                 <svg
-                  className="h-4 w-4 text-brand-muted transition-colors group-hover:text-violet-300"
+                  className={`h-5 w-5 ${
+                    isDemoWorkspace ? "text-brand-muted/80" : "text-violet-300"
+                  }`}
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -229,46 +215,44 @@ export function ImportPrompt({
             </div>
 
             <p
-              className={`max-w-[16rem] text-sm font-light leading-snug transition-colors ${
-                isDemoWorkspace
-                  ? "text-brand-muted/80"
-                  : "text-brand-muted group-hover:text-white/85"
+              className={`min-w-0 flex-1 text-xs font-medium leading-snug ${
+                isDemoWorkspace ? "text-brand-muted/80" : "text-white"
               }`}
             >
               {isProcessing ? (
                 "Lecture des fichiers…"
               ) : (
-                <>
-                  Glisser un ou plusieurs PDF, un CSV, ou{" "}
-                  <span className="font-medium text-violet-300/90 group-hover:text-violet-200">
-                    parcourir
-                  </span>
-                </>
+                "Glisser un ou plusieurs PDF, un CSV ou parcourir"
               )}
             </p>
           </button>
         </div>
 
-        <ImportSectionDivider label="ou" />
+        <ImportZoneToggleButton
+          variant="hide"
+          className="order-3 mx-auto sm:order-none sm:col-start-2 sm:row-start-2"
+        />
 
         <button
           type="button"
           onClick={onAddManual}
           disabled={addManualDisabled || isProcessing}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-violet-400/40 bg-gradient-to-r from-violet-500/15 to-fuchsia-500/10 px-3 py-2 text-sm font-medium text-violet-100 shadow-sm shadow-violet-950/20 transition-all hover:border-violet-300/55 hover:from-violet-500/25 hover:to-fuchsia-500/15 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-violet-400/40 disabled:hover:from-violet-500/15 disabled:hover:to-fuchsia-500/10 disabled:hover:text-violet-100"
+          className={`${panelClass} order-4 flex-row items-center justify-center gap-2 border-violet-400/40 bg-gradient-to-r from-violet-500/15 to-fuchsia-500/10 text-xs font-medium text-violet-100 shadow-sm shadow-violet-950/20 transition-all hover:border-violet-300/55 hover:from-violet-500/25 hover:to-fuchsia-500/15 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-violet-400/40 disabled:hover:from-violet-500/15 disabled:hover:to-fuchsia-500/10 disabled:hover:text-violet-100 sm:order-none sm:col-start-3 sm:row-start-1`}
         >
           <span
-            className="flex h-6 w-6 items-center justify-center rounded-md border border-violet-400/30 bg-violet-500/20 text-sm leading-none"
+            className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-md border border-violet-400/30 bg-violet-500/20 text-xl font-medium leading-none text-white"
             aria-hidden
           >
             +
           </span>
-          Ajouter un client manuellement
+          <span className="min-w-0 flex-1 text-center leading-snug">
+            Ajouter un client manuellement
+          </span>
         </button>
       </div>
 
       {error ? (
-        <p className="mt-3 max-w-lg text-center text-sm text-red-300">{error}</p>
+        <p className="mt-3 text-center text-sm text-red-300">{error}</p>
       ) : null}
     </section>
   );

@@ -14,6 +14,7 @@ import {
   getImportRowCapacity,
 } from "@/lib/dashboard/plan-limits";
 import { filterDeliveriesForLigne, filterDeliveriesForTableau } from "@/lib/dashboard/relance-delivery-display";
+import { DASHBOARD_CONTENT_BLEED_CLASS } from "@/lib/dashboard/content-bleed";
 import { classifyServerImportFiles } from "@/lib/import/process-server-import";
 import { importFilesViaApi } from "@/lib/import/import-via-api";
 import type { ImportReviewQueueItem } from "@/lib/import/process-server-import";
@@ -26,6 +27,7 @@ import {
 } from "@/types/tableau";
 
 import { ImportPrompt } from "./ImportPrompt";
+import { ImportZoneToggleButton } from "./ImportZoneToggleButton";
 import { TableauGrid } from "./TableauGrid";
 import { DashboardTutorial } from "./tutorial/DashboardTutorial";
 
@@ -309,6 +311,11 @@ export function DashboardWorkspace({
           >
             Tutoriel
           </button>
+          {!importZoneVisible ? <ImportZoneToggleButton variant="show" /> : null}
+        </div>
+      ) : !importZoneVisible ? (
+        <div className={`mb-4 flex justify-center ${DASHBOARD_CONTENT_BLEED_CLASS}`}>
+          <ImportZoneToggleButton variant="show" />
         </div>
       ) : null}
 
@@ -357,8 +364,10 @@ export function DashboardWorkspace({
       />
       ) : null}
 
-      <section className={`w-full ${importZoneVisible ? "pt-4" : ""}`}>
-        <div className="mx-auto w-max max-w-full">
+      <section
+        className={`${DASHBOARD_CONTENT_BLEED_CLASS} w-full ${importZoneVisible ? "pt-2" : ""}`}
+      >
+        <div className="w-full min-w-0">
           <TableauGrid
               tableName={activeTable.name}
               onTableRename={(name) =>

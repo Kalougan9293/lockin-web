@@ -50,7 +50,15 @@ function findDeliveryForStep(
   const normalizedScheduled =
     normalizeDateOnlyInput(scheduledFor) ?? scheduledFor.trim();
   const key = buildRelanceIdempotencyKey(ligneId, stepId, normalizedScheduled);
-  return deliveries.find((delivery) => {
+
+  const ligneStepDeliveries = deliveries.filter(
+    (delivery) =>
+      delivery.ligne_id === ligneId &&
+      delivery.step_id === stepId &&
+      delivery.status !== "cancelled",
+  );
+
+  const exact = ligneStepDeliveries.find((delivery) => {
     const deliveryDate =
       normalizeDateOnlyInput(delivery.scheduled_for) ??
       delivery.scheduled_for.trim();
@@ -61,6 +69,12 @@ function findDeliveryForStep(
     );
     return delivery.idempotency_key === key || deliveryKey === key;
   });
+  if (exact) return exact;
+
+  // Relance déjà envoyée : conserver l'historique même si l'échéance a bougé.
+  return ligneStepDeliveries.find(
+    (delivery) => delivery.status === "sent" || delivery.status === "failed",
+  );
 }
 
 export function filterDeliveriesForLigne(

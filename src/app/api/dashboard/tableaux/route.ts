@@ -11,13 +11,18 @@ import {
   insertFullTable,
 } from "@/lib/dashboard/tableau-db";
 import { fetchRelanceDeliveriesForTableaux } from "@/lib/dashboard/fetch-relance-deliveries";
-import { cancelQueuedDeliveriesForPaidLigne } from "@/lib/dashboard/cancel-queued-deliveries";
+import {
+  cancelCancellableDeliveriesForLigne,
+  cancelQueuedDeliveriesForPaidLigne,
+  handleDueDateChangeSideEffects,
+} from "@/lib/dashboard/cancel-queued-deliveries";
 import {
   canAddTable,
   isTableRowsWithinLimits,
 } from "@/lib/dashboard/plan-limits";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { TableData } from "@/types/tableau";
+import type { ColumnDef } from "@/types/tableau";
 
 export async function GET() {
   try {
@@ -160,7 +165,10 @@ export async function PUT(request: Request) {
       await assertAdminApiAccess();
     }
 
-    const body = (await request.json()) as { row?: TableData["rows"][number] };
+    const body = (await request.json()) as {
+      row?: TableData["rows"][number];
+      previous?: TableData["rows"][number];
+    };
     if (!body.row) {
       return NextResponse.json({ error: "Ligne manquante." }, { status: 400 });
     }
@@ -178,7 +186,7 @@ export async function PUT(request: Request) {
 
     const { data: tableau } = await admin
       .from("tableaux")
-      .select("user_id")
+      .select("user_id, left_columns, hidden_left_columns")
       .eq("id", ligne.tableau_id)
       .maybeSingle();
 
@@ -186,12 +194,25 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "Accès refusé." }, { status: 403 });
     }
 
-    const wasPaid = ligne.values?.statut === "paye";
+    const columns = [
+      ...((tableau.left_columns ?? []) as ColumnDef[]),
+      ...((tableau.hidden_left_columns ?? []) as ColumnDef[]),
+    ];
+    const previousRow =
+      body.previous ?? ({ id: body.row.id, values: ligne.values } as TableData["rows"][number]);
+    const wasPaid = previousRow.values?.statut === "paye";
 
     await admin
       .from("lignes_factures")
       .update({ values: body.row.values })
       .eq("id", body.row.id);
+
+    await handleDueDateChangeSideEffects(
+      admin,
+      body.row,
+      previousRow,
+      columns,
+    );
 
     const isPaid = body.row.values.statut === "paye";
     if (isPaid && !wasPaid) {

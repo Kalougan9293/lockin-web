@@ -14,6 +14,8 @@ type TableTargetSelectProps = {
   canAddTable?: boolean;
   /** Teinte légère pour la zone d'import du dashboard. */
   tinted?: boolean;
+  /** Variante compacte pour la barre d'import horizontale. */
+  compact?: boolean;
 };
 
 export function TableTargetSelect({
@@ -25,6 +27,7 @@ export function TableTargetSelect({
   onAddTable,
   canAddTable = true,
   tinted = false,
+  compact = false,
 }: TableTargetSelectProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -73,10 +76,12 @@ export function TableTargetSelect({
   }
 
   return (
-    <div className="space-y-1.5">
+    <div className={compact ? "space-y-1" : "space-y-1.5"}>
       <span
         id={`${id}-label`}
-        className="block text-center text-sm font-medium text-white"
+        className={`block text-center font-medium text-white ${
+          compact ? "text-xs" : "text-sm"
+        }`}
       >
         {label}
       </span>
@@ -88,7 +93,9 @@ export function TableTargetSelect({
           aria-haspopup="listbox"
           aria-expanded={open}
           onClick={() => setOpen((current) => !current)}
-          className={`flex w-full items-center justify-center rounded-xl border px-8 py-2.5 text-center text-sm text-white outline-none transition-colors ${
+          className={`flex w-full items-center justify-center rounded-xl border text-center text-white outline-none transition-colors ${
+            compact ? "px-4 py-1.5 text-xs" : "px-8 py-2.5 text-sm"
+          } ${
             tinted
               ? "border-sky-400/20 bg-sky-500/[0.08] hover:border-sky-300/35 hover:bg-sky-500/[0.12] focus:border-sky-300/45 focus:ring-2 focus:ring-sky-400/20"
               : "border-white/10 bg-white/[0.04] hover:border-violet-300/30 focus:border-violet-300/40 focus:ring-2 focus:ring-violet-400/20"

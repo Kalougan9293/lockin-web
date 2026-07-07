@@ -7,7 +7,7 @@ export const DASHBOARD_TUTORIAL_STEPS: TutorialStep[] = [
   {
     target: '[data-tutorial="import-zone"]',
     message:
-      "Choisissez d'abord le tableau de destination, puis importez un fichier (PDF ou CSV) ou ajoutez un client manuellement avec le bouton en bas.",
+      "Choisissez d'abord le tableau de destination, puis importez un fichier (PDF ou CSV) ou ajoutez un client manuellement.",
   },
   {
     target: '[data-tutorial="table-title"]',

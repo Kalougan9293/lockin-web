@@ -111,15 +111,29 @@ export const RELANCE_STEP_STYLES: RelanceStepStyle[] = [
   },
 ];
 
+export const COLUMN_LABEL_TELEPHONE = "Téléphone";
+export const COLUMN_LABEL_FACTURE = "N°Facture";
+
+/** Anciens libellés UI / clés import IA — mappés vers les colonnes actuelles (ids inchangés). */
+export const LEGACY_COLUMN_LABEL_ALIASES: Record<string, string> = {
+  Numéro: COLUMN_LABEL_TELEPHONE,
+  Référence: COLUMN_LABEL_FACTURE,
+};
+
+export function canonicalColumnLabel(label: string): string {
+  const trimmed = label.trim();
+  return LEGACY_COLUMN_LABEL_ALIASES[trimmed] ?? trimmed;
+}
+
 export const STANDARD_TEMPLATE_LABELS = [
   "Nom",
   "Mail",
   "Date",
   "Montant",
   "Échéance",
-  "Numéro",
+  COLUMN_LABEL_TELEPHONE,
   "Info",
-  "Référence",
+  COLUMN_LABEL_FACTURE,
 ] as const;
 
 export function defaultRelanceStepName(ordre: number): string {
@@ -127,7 +141,7 @@ export function defaultRelanceStepName(ordre: number): string {
 }
 
 export const DEFAULT_SMS_FALLBACK =
-  "Bonjour [Nom], relance facture [Référence] (éch. [Échéance]). Merci de votre retour.";
+  "Bonjour [Nom], relance facture [N°Facture] (éch. [Échéance]). Merci de votre retour.";
 
 export const DEFAULT_RELANCE_STEPS: RelanceStep[] = [
   {
@@ -136,7 +150,7 @@ export const DEFAULT_RELANCE_STEPS: RelanceStep[] = [
     days: -7,
     channel: DEFAULT_RELANCE_STEP_CHANNEL,
     smsTemplate:
-      "Bonjour [Nom], facture [Référence] à échéance le [Échéance]. Merci d'anticiper le règlement.",
+      "Bonjour [Nom], facture [N°Facture] à échéance le [Échéance]. Merci d'anticiper le règlement.",
     messageTemplate:
       "Bonjour [Nom],\n\nVotre facture arrive bientôt à échéance le [Échéance]. Nous vous adressons ce message afin d'anticiper son règlement.\n\nMerci beaucoup.",
   },
@@ -146,7 +160,7 @@ export const DEFAULT_RELANCE_STEPS: RelanceStep[] = [
     days: 10,
     channel: DEFAULT_RELANCE_STEP_CHANNEL,
     smsTemplate:
-      "Bonjour [Nom], facture [Référence] impayée (éch. [Échéance]). Merci de nous indiquer une date de paiement.",
+      "Bonjour [Nom], facture [N°Facture] impayée (éch. [Échéance]). Merci de nous indiquer une date de paiement.",
     messageTemplate:
       "Bonjour [Nom],\n\nÀ ce jour, nous n'avons pas reçu le règlement de la facture arrivée à échéance le [Échéance].\n\nMerci de nous indiquer une date de paiement ou de procéder à sa régularisation dans les meilleurs délais.",
   },
@@ -156,7 +170,7 @@ export const DEFAULT_RELANCE_STEPS: RelanceStep[] = [
     days: 30,
     channel: DEFAULT_RELANCE_STEP_CHANNEL,
     smsTemplate:
-      "Bonjour [Nom], facture [Référence] toujours impayée (éch. [Échéance]). Merci de régulariser sous 8 jours.",
+      "Bonjour [Nom], facture [N°Facture] toujours impayée (éch. [Échéance]). Merci de régulariser sous 8 jours.",
     messageTemplate:
       "Bonjour [Nom],\n\nSauf erreur de notre part, la facture échue le [Échéance] demeure impayée malgré nos précédentes relances.\n\nNous vous remercions de procéder à sa régularisation sous 8 jours. À défaut de règlement, nous nous réservons le droit d'engager les démarches nécessaires au recouvrement de cette créance.",
   },
@@ -186,11 +200,20 @@ export type TableData = {
   ccCreditor: boolean;
 };
 
+/** Colonnes optionnelles visibles par défaut (Info en dernier, voir DEFAULT_LEFT_COLUMNS). */
+export const DEFAULT_OPTIONAL_LEFT_COLUMNS: ColumnDef[] = [
+  { id: "numero", label: COLUMN_LABEL_TELEPHONE },
+  { id: "date", label: "Date" },
+  { id: "reference", label: COLUMN_LABEL_FACTURE },
+];
+
 export const DEFAULT_LEFT_COLUMNS: ColumnDef[] = [
   { id: "nom", label: "Nom" },
   { id: "mail", label: "Mail" },
+  ...DEFAULT_OPTIONAL_LEFT_COLUMNS,
   { id: "montant", label: "Montant" },
   { id: "echeance", label: "Échéance" },
+  { id: "info", label: "Info" },
 ];
 
 export const DEFAULT_MODAL_FIELDS = ["Nom", "Mail", "Montant", "Échéance"] as const;
@@ -200,10 +223,10 @@ export const IMPORT_ALWAYS_VISIBLE_MODAL_FIELDS = ["Mail", "Échéance"] as cons
 
 export const OPTIONAL_CLIENT_BUBBLES = [
   "Date",
-  "Numéro",
+  COLUMN_LABEL_TELEPHONE,
   "Info",
   "Échéance",
-  "Référence",
+  COLUMN_LABEL_FACTURE,
 ] as const;
 
 /** Ordre d'affichage des champs dans les modales d'ajout client / import. */
@@ -220,13 +243,17 @@ export const MODAL_FIELD_POOL = [
 export function resolveActiveFieldsFromImport(
   fields: Record<string, string>,
 ): string[] {
-  const fromValues = MODAL_FIELD_POOL.filter((label) => fields[label]?.trim());
+  const fromValues = MODAL_FIELD_POOL.filter((label) =>
+    importFieldHasValue(fields, label),
+  );
   const customs = Object.keys(fields).filter(
     (key) =>
       fields[key]?.trim() &&
       !MODAL_FIELD_POOL.some(
-        (label) => label.toLowerCase() === key.toLowerCase(),
-      ),
+        (label) =>
+          labelsMatch(label, key) || labelsMatch(label, canonicalColumnLabel(key)),
+      ) &&
+      !Object.prototype.hasOwnProperty.call(LEGACY_COLUMN_LABEL_ALIASES, key.trim()),
   );
 
   const wanted = new Set(
@@ -255,10 +282,10 @@ export const ADD_CLIENT_BUBBLES = [...OPTIONAL_CLIENT_BUBBLES, "Autres"] as cons
 /** @deprecated Préférer getAddableColumnLabels() — liste dynamique selon colonnes visibles/masquées. */
 export const LEFT_COLUMN_PRESETS = [
   "Date",
-  "Numéro",
+  COLUMN_LABEL_TELEPHONE,
   "Info",
   "Montant",
-  "Référence",
+  COLUMN_LABEL_FACTURE,
 ];
 
 function isColumnLabelPresent(columns: ColumnDef[], label: string) {
@@ -496,7 +523,110 @@ export function upgradeLegacyDefaultColumns(table: TableData): TableData {
     }
   }
 
-  return reorderMontantBeforeEcheance(next);
+  next = reorderMontantBeforeEcheance(next);
+  next = ensureDefaultOptionalLeftColumns(next);
+  if (
+    looksLikeLegacyDefaultColumnOrder(next.leftColumns) ||
+    hasOnlyDefaultLeftColumnLabels(next.leftColumns)
+  ) {
+    next = reorderLeftColumnsToDefaultOrder(next);
+  }
+  return renameStandardColumnLabels(next);
+}
+
+function renameStandardColumnLabels(table: TableData): TableData {
+  const remapColumns = (columns: ColumnDef[]) => {
+    let changed = false;
+    const next = columns.map((column) => {
+      if (column.id === "numero" && labelsMatch(column.label, "Numéro")) {
+        changed = true;
+        return { ...column, label: COLUMN_LABEL_TELEPHONE };
+      }
+      if (column.id === "reference" && labelsMatch(column.label, "Référence")) {
+        changed = true;
+        return { ...column, label: COLUMN_LABEL_FACTURE };
+      }
+      return column;
+    });
+    return { next, changed };
+  };
+
+  const left = remapColumns(table.leftColumns);
+  const hidden = remapColumns(table.hiddenLeftColumns);
+  if (!left.changed && !hidden.changed) return table;
+  return { ...table, leftColumns: left.next, hiddenLeftColumns: hidden.next };
+}
+
+/** Ajoute Téléphone / Date / N°Facture / Info (en dernier) si jamais présentes. */
+function ensureDefaultOptionalLeftColumns(table: TableData): TableData {
+  let leftColumns = [...table.leftColumns];
+  let changed = false;
+
+  for (const preset of [...DEFAULT_OPTIONAL_LEFT_COLUMNS, { id: "info", label: "Info" }]) {
+    if (
+      isColumnLabelPresent(leftColumns, preset.label) ||
+      isColumnLabelPresent(table.hiddenLeftColumns, preset.label)
+    ) {
+      continue;
+    }
+    leftColumns.push({ ...preset });
+    changed = true;
+  }
+
+  if (!changed) return table;
+  return reorderLeftColumnsToDefaultOrder({ ...table, leftColumns });
+}
+
+function looksLikeLegacyDefaultColumnOrder(leftColumns: ColumnDef[]): boolean {
+  if (leftColumns.length < 4) return false;
+  return (
+    labelsMatch(leftColumns[0].label, "Nom") &&
+    labelsMatch(leftColumns[1].label, "Mail") &&
+    labelsMatch(leftColumns[2].label, "Montant") &&
+    labelsMatch(leftColumns[3].label, "Échéance")
+  );
+}
+
+function hasOnlyDefaultLeftColumnLabels(leftColumns: ColumnDef[]): boolean {
+  if (leftColumns.length === 0) return false;
+  const allowed = new Set(
+    DEFAULT_LEFT_COLUMNS.map((column) => column.label.toLowerCase()),
+  );
+  return leftColumns.every((column) =>
+    allowed.has(column.label.trim().toLowerCase()),
+  );
+}
+
+/** Remet les colonnes standards dans l'ordre par défaut (colonnes custom en fin). */
+function reorderLeftColumnsToDefaultOrder(table: TableData): TableData {
+  const { leftColumns } = table;
+  if (leftColumns.length === 0) return table;
+
+  const used = new Set<string>();
+  const ordered: ColumnDef[] = [];
+
+  for (const preset of DEFAULT_LEFT_COLUMNS) {
+    const match = leftColumns.find(
+      (column) =>
+        !used.has(column.id) && labelsMatch(column.label, preset.label),
+    );
+    if (match) {
+      ordered.push(match);
+      used.add(match.id);
+    }
+  }
+
+  for (const column of leftColumns) {
+    if (!used.has(column.id)) {
+      ordered.push(column);
+    }
+  }
+
+  const sameOrder = ordered.every(
+    (column, index) => column.id === leftColumns[index]?.id,
+  );
+  if (sameOrder) return table;
+  return { ...table, leftColumns: ordered };
 }
 
 function isMontantColumn(column: ColumnDef) {
@@ -550,8 +680,30 @@ function labelsMatch(a: string, b: string) {
   return a.trim().toLowerCase() === b.trim().toLowerCase();
 }
 
+function labelsMatchField(columnLabel: string, fieldLabel: string) {
+  return (
+    labelsMatch(columnLabel, fieldLabel) ||
+    labelsMatch(columnLabel, canonicalColumnLabel(fieldLabel))
+  );
+}
+
+function importFieldHasValue(
+  fields: Record<string, string>,
+  label: string,
+): boolean {
+  if (fields[label]?.trim()) return true;
+  const legacyKey = Object.entries(LEGACY_COLUMN_LABEL_ALIASES).find(([, canonical]) =>
+    labelsMatch(canonical, label),
+  )?.[0];
+  return Boolean(legacyKey && fields[legacyKey]?.trim());
+}
+
 function findColumnByLabel(columns: ColumnDef[], label: string) {
-  return columns.find((column) => labelsMatch(column.label, label));
+  const canonical = canonicalColumnLabel(label);
+  return columns.find(
+    (column) =>
+      labelsMatch(column.label, label) || labelsMatch(column.label, canonical),
+  );
 }
 
 function columnHasDataInRows(columnId: string, rows: ClientRow[]) {
@@ -650,7 +802,7 @@ export function mergeClientValuesIntoTable(
 
   const keptNotInSubmission = table.leftColumns.filter((column) => {
     const inSubmission = submittedLabels.some((label) =>
-      labelsMatch(label, column.label),
+      labelsMatchField(column.label, label),
     );
     if (inSubmission) return false;
     return columnHasDataInRows(column.id, table.rows);
@@ -661,7 +813,7 @@ export function mergeClientValuesIntoTable(
   const values: Record<string, string> = {};
   for (const column of leftColumns) {
     const match = Object.entries(valuesByLabel).find(([label]) =>
-      labelsMatch(label, column.label),
+      labelsMatchField(column.label, label),
     );
     values[column.id] = match?.[1]?.trim() ?? "";
   }
@@ -718,14 +870,14 @@ export function isPhoneColumnLabel(label: string): boolean {
     .normalize("NFD")
     .replace(/\p{M}/gu, "");
   return (
-    normalized.includes("numero") ||
     normalized.includes("telephone") ||
     normalized.includes("phone") ||
-    normalized === "tel"
+    normalized === "tel" ||
+    normalized === "numero"
   );
 }
 
-/** Évite que le navigateur associe « Numéro » / « Montant » à un formulaire de paiement. */
+/** Évite que le navigateur associe téléphone / montant à un formulaire de paiement. */
 export function getColumnFieldName(label: string): string {
   const slug = label
     .toLowerCase()

@@ -73,11 +73,19 @@ const BUBBLE_COLORS: Record<string, { on: string; off: string }> = {
     on: "border-sky-400/70 bg-sky-500/40 text-sky-50 shadow-md shadow-sky-900/25",
     off: "border-sky-400/30 bg-sky-500/15 text-sky-200 hover:bg-sky-500/25 hover:border-sky-400/50",
   },
+  Téléphone: {
+    on: "border-sky-400/70 bg-sky-500/40 text-sky-50 shadow-md shadow-sky-900/25",
+    off: "border-sky-400/30 bg-sky-500/15 text-sky-200 hover:bg-sky-500/25 hover:border-sky-400/50",
+  },
   Info: {
     on: "border-rose-400/70 bg-rose-500/40 text-rose-50 shadow-md shadow-rose-900/25",
     off: "border-rose-400/30 bg-rose-500/15 text-rose-200 hover:bg-rose-500/25 hover:border-rose-400/50",
   },
   Référence: {
+    on: "border-orange-400/70 bg-orange-500/40 text-orange-50 shadow-md shadow-orange-900/25",
+    off: "border-orange-400/30 bg-orange-500/15 text-orange-200 hover:bg-orange-500/25 hover:border-orange-400/50",
+  },
+  "N°Facture": {
     on: "border-orange-400/70 bg-orange-500/40 text-orange-50 shadow-md shadow-orange-900/25",
     off: "border-orange-400/30 bg-orange-500/15 text-orange-200 hover:bg-orange-500/25 hover:border-orange-400/50",
   },

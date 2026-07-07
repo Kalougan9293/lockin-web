@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 
 import { signUpAction, type AuthActionState } from "@/app/actions/auth";
 import { FormPendingSubmitButton } from "@/components/navigation/link-pending-feedback";
@@ -14,9 +14,31 @@ import { PasswordCriteria } from "./PasswordCriteria";
 
 const initialState: AuthActionState = {};
 
+const emptyForm = {
+  prenom: "",
+  nomSociete: "",
+  domaineActivite: "",
+  email: "",
+  password: "",
+  acceptCgu: false,
+};
+
 export function SignUpForm() {
   const [state, formAction] = useActionState(signUpAction, initialState);
-  const [password, setPassword] = useState("");
+  const [form, setForm] = useState(emptyForm);
+
+  useEffect(() => {
+    if (!state.values) return;
+
+    setForm((current) => ({
+      ...current,
+      prenom: state.values?.prenom ?? current.prenom,
+      nomSociete: state.values?.nomSociete ?? current.nomSociete,
+      domaineActivite: state.values?.domaineActivite ?? current.domaineActivite,
+      email: state.values?.email ?? current.email,
+      acceptCgu: state.values?.acceptCgu ?? current.acceptCgu,
+    }));
+  }, [state.values]);
 
   if (state.success) {
     return (
@@ -53,6 +75,10 @@ export function SignUpForm() {
           type="text"
           autoComplete="given-name"
           required
+          value={form.prenom}
+          onChange={(event) =>
+            setForm((current) => ({ ...current, prenom: event.target.value }))
+          }
           error={state.fieldErrors?.prenom}
         />
         <AuthField
@@ -61,13 +87,23 @@ export function SignUpForm() {
           type="text"
           autoComplete="organization"
           required
+          value={form.nomSociete}
+          onChange={(event) =>
+            setForm((current) => ({ ...current, nomSociete: event.target.value }))
+          }
           error={state.fieldErrors?.nomSociete}
         />
         <AuthSelect
           label="Domaine d'activité"
           name="domaineActivite"
           required
-          defaultValue=""
+          value={form.domaineActivite}
+          onChange={(event) =>
+            setForm((current) => ({
+              ...current,
+              domaineActivite: event.target.value,
+            }))
+          }
           options={ACTIVITY_DOMAINS.map((domain) => ({
             value: domain,
             label: domain,
@@ -81,6 +117,10 @@ export function SignUpForm() {
           type="email"
           autoComplete="email"
           required
+          value={form.email}
+          onChange={(event) =>
+            setForm((current) => ({ ...current, email: event.target.value }))
+          }
           error={state.fieldErrors?.email}
         />
         <div className="space-y-2">
@@ -90,11 +130,13 @@ export function SignUpForm() {
             type="password"
             autoComplete="new-password"
             required
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
+            value={form.password}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, password: event.target.value }))
+            }
             error={state.fieldErrors?.password}
           />
-          <PasswordCriteria password={password} />
+          <PasswordCriteria password={form.password} />
         </div>
 
         <div className="space-y-2">
@@ -103,6 +145,13 @@ export function SignUpForm() {
               type="checkbox"
               name="acceptCgu"
               required
+              checked={form.acceptCgu}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  acceptCgu: event.target.checked,
+                }))
+              }
               className="mt-1 h-4 w-4 rounded border-white/20 bg-brand-dark text-brand-accent focus:ring-brand-accent/30"
             />
             <span>

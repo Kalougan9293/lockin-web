@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { useUserPreferences } from "@/contexts/UserPreferencesContext";
@@ -181,7 +181,21 @@ type TableColumnProps = {
 
 const REMOVE_BUTTON_CH = 2.25;
 const COLUMN_WIDTH_PAD_CH = 0.35;
-const MIN_COLUMN_LABEL_CHARS = 4;
+
+function getTitleBasedColumnWidthCh(
+  column: ColumnDef,
+  reserveRemoveButton: boolean,
+): number {
+  const controlsCh = reserveRemoveButton ? REMOVE_BUTTON_CH : 0;
+  return column.label.length + controlsCh + COLUMN_WIDTH_PAD_CH;
+}
+
+function getMinColumnWidthCh(
+  column: ColumnDef,
+  reserveRemoveButton: boolean,
+): number {
+  return getTitleBasedColumnWidthCh(column, reserveRemoveButton);
+}
 const RIGHT_COLUMN_WIDTH_PAD_CH = 1.5;
 /** Largeur minimale d'une colonne relance (texte « Prévu : DD/MM »). */
 const DEFAULT_RELANCE_COLUMN_MIN_WIDTH = "7rem";
@@ -197,17 +211,17 @@ function getColumnCharWidth(
   extraControlsCh = 0,
 ) {
   const lengths = rows.map((_, rowIndex) => getLength(rowIndex, column.id));
-  const base = Math.max(column.label.length, ...lengths, 3);
+  const contentMax = lengths.length > 0 ? Math.max(...lengths, 0) : 0;
+  const base = Math.max(column.label.length, contentMax);
   return base + extraControlsCh;
 }
 
-function getMinColumnWidthCh(
+function columnHasCellContent(
   column: ColumnDef,
-  reserveRemoveButton: boolean,
-): number {
-  const labelChars = Math.min(column.label.length, MIN_COLUMN_LABEL_CHARS);
-  const controlsCh = reserveRemoveButton ? REMOVE_BUTTON_CH : 0;
-  return labelChars + controlsCh + COLUMN_WIDTH_PAD_CH;
+  rows: ClientRow[],
+  getLength: (rowIndex: number, columnId: string) => number,
+) {
+  return rows.some((_, rowIndex) => getLength(rowIndex, column.id) > 0);
 }
 
 function computeDefaultColumnWidthCh(
@@ -216,9 +230,14 @@ function computeDefaultColumnWidthCh(
   getLength: (rowIndex: number, columnId: string) => number,
   reserveRemoveButton: boolean,
 ): number {
+  if (!columnHasCellContent(column, rows, getLength)) {
+    return getTitleBasedColumnWidthCh(column, reserveRemoveButton);
+  }
+
   const controlsCh = reserveRemoveButton ? REMOVE_BUTTON_CH : 0;
-  return (
-    getColumnCharWidth(column, rows, getLength, controlsCh) + COLUMN_WIDTH_PAD_CH
+  return Math.max(
+    getTitleBasedColumnWidthCh(column, reserveRemoveButton),
+    getColumnCharWidth(column, rows, getLength, controlsCh) + COLUMN_WIDTH_PAD_CH,
   );
 }
 
@@ -865,6 +884,8 @@ export function TableauGrid({
 }: TableauGridProps) {
   const { dateFormat } = useUserPreferences();
   const [columnWidthsCh, setColumnWidthsCh] = useState<Record<string, number>>({});
+  const columnWidthsChRef = useRef<Record<string, number>>({});
+  const displayColumnWidthsRef = useRef<Record<string, number>>({});
   const columnResizeRef = useRef<{
     columnId: string;
     startX: number;
@@ -904,6 +925,88 @@ export function TableauGrid({
       axis: "x",
     });
 
+  function getCellRawValue(rowIndex: number, columnId: string) {
+    return rows[rowIndex]?.values[columnId] ?? "";
+  }
+
+  function getCellValue(rowIndex: number, columnId: string) {
+    const raw = getCellRawValue(rowIndex, columnId);
+    const column = leftColumns.find((entry) => entry.id === columnId);
+    if (column && isDateColumnLabel(column.label)) {
+      return formatDateForDisplay(raw, dateFormat);
+    }
+    if (column && isAmountColumnLabel(column.label)) {
+      return formatAmountForDisplay(raw);
+    }
+    return raw;
+  }
+
+  function getColumnLength(
+    rowIndex: number,
+    columnId: string,
+    column: ColumnDef,
+  ) {
+    const raw =
+      getCellRawValue(rowIndex, columnId) ??
+      getCellValue(rowIndex, columnId);
+    if (isDateColumnLabel(column.label)) {
+      return formatDateForDisplay(raw, dateFormat).length || 0;
+    }
+    if (isAmountColumnLabel(column.label)) {
+      return formatAmountForDisplay(raw).length || 0;
+    }
+    return raw.trim().length;
+  }
+
+  function hideLeftColumn(id: string) {
+    setColumnWidthsCh((current) => {
+      if (!(id in current)) return current;
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+    onHideLeftColumn(id);
+  }
+
+  const getColumnLengthForWidth = useCallback(
+    (rowIndex: number, columnId: string) => {
+      const column = leftColumns.find((entry) => entry.id === columnId);
+      if (!column) return 0;
+      return getColumnLength(rowIndex, columnId, column);
+    },
+    [leftColumns, rows, dateFormat],
+  );
+
+  const defaultColumnWidthsCh = useMemo(
+    () =>
+      Object.fromEntries(
+        leftColumns.map((column) => [
+          column.id,
+          computeDefaultColumnWidthCh(
+            column,
+            rows,
+            getColumnLengthForWidth,
+            true,
+          ),
+        ]),
+      ),
+    [leftColumns, rows, getColumnLengthForWidth],
+  );
+
+  const displayColumnWidthsCh = useMemo(
+    () =>
+      Object.fromEntries(
+        leftColumns.map((column) => [
+          column.id,
+          columnWidthsCh[column.id] ?? defaultColumnWidthsCh[column.id],
+        ]),
+      ),
+    [leftColumns, columnWidthsCh, defaultColumnWidthsCh],
+  );
+
+  columnWidthsChRef.current = columnWidthsCh;
+  displayColumnWidthsRef.current = displayColumnWidthsCh;
+
   useEffect(() => {
     function handleMouseMove(event: MouseEvent) {
       const session = columnResizeRef.current;
@@ -915,10 +1018,12 @@ export function TableauGrid({
         session.startWidthCh + deltaCh,
       );
 
-      setColumnWidthsCh((current) => ({
-        ...current,
+      const next = {
+        ...columnWidthsChRef.current,
         [session.columnId]: nextWidthCh,
-      }));
+      };
+      columnWidthsChRef.current = next;
+      setColumnWidthsCh(next);
     }
 
     function handleMouseUp() {
@@ -943,64 +1048,30 @@ export function TableauGrid({
     currentWidthCh: number,
     minWidthCh: number,
   ) {
+    let widths = columnWidthsChRef.current;
+    if (Object.keys(widths).length === 0) {
+      widths = { ...displayColumnWidthsRef.current };
+      columnWidthsChRef.current = widths;
+      setColumnWidthsCh(widths);
+    }
+
+    const startWidthCh = widths[columnId] ?? currentWidthCh;
+
     const handle = event.currentTarget as HTMLElement;
     const columnEl = handle.parentElement;
     const headerLabel = columnEl?.querySelector("span");
-    const chPx = measureChPixelWidth(
+    const measuredChPx = measureChPixelWidth(
       (headerLabel ?? columnEl ?? handle) as HTMLElement,
     );
     columnResizeRef.current = {
       columnId,
       startX: event.clientX,
-      startWidthCh: currentWidthCh,
+      startWidthCh,
       minWidthCh,
-      chPx,
+      chPx: measuredChPx,
     };
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
-  }
-
-  function getColumnLength(
-    rowIndex: number,
-    columnId: string,
-    column: ColumnDef,
-  ) {
-    const raw =
-      getCellRawValue(rowIndex, columnId) ??
-      getCellValue(rowIndex, columnId);
-    if (isDateColumnLabel(column.label)) {
-      return formatDateForDisplay(raw, dateFormat).length || 1;
-    }
-    if (isAmountColumnLabel(column.label)) {
-      return formatAmountForDisplay(raw).length || 1;
-    }
-    return raw.length || 1;
-  }
-
-  function hideLeftColumn(id: string) {
-    setColumnWidthsCh((current) => {
-      if (!(id in current)) return current;
-      const next = { ...current };
-      delete next[id];
-      return next;
-    });
-    onHideLeftColumn(id);
-  }
-
-  function getCellRawValue(rowIndex: number, columnId: string) {
-    return rows[rowIndex]?.values[columnId] ?? "";
-  }
-
-  function getCellValue(rowIndex: number, columnId: string) {
-    const raw = getCellRawValue(rowIndex, columnId);
-    const column = leftColumns.find((entry) => entry.id === columnId);
-    if (column && isDateColumnLabel(column.label)) {
-      return formatDateForDisplay(raw, dateFormat);
-    }
-    if (column && isAmountColumnLabel(column.label)) {
-      return formatAmountForDisplay(raw);
-    }
-    return raw;
   }
 
   function handleCellChange(rowIndex: number, columnId: string, value: string) {
@@ -1036,7 +1107,7 @@ export function TableauGrid({
   return (
     <>
       {DragPreview}
-      <div className="grid w-max max-w-full min-w-0 grid-cols-[minmax(0,max-content)_3px_auto_2rem]">
+      <div className="grid w-full max-w-full min-w-0 grid-cols-[minmax(0,1fr)_3px_auto_2rem]">
         <div
           className="col-start-1 row-start-1 mb-5 min-w-0 self-end overflow-hidden"
           data-tutorial="table-title"
@@ -1092,7 +1163,7 @@ export function TableauGrid({
               data-tutorial="table-left"
               className={`rounded-bl-2xl border border-t ${TABLE_BORDER} border-r-0 bg-brand-surface shadow-xl shadow-violet-950/25 ring-1 ring-white/[0.07]`}
             >
-              <div className="flex shrink-0 bg-gradient-to-b from-violet-500/[0.12] to-brand-surface/80">
+              <div className="flex w-max shrink-0 bg-gradient-to-b from-violet-500/[0.12] to-brand-surface/80">
                 <RowNumberColumn
                   rows={rows}
                   totalRows={totalRows}
@@ -1100,16 +1171,10 @@ export function TableauGrid({
                   addRowDisabled={addRowDisabled}
                 />
                 {leftColumns.map((column) => {
-                  const minColumnWidthCh = getMinColumnWidthCh(column, true);
-                  const defaultColumnWidthCh = computeDefaultColumnWidthCh(
-                    column,
-                    rows,
-                    (rowIndex, columnId) =>
-                      getColumnLength(rowIndex, columnId, column),
-                    true,
-                  );
+                  const titleMinColumnWidthCh = getMinColumnWidthCh(column, true);
                   const columnWidthCh =
-                    columnWidthsCh[column.id] ?? defaultColumnWidthCh;
+                    displayColumnWidthsCh[column.id] ??
+                    defaultColumnWidthsCh[column.id];
 
                   return (
                     <TableColumn
@@ -1124,14 +1189,14 @@ export function TableauGrid({
                       rows={rows}
                       totalRows={totalRows}
                       columnWidthCh={columnWidthCh}
-                      minColumnWidthCh={minColumnWidthCh}
+                      minColumnWidthCh={titleMinColumnWidthCh}
                       resizable
-                      onResizeStart={(event, currentWidthCh, minWidthCh) =>
+                      onResizeStart={(event, currentWidthCh) =>
                         beginColumnResize(
                           column.id,
                           event,
                           currentWidthCh,
-                          minWidthCh,
+                          titleMinColumnWidthCh,
                         )
                       }
                       onRemove={() => hideLeftColumn(column.id)}
