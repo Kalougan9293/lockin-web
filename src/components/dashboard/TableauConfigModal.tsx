@@ -529,26 +529,23 @@ export function TableauConfigModal({
                 </tr>
               );
             })}
-            <tr className="border-b border-white/[0.06] bg-white/[0.02]">
-              <td colSpan={5} className="px-4 py-4 sm:px-6">
-                <label className="flex cursor-pointer items-center justify-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={ccCreditor}
-                    onChange={(event) => setCcCreditor(event.target.checked)}
-                    className="h-4 w-4 shrink-0 rounded border-white/20 bg-white/[0.04] text-brand-accent focus:ring-brand-accent/40"
-                  />
-                  <span className="text-sm font-medium text-white">
-                    Me mettre en copie (CC) sur chaque relance e-mail
-                  </span>
-                </label>
-              </td>
-            </tr>
           </tbody>
         </table>
       </div>
 
-      <footer className="shrink-0 space-y-4 border-t border-white/10 px-4 py-5 sm:px-8">
+      <footer className="shrink-0 space-y-4 border-t border-white/10 bg-brand-dark px-4 py-5 sm:px-8">
+        <label className="flex cursor-pointer items-center justify-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+          <input
+            type="checkbox"
+            checked={ccCreditor}
+            onChange={(event) => setCcCreditor(event.target.checked)}
+            className="h-4 w-4 shrink-0 rounded border-white/20 bg-white/[0.04] text-brand-accent focus:ring-brand-accent/40"
+          />
+          <span className="text-sm font-medium text-white">
+            Me mettre en copie (CC) sur chaque relance e-mail
+          </span>
+        </label>
+
         <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-2">
           <span className="text-xs font-medium text-brand-muted">Variables :</span>
           {templateBubbles.map((label) => (

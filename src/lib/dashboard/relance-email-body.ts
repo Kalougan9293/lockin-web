@@ -1,7 +1,16 @@
 export const RELANCE_EMAIL_BRAND_URL = "https://lockin-web.online";
+export const RELANCE_EMAIL_CONTACT_URL = `${RELANCE_EMAIL_BRAND_URL}/contact`;
 
 export const RELANCE_EMAIL_DISCLAIMER =
   "Si vous avez déjà payé cette facture, veuillez ne pas prendre en compte cette relance.";
+
+export const RELANCE_EMAIL_SERVICE_LINE =
+  "LockIn — Service de gestion des impayés";
+
+/** Pied de page : #6b7280 sur blanc ≈ 4,8:1 (WCAG AA texte normal). */
+const FOOTER_TEXT_COLOR = "#6b7280";
+/** Liens du pied : #4b5563 sur blanc ≈ 7:1 (WCAG AAA). */
+const FOOTER_LINK_COLOR = "#4b5563";
 
 export type RelanceEmailCreditor = {
   companyName: string;
@@ -22,7 +31,8 @@ Cordialement,
 ${companyName}
 
 ---
-Envoyé via Lockin
+${RELANCE_EMAIL_SERVICE_LINE}
+Contact : ${RELANCE_EMAIL_CONTACT_URL}
 
 ${RELANCE_EMAIL_DISCLAIMER}`;
 }
@@ -51,6 +61,20 @@ function buildPreheaderHtml(dueDate: string | null): string {
   return `<div style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all">${escapeHtml(text)}</div>`;
 }
 
+function buildEmailFooterHtml(): string {
+  const linkStyle = `color:${FOOTER_LINK_COLOR};text-decoration:underline`;
+
+  return `<p style="margin:0 0 10px;font-size:12px;line-height:1.55;color:${FOOTER_TEXT_COLOR};text-align:center">
+                ${escapeHtml(RELANCE_EMAIL_SERVICE_LINE)}
+              </p>
+              <p style="margin:0 0 12px;font-size:12px;line-height:1.55;color:${FOOTER_TEXT_COLOR};text-align:center">
+                <a href="${RELANCE_EMAIL_BRAND_URL}" style="${linkStyle}">Envoyé via LockIn</a>
+                <span style="color:${FOOTER_TEXT_COLOR}"> · </span>
+                <a href="${RELANCE_EMAIL_CONTACT_URL}" style="${linkStyle}">Contact</a>
+              </p>
+              <p style="margin:0;font-size:12px;line-height:1.55;color:${FOOTER_TEXT_COLOR};text-align:center">${escapeHtml(RELANCE_EMAIL_DISCLAIMER)}</p>`;
+}
+
 /** Template HTML complet pour l'envoi n8n (SMTP en mode HTML). */
 export function buildRelanceEmailHtml(
   messageBody: string,
@@ -63,6 +87,7 @@ export function buildRelanceEmailHtml(
   const preheaderHtml = buildPreheaderHtml(
     extractDueDateForPreheader(emphasisValues, trimmedBody),
   );
+  const footerHtml = buildEmailFooterHtml();
 
   return `<!DOCTYPE html>
 <html lang="fr" xmlns="http://www.w3.org/1999/xhtml">
@@ -103,10 +128,7 @@ export function buildRelanceEmailHtml(
           </tr>
           <tr>
             <td style="padding:0 40px 36px">
-              <p style="margin:0 0 12px;font-size:11px;line-height:1.5;color:#c4c9d2;text-align:center">
-                <a href="${RELANCE_EMAIL_BRAND_URL}" style="color:#c4c9d2;text-decoration:none">Envoyé via Lockin</a>
-              </p>
-              <p style="margin:0;font-size:11px;line-height:1.55;color:#c4c9d2;text-align:center">${escapeHtml(RELANCE_EMAIL_DISCLAIMER)}</p>
+              ${footerHtml}
             </td>
           </tr>
         </table>
@@ -134,7 +156,7 @@ function formatMessageBodyHtml(messageBody: string): string {
 
       if (/^—\s*.+\s*—$/.test(block)) {
         const html = escapeHtml(block);
-        return `<p style="margin:28px 0 12px;font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:#9ca3af">${html}</p>`;
+        return `<p style="margin:28px 0 12px;font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:#6b7280">${html}</p>`;
       }
 
       const html = escapeHtml(block).replace(/\n/g, "<br />");
