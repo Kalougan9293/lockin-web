@@ -28,7 +28,7 @@ export function TableDateCell({
       name={getColumnFieldName(columnLabel)}
       ariaLabel={ariaLabel}
       onChange={onChange}
-      className="w-full min-w-[3ch] bg-transparent px-0.5 text-left text-sm text-white/90 outline-none placeholder:text-brand-muted/40 focus:text-white"
+      className="w-full min-w-[3ch] bg-transparent px-0.5 text-center text-sm text-white/90 outline-none placeholder:text-brand-muted/40 focus:text-white"
     />
   );
 }

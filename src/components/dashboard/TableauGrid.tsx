@@ -11,7 +11,12 @@ import {
   filterDeliveriesForLigne,
 } from "@/lib/dashboard/relance-delivery-display";
 import { isRecoveryRequired, getRowFieldValue } from "@/lib/dashboard/recovery";
-import { rowMissingDueDate } from "@/lib/dashboard/relance-schedule";
+import { parseDateOnly } from "@/lib/dashboard/date-only";
+import {
+  isDueDateColumnLabel,
+  rowMissingDueDate,
+  todayDateOnly,
+} from "@/lib/dashboard/relance-schedule";
 import {
   dashboardColumnHeaderClassName,
   dashboardConfigureTitleClassName,
@@ -20,6 +25,7 @@ import {
 import {
   formatAmountForDisplay,
   isAmountColumnLabel,
+  parseAmountToStorage,
 } from "@/lib/preferences/currency-format";
 import type { DateFormatPreference } from "@/lib/preferences/date-format";
 import {
@@ -177,6 +183,8 @@ type TableColumnProps = {
     currentWidthCh: number,
     minWidthCh: number,
   ) => void;
+  sortDirection?: "asc" | "desc" | null;
+  onToggleSort?: () => void;
 };
 
 const REMOVE_BUTTON_CH = 2.25;
@@ -203,6 +211,7 @@ const DEFAULT_RELANCE_COLUMN_MIN_WIDTH = "7rem";
 const DEFAULT_STATUT_COLUMN_MIN_WIDTH = "5.75rem";
 /** Largeur de la colonne Progression (badge + bouton timeline). */
 const PROGRESSION_COLUMN_WIDTH = "12.75rem";
+type SortDirection = "asc" | "desc";
 
 function getColumnCharWidth(
   column: ColumnDef,
@@ -246,7 +255,11 @@ function computeColumnStyle(widthCh: number) {
 }
 
 function getStatutColumnCharWidth(column: RightColumnDef) {
-  return Math.max(column.label.length, "PAYE ?".length, "PAYE !".length, 4);
+  const longestStatus = STATUT_OPTIONS.reduce(
+    (max, option) => Math.max(max, option.label.length + 3),
+    "En attente".length,
+  );
+  return Math.max(column.label.length, longestStatus, 10);
 }
 
 function computeRightColumnStyle(column: RightColumnDef) {
@@ -391,6 +404,205 @@ const RIGHT_COLUMN_STYLES = {
   },
 } as const;
 
+type StatutOption = {
+  value: PaymentStatus;
+  label: string;
+  emoji: string;
+  bubbleClassName: string;
+};
+
+const STATUT_OPTIONS: StatutOption[] = [
+  {
+    value: "",
+    label: "En attente",
+    emoji: "🕒",
+    bubbleClassName: "bg-white/[0.12] text-white/85 ring-white/20",
+  },
+  {
+    value: "paye",
+    label: "Payé",
+    emoji: "✅",
+    bubbleClassName: "bg-emerald-500/35 text-emerald-100 ring-emerald-300/60",
+  },
+  {
+    value: "aucune_reponse",
+    label: "Aucune réponse",
+    emoji: "📭",
+    bubbleClassName: "bg-slate-400/25 text-slate-100 ring-slate-200/35",
+  },
+  {
+    value: "promesse",
+    label: "Promesse",
+    emoji: "⏳",
+    bubbleClassName: "bg-sky-500/30 text-sky-100 ring-sky-300/45",
+  },
+  {
+    value: "delai",
+    label: "Délai",
+    emoji: "📅",
+    bubbleClassName: "bg-indigo-500/32 text-indigo-100 ring-indigo-300/45",
+  },
+  {
+    value: "partiel",
+    label: "Partiel",
+    emoji: "💸",
+    bubbleClassName: "bg-amber-400/32 text-amber-100 ring-amber-300/45",
+  },
+  {
+    value: "litige",
+    label: "Litige",
+    emoji: "⚠️",
+    bubbleClassName: "bg-orange-500/35 text-orange-100 ring-orange-300/45",
+  },
+  {
+    value: "refus",
+    label: "Refus",
+    emoji: "❌",
+    bubbleClassName: "bg-rose-500/35 text-rose-100 ring-rose-300/45",
+  },
+  {
+    value: "injoignable",
+    label: "Injoignable",
+    emoji: "📵",
+    bubbleClassName: "bg-fuchsia-500/35 text-fuchsia-100 ring-fuchsia-300/45",
+  },
+];
+
+function getStatutOption(status: PaymentStatus) {
+  return STATUT_OPTIONS.find((option) => option.value === status);
+}
+
+function StatutCell({
+  status,
+  onChange,
+}: {
+  status: PaymentStatus;
+  onChange: (status: PaymentStatus) => void;
+}) {
+  const current = getStatutOption(status);
+  const statusLabel = current?.label ?? "En attente";
+  const statusEmoji = current?.emoji ?? "🕒";
+  const statusBubbleClassName =
+    current?.bubbleClassName ??
+    "bg-white/[0.1] text-white/90 ring-white/20";
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (!open || !buttonRef.current) return;
+
+    function updatePosition() {
+      if (!buttonRef.current) return;
+      const rect = buttonRef.current.getBoundingClientRect();
+      const menuWidth = 220;
+      const left = Math.min(
+        Math.max(8, rect.left),
+        window.innerWidth - menuWidth - 8,
+      );
+
+      setMenuPosition({
+        top: rect.bottom + 8,
+        left,
+      });
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-label="Changer le statut de paiement"
+        aria-expanded={open}
+        className="inline-flex w-full items-center gap-1.5 rounded-md px-0.5 py-0.5 text-white transition-all hover:bg-white/[0.05]"
+      >
+        <span
+          className={`inline-flex min-w-0 flex-1 items-center justify-center gap-1 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[13px] font-semibold ring-1 ${statusBubbleClassName}`}
+        >
+          <span aria-hidden>{statusEmoji}</span>
+          <span className="truncate">{statusLabel}</span>
+        </span>
+        <svg
+          className="h-4 w-4 shrink-0 text-brand-muted/90"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          aria-hidden="true"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" />
+        </svg>
+      </button>
+
+      {open && menuPosition && typeof document !== "undefined"
+        ? createPortal(
+            <>
+              <button
+                type="button"
+                aria-label="Fermer"
+                className="fixed inset-0 z-[110] cursor-default bg-transparent"
+                onClick={() => setOpen(false)}
+              />
+              <div
+                role="menu"
+                style={{ top: menuPosition.top, left: menuPosition.left }}
+                className="fixed z-[111] max-h-[min(70vh,22rem)] min-w-[13.75rem] space-y-1 overflow-y-auto rounded-xl border border-white/10 bg-brand-card p-2 shadow-xl shadow-black/50"
+              >
+                {STATUT_OPTIONS.map((option) => {
+                  const selected = option.value === status;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="menuitem"
+                      disabled={selected}
+                      onClick={() => {
+                        onChange(option.value);
+                        setOpen(false);
+                      }}
+                      className={`flex w-full items-center justify-start rounded-lg px-2 py-1.5 text-left transition-colors ${
+                        selected
+                          ? "cursor-not-allowed opacity-45"
+                          : "hover:bg-white/5"
+                      }`}
+                    >
+                      <span
+                        className={`inline-flex w-full items-center gap-1 whitespace-nowrap rounded-md px-2.5 py-1.5 text-sm font-semibold ring-1 ${option.bubbleClassName}`}
+                      >
+                        <span aria-hidden>{option.emoji}</span>
+                        <span>{option.label}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </>,
+            document.body,
+          )
+        : null}
+    </>
+  );
+}
+
 type RecoveryRowOverlaysProps = {
   rows: ClientRow[];
   allLeftColumns: ColumnDef[];
@@ -510,19 +722,10 @@ function RightTableColumn({
             } ${isRelanceColumn ? styles.cell : ""}`}
           >
             {isDataRow && column.variant === "statut" ? (
-              <button
-                type="button"
-                onClick={() =>
-                  onStatusChange(rowIndex, status === "paye" ? "" : "paye")
-                }
-                className={`whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-bold tracking-wide transition-all ${
-                  status === "paye"
-                    ? "bg-emerald-500/45 text-emerald-50 shadow-[0_0_12px_rgba(52,211,153,0.35)] ring-1 ring-emerald-300/70"
-                    : "bg-white/[0.06] text-brand-muted hover:bg-white/10 hover:text-white"
-                }`}
-              >
-                PAYE {status === "paye" ? "!" : "?"}
-              </button>
+              <StatutCell
+                status={status}
+                onChange={(nextStatus) => onStatusChange(rowIndex, nextStatus)}
+              />
             ) : isDataRow && column.variant === "progression" ? (
               recovery ? null : (
                 <RelanceProgressCell
@@ -589,6 +792,8 @@ function TableColumn({
   minColumnWidthCh,
   resizable = false,
   onResizeStart,
+  sortDirection = null,
+  onToggleSort,
 }: TableColumnProps) {
   const itemProps = draggable && bindItem ? bindItem(column.id) : null;
   const handleProps = draggable && bindHandle ? bindHandle(column.id) : null;
@@ -597,6 +802,9 @@ function TableColumn({
   const hasRemoveButton = editable && Boolean(onRemove);
   const isDateColumn = isDateColumnLabel(column.label);
   const isAmountColumn = isAmountColumnLabel(column.label);
+  const isDueDateColumn = isDueDateColumnLabel(column.label);
+  const today = todayDateOnly().getTime();
+  const sortable = isDateColumn || isAmountColumn;
 
   const columnStyle = {
     ...computeColumnStyle(columnWidthCh),
@@ -620,6 +828,27 @@ function TableColumn({
         >
           {column.label}
         </span>
+        {sortable && onToggleSort ? (
+          <button
+            type="button"
+            onClick={onToggleSort}
+            aria-label={`Trier ${column.label}`}
+            title={
+              sortDirection === "asc"
+                ? "Tri croissant (cliquer pour décroissant)"
+                : sortDirection === "desc"
+                  ? "Tri décroissant (cliquer pour croissant)"
+                  : "Trier la colonne"
+            }
+            className={`mr-0.5 inline-flex h-6 w-5 items-center justify-center rounded text-[11px] leading-none transition-colors ${
+              sortDirection
+                ? "text-violet-100"
+                : "text-white/45 hover:text-white/75"
+            }`}
+          >
+            {sortDirection === "asc" ? "↑" : sortDirection === "desc" ? "↓" : "↕"}
+          </button>
+        ) : null}
         {hasRemoveButton ? (
           <button
             type="button"
@@ -646,11 +875,28 @@ function TableColumn({
         const isDataRow = rowIndex < rows.length;
         const rowPaid = isDataRow ? isRowPaid(rows[rowIndex]) : false;
         const displayValue = isDataRow ? getCellValue(rowIndex, column.id) : "";
+        const rawDateValue = isDataRow ? getCellRawValue?.(rowIndex, column.id) ?? "" : "";
+        const parsedDate = isDateColumn ? parseDateOnly(rawDateValue) : null;
+        const overdueDays =
+          isDataRow &&
+          isDueDateColumn &&
+          parsedDate !== null &&
+          parsedDate.getTime() < today
+            ? Math.floor((today - parsedDate.getTime()) / 86_400_000)
+            : 0;
+        const overdueDueDateClass =
+          overdueDays >= 30
+            ? "!bg-rose-500/[0.2] hover:!bg-rose-500/[0.26]"
+            : overdueDays >= 7
+              ? "!bg-orange-500/[0.2] hover:!bg-orange-500/[0.26]"
+              : overdueDays >= 1
+                ? "!bg-orange-400/[0.14] hover:!bg-orange-400/[0.2]"
+                : "";
 
         return (
           <div
             key={rowIndex}
-            className={`flex ${TABLE_DATA_ROW_HEIGHT} items-center justify-center border-b ${TABLE_CELL_BORDER} px-0.5 text-center ${dataRowSurfaceClass(rowIndex, rowPaid)}`}
+            className={`flex ${TABLE_DATA_ROW_HEIGHT} items-center justify-center border-b ${TABLE_CELL_BORDER} px-0.5 text-center ${dataRowSurfaceClass(rowIndex, rowPaid)} ${overdueDueDateClass}`}
           >
             {isDataRow && cellsEditable ? (
               isDateColumn ? (
@@ -896,6 +1142,10 @@ export function TableauGrid({
   const [progressDrawerRowIndex, setProgressDrawerRowIndex] = useState<
     number | null
   >(null);
+  const [sortState, setSortState] = useState<{
+    columnId: string;
+    direction: SortDirection;
+  } | null>(null);
   const totalRows = Math.max(MIN_EMPTY_ROWS, rows.length + 1);
   const allLeftColumns = [...leftColumns, ...hiddenLeftColumns];
   const addableColumnLabels = getAddableColumnLabels(
@@ -1094,6 +1344,47 @@ export function TableauGrid({
     );
   }
 
+  function sortRowsByColumn(
+    sourceRows: ClientRow[],
+    column: ColumnDef,
+    direction: SortDirection,
+  ): ClientRow[] {
+    const isAmount = isAmountColumnLabel(column.label);
+    const factor = direction === "asc" ? 1 : -1;
+
+    const decorated = sourceRows.map((row, index) => {
+      const raw = row.values[column.id] ?? "";
+      if (isAmount) {
+        const normalized = parseAmountToStorage(raw);
+        const parsed = Number.parseFloat(normalized);
+        return { row, index, value: Number.isNaN(parsed) ? null : parsed };
+      }
+
+      const parsedDate = parseDateOnly(raw);
+      return { row, index, value: parsedDate ? parsedDate.getTime() : null };
+    });
+
+    decorated.sort((a, b) => {
+      if (a.value === null && b.value === null) return a.index - b.index;
+      if (a.value === null) return 1;
+      if (b.value === null) return -1;
+      if (a.value === b.value) return a.index - b.index;
+      return (a.value - b.value) * factor;
+    });
+
+    return decorated.map((entry) => entry.row);
+  }
+
+  function handleToggleSort(column: ColumnDef) {
+    const nextDirection: SortDirection =
+      sortState?.columnId === column.id && sortState.direction === "asc"
+        ? "desc"
+        : "asc";
+
+    setSortState({ columnId: column.id, direction: nextDirection });
+    onRowsChange(sortRowsByColumn(rows, column, nextDirection));
+  }
+
   function getClientLabel(rowIndex: number) {
     return (
       getRowFieldValue(rows[rowIndex], allLeftColumns, "Nom", "nom", "Client") ||
@@ -1203,6 +1494,10 @@ export function TableauGrid({
                       getCellValue={getCellValue}
                       getCellRawValue={getCellRawValue}
                       onCellChange={handleCellChange}
+                      sortDirection={
+                        sortState?.columnId === column.id ? sortState.direction : null
+                      }
+                      onToggleSort={() => handleToggleSort(column)}
                     />
                   );
                 })}

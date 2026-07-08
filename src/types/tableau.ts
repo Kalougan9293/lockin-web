@@ -113,6 +113,7 @@ export const RELANCE_STEP_STYLES: RelanceStepStyle[] = [
 
 export const COLUMN_LABEL_TELEPHONE = "Téléphone";
 export const COLUMN_LABEL_FACTURE = "N°Facture";
+export const COLUMN_LABEL_PAYMENT_LINK = "Lien de paiement";
 
 /** Anciens libellés UI / clés import IA — mappés vers les colonnes actuelles (ids inchangés). */
 export const LEGACY_COLUMN_LABEL_ALIASES: Record<string, string> = {
@@ -131,6 +132,7 @@ export const STANDARD_TEMPLATE_LABELS = [
   "Date",
   "Montant",
   "Échéance",
+  COLUMN_LABEL_PAYMENT_LINK,
   COLUMN_LABEL_TELEPHONE,
   "Info",
   COLUMN_LABEL_FACTURE,
@@ -226,6 +228,7 @@ export const OPTIONAL_CLIENT_BUBBLES = [
   COLUMN_LABEL_TELEPHONE,
   "Info",
   "Échéance",
+  COLUMN_LABEL_PAYMENT_LINK,
   COLUMN_LABEL_FACTURE,
 ] as const;
 
@@ -337,7 +340,16 @@ export type RightColumnDef = ColumnDef & {
   compact?: boolean;
 };
 
-export type PaymentStatus = "paye" | "";
+export type PaymentStatus =
+  | ""
+  | "paye"
+  | "aucune_reponse"
+  | "promesse"
+  | "delai"
+  | "partiel"
+  | "litige"
+  | "refus"
+  | "injoignable";
 
 export const STATUT_COLUMN_ID = "statut";
 export const PROGRESSION_COLUMN_ID = "progression";
@@ -433,7 +445,7 @@ export function createTableData(index = 1): TableData {
       id: crypto.randomUUID(),
       name: `Tableau ${index}`,
       leftColumns: DEFAULT_LEFT_COLUMNS.map((column) => ({ ...column })),
-      hiddenLeftColumns: [],
+      hiddenLeftColumns: [{ id: "lien_paiement", label: COLUMN_LABEL_PAYMENT_LINK }],
       rows: [],
       relanceSteps: [],
       ccCreditor: false,
@@ -560,6 +572,7 @@ function renameStandardColumnLabels(table: TableData): TableData {
 /** Ajoute Téléphone / Date / N°Facture / Info (en dernier) si jamais présentes. */
 function ensureDefaultOptionalLeftColumns(table: TableData): TableData {
   let leftColumns = [...table.leftColumns];
+  let hiddenLeftColumns = [...table.hiddenLeftColumns];
   let changed = false;
 
   for (const preset of [...DEFAULT_OPTIONAL_LEFT_COLUMNS, { id: "info", label: "Info" }]) {
@@ -573,8 +586,19 @@ function ensureDefaultOptionalLeftColumns(table: TableData): TableData {
     changed = true;
   }
 
+  if (
+    !isColumnLabelPresent(leftColumns, COLUMN_LABEL_PAYMENT_LINK) &&
+    !isColumnLabelPresent(hiddenLeftColumns, COLUMN_LABEL_PAYMENT_LINK)
+  ) {
+    hiddenLeftColumns.push({
+      id: "lien_paiement",
+      label: COLUMN_LABEL_PAYMENT_LINK,
+    });
+    changed = true;
+  }
+
   if (!changed) return table;
-  return reorderLeftColumnsToDefaultOrder({ ...table, leftColumns });
+  return reorderLeftColumnsToDefaultOrder({ ...table, leftColumns, hiddenLeftColumns });
 }
 
 function looksLikeLegacyDefaultColumnOrder(leftColumns: ColumnDef[]): boolean {

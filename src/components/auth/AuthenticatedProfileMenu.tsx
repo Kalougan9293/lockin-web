@@ -6,8 +6,10 @@ import { useEffect, useRef, useState } from "react";
 import { getProfileAction } from "@/app/actions/profile";
 import { SignOutForm } from "@/components/auth/SignOutForm";
 import { ContactModal } from "@/components/dashboard/ContactModal";
+import { useDashboardSummaryOptional } from "@/contexts/DashboardSummaryContext";
 import { useImportZone } from "@/contexts/ImportZoneContext";
 import { useTutorial } from "@/contexts/TutorialContext";
+import { formatAmountForDisplay } from "@/lib/preferences/currency-format";
 const ProfileMenuPanel = dynamic(
   () => import("@/components/dashboard/ProfileMenuPanel").then((mod) => mod.ProfileMenuPanel),
   { ssr: false },
@@ -34,6 +36,9 @@ export function AuthenticatedProfileMenu({
   const [profileOpen, setProfileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const summaryContext = useDashboardSummaryOptional();
+  const summary = summaryContext?.summary ?? null;
   const [displayName, setDisplayName] = useState<string | null>(
     () => (demoMode ? "Démo" : initialDisplayName),
   );
@@ -254,12 +259,115 @@ export function AuthenticatedProfileMenu({
               {importZoneVisible ? "Masquer l'import" : "Voir l'import"}
             </button>
 
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                setSummaryOpen(true);
+              }}
+              className="block w-full px-4 py-2.5 text-left text-sm text-brand-muted transition-colors hover:bg-white/5 hover:text-white"
+            >
+              Synthèse
+            </button>
+
             <SignOutForm variant="menu" />
           </div>
         ) : null}
       </div>
 
       <ContactModal open={contactOpen} onClose={() => setContactOpen(false)} />
+      {summaryOpen ? (
+        <div className="fixed inset-0 z-[210] flex items-center justify-center p-4">
+          <button
+            type="button"
+            aria-label="Fermer"
+            className="absolute inset-0 bg-black/65"
+            onClick={() => setSummaryOpen(false)}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="summary-title"
+            className="relative z-10 w-full max-w-md rounded-2xl border border-white/10 bg-brand-card p-5 shadow-2xl shadow-black/50"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p
+                  id="summary-title"
+                  className="text-base font-semibold text-white"
+                >
+                  Synthèse
+                </p>
+                <p className="text-xs text-brand-muted">
+                  Vue rapide du tableau actif.
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="Fermer la synthèse"
+                onClick={() => setSummaryOpen(false)}
+                className="rounded-md px-2 py-1 text-brand-muted transition-colors hover:bg-white/5 hover:text-white"
+              >
+                ×
+              </button>
+            </div>
+
+            {!summary ? (
+              <p className="mt-4 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-brand-muted">
+                Aucune donnée à afficher pour le moment.
+              </p>
+            ) : (
+              <div className="mt-4 space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-lg border border-emerald-400/20 bg-emerald-500/[0.08] px-3 py-2">
+                    <p className="text-[11px] uppercase tracking-wide text-emerald-200/75">
+                      Montant récupéré
+                    </p>
+                    <p className="mt-1 text-lg font-semibold text-emerald-100">
+                      {formatAmountForDisplay(String(summary.recoveredAmount)) || "0,00 €"}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-amber-400/20 bg-amber-500/[0.08] px-3 py-2">
+                    <p className="text-[11px] uppercase tracking-wide text-amber-200/75">
+                      Montant en attente
+                    </p>
+                    <p className="mt-1 text-lg font-semibold text-amber-100">
+                      {formatAmountForDisplay(String(summary.pendingAmount)) || "0,00 €"}
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-2">
+                    <p className="text-[10px] uppercase tracking-wide text-brand-muted">
+                      Payé
+                    </p>
+                    <p className="mt-0.5 text-sm font-semibold text-white">
+                      {summary.paidCount}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-2">
+                    <p className="text-[10px] uppercase tracking-wide text-brand-muted">
+                      En cours
+                    </p>
+                    <p className="mt-0.5 text-sm font-semibold text-white">
+                      {summary.inProgressCount}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-2">
+                    <p className="text-[10px] uppercase tracking-wide text-brand-muted">
+                      Mails envoyés
+                    </p>
+                    <p className="mt-0.5 text-sm font-semibold text-white">
+                      {summary.sentRelancesCount}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

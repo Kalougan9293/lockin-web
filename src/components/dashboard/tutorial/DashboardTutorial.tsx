@@ -93,9 +93,12 @@ function TutorialConfirmDialog({
           id="tutorial-confirm-title"
           className="text-center text-base font-semibold text-white"
         >
-          Lancer l&apos;explication rapide ?
+          Lancer le tutoriel ?
         </p>
-        <p className="mt-1 text-center text-sm text-brand-muted">Étape 1 / 5</p>
+        <p className="mt-1 text-center text-sm text-brand-muted">Étape 1 / 7</p>
+        <p className="mt-1 text-center text-xs text-brand-muted/80">
+          Durée estimée : ~1 minute
+        </p>
         <div className="mt-5 flex gap-3">
           <button
             type="button"
@@ -120,14 +123,18 @@ function TutorialConfirmDialog({
 
 function TutorialSpotlight({
   rect,
+  showSpotlight = true,
   stepIndex,
   message,
+  isLastStep = false,
   onNext,
   onClose,
 }: {
   rect: SpotlightRect;
+  showSpotlight?: boolean;
   stepIndex: number;
   message: string;
+  isLastStep?: boolean;
   onNext: () => void;
   onClose: () => void;
 }) {
@@ -142,15 +149,17 @@ function TutorialSpotlight({
         className="pointer-events-auto absolute inset-0 bg-black/65"
       />
 
-      <div
-        className="pointer-events-none absolute animate-tutorial-ring rounded-xl border-2 border-red-500"
-        style={{
-          top: rect.top,
-          left: rect.left,
-          width: rect.width,
-          height: rect.height,
-        }}
-      />
+      {showSpotlight ? (
+        <div
+          className="pointer-events-none absolute animate-tutorial-ring rounded-xl border-2 border-violet-400/90"
+          style={{
+            top: rect.top,
+            left: rect.left,
+            width: rect.width,
+            height: rect.height,
+          }}
+        />
+      ) : null}
 
       <div
         role="dialog"
@@ -186,7 +195,7 @@ function TutorialSpotlight({
             onClick={onNext}
             className="rounded-lg bg-brand-accent px-4 py-1.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
           >
-            OK
+            {isLastStep ? "Terminer" : "Suivant"}
           </button>
         </div>
       </div>
@@ -217,31 +226,60 @@ export function DashboardTutorial() {
 
   const step = DASHBOARD_TUTORIAL_STEPS[stepIndex];
 
+  function getFallbackRect(): SpotlightRect {
+    const width = Math.min(360, window.innerWidth - VIEWPORT_MARGIN * 2);
+    const top = Math.max(80, Math.round(window.innerHeight * 0.4));
+    return {
+      top,
+      left: Math.max(VIEWPORT_MARGIN, (window.innerWidth - width) / 2),
+      width,
+      height: 1,
+    };
+  }
+
   useLayoutEffect(() => {
     if (phase !== "running" || !step) {
       setRect(null);
       return;
     }
 
+    if (step.spotlight === false || !step.target) {
+      setRect(getFallbackRect());
+      return;
+    }
+
     ensureTutorialScrollSpacer();
 
     function updateRect() {
-      const nextRect = measureTarget(step.target);
+      const nextRect = measureTarget(step.target!);
       setRect(nextRect);
     }
 
     function scrollTargetIntoView() {
-      const element = document.querySelector(step.target);
+      const element = document.querySelector(step.target!);
       if (!element) return;
+      const rect = element.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const topSafe = VIEWPORT_MARGIN + 40;
+      const bottomSafe = viewportHeight - 220;
+      const alreadyVisible =
+        rect.top >= topSafe &&
+        rect.bottom <= bottomSafe &&
+        rect.height <= viewportHeight * 0.75;
 
-      const block = stepIndex === 2 || stepIndex === 4 ? "start" : "center";
-      element.scrollIntoView({ behavior: "smooth", block, inline: "nearest" });
+      if (alreadyVisible) return;
+
+      element.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "nearest",
+      });
     }
 
     updateRect();
     scrollTargetIntoView();
 
-    const element = document.querySelector(step.target);
+    const element = document.querySelector(step.target!);
     const resizeObserver =
       element && typeof ResizeObserver !== "undefined"
         ? new ResizeObserver(updateRect)
@@ -310,8 +348,10 @@ export function DashboardTutorial() {
   return (
     <TutorialSpotlight
       rect={rect}
+      showSpotlight={step.spotlight !== false}
       stepIndex={stepIndex}
       message={step.message}
+      isLastStep={stepIndex === TUTORIAL_STEP_COUNT - 1}
       onNext={nextStep}
       onClose={cancelTutorial}
     />

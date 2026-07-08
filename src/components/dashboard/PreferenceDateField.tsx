@@ -32,7 +32,7 @@ export function PreferenceDateField({
       dateFormat={dateFormat}
       disabled={disabled}
       onChange={onChange}
-      className={`w-full rounded-xl border border-white/10 bg-brand-dark px-4 py-3 text-sm text-white placeholder:text-brand-muted/70 transition-colors focus:border-brand-accent/50 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 disabled:cursor-not-allowed disabled:opacity-50 ${className ?? ""}`}
+      className={`w-full rounded-xl border border-white/10 bg-brand-dark px-4 py-3 text-center text-sm text-white placeholder:text-brand-muted/70 transition-colors focus:border-brand-accent/50 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 disabled:cursor-not-allowed disabled:opacity-50 ${className ?? ""}`}
     />
   );
 }

@@ -1,10 +1,11 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useImportZone } from "@/contexts/ImportZoneContext";
+import { useDashboardSummary } from "@/contexts/DashboardSummaryContext";
 import { useTutorial } from "@/contexts/TutorialContext";
 import { useDashboardTables } from "@/hooks/useDashboardTables";
 import { useDemoSession } from "@/hooks/useDemoSession";
@@ -14,7 +15,9 @@ import {
   getImportRowCapacity,
 } from "@/lib/dashboard/plan-limits";
 import { filterDeliveriesForLigne, filterDeliveriesForTableau } from "@/lib/dashboard/relance-delivery-display";
+import { getRowFieldValue } from "@/lib/dashboard/recovery";
 import { DASHBOARD_CONTENT_BLEED_CLASS } from "@/lib/dashboard/content-bleed";
+import { parseAmountToStorage } from "@/lib/preferences/currency-format";
 import { classifyServerImportFiles } from "@/lib/import/process-server-import";
 import { importFilesViaApi } from "@/lib/import/import-via-api";
 import type { ImportReviewQueueItem } from "@/lib/import/process-server-import";
@@ -24,6 +27,7 @@ import {
   hideLeftColumn,
   addOrRestoreLeftColumn,
   mergeClientValuesIntoTable,
+  isRowPaid,
 } from "@/types/tableau";
 
 import { ImportPrompt } from "./ImportPrompt";
@@ -58,6 +62,7 @@ export function DashboardWorkspace({
   isDemoWorkspace = false,
 }: DashboardWorkspaceProps) {
   const { requestTutorial } = useTutorial();
+  const { setSummary } = useDashboardSummary();
   const { importZoneVisible } = useImportZone();
   const { sessionKey: demoSessionKey } = useDemoSession();
   const {
@@ -104,16 +109,66 @@ export function DashboardWorkspace({
 
   const activeTableIndex = tables.findIndex((table) => table.id === activeTableId);
   const activeTable = activeTableIndex >= 0 ? tables[activeTableIndex] : tables[0];
+  const activeDeliveries = useMemo(
+    () => (activeTable ? filterDeliveriesForTableau(deliveries, activeTable.id) : []),
+    [activeTable, deliveries],
+  );
   const canCreateTable = canAddTable(tables);
   const canAddRowToActiveTable = activeTable
     ? canAddRowToTable(tables, activeTable.id)
     : false;
+
+  const activeSummary = useMemo(() => {
+    if (!activeTable) return null;
+
+    const paidCount = activeTable.rows.filter((row) => isRowPaid(row)).length;
+    const inProgressCount = Math.max(activeTable.rows.length - paidCount, 0);
+    const sentRelancesCount = activeDeliveries.filter(
+      (delivery) => delivery.status === "sent",
+    ).length;
+
+    const columns = [...activeTable.leftColumns, ...activeTable.hiddenLeftColumns];
+    const { recoveredAmount, pendingAmount } = activeTable.rows.reduce(
+      (totals, row) => {
+        const rawAmount = getRowFieldValue(row, columns, "Montant", "montant");
+        const parsed = Number.parseFloat(parseAmountToStorage(rawAmount));
+        if (Number.isNaN(parsed)) return totals;
+
+        if (isRowPaid(row)) {
+          totals.recoveredAmount += parsed;
+        } else {
+          totals.pendingAmount += parsed;
+        }
+        return totals;
+      },
+      { recoveredAmount: 0, pendingAmount: 0 },
+    );
+
+    return {
+      recoveredAmount,
+      pendingAmount,
+      paidCount,
+      inProgressCount,
+      sentRelancesCount,
+    };
+  }, [activeTable, activeDeliveries]);
 
   useEffect(() => {
     if (!tables.length) return;
     if (tables.some((table) => table.id === activeTableId)) return;
     setActiveTableId(tables[0].id);
   }, [tables, activeTableId]);
+
+  useEffect(() => {
+    setSummary(activeSummary);
+  }, [activeSummary, setSummary]);
+
+  useEffect(
+    () => () => {
+      setSummary(null);
+    },
+    [setSummary],
+  );
 
   useEffect(() => {
     if (!importSuccess) return;
@@ -376,7 +431,7 @@ export function DashboardWorkspace({
               leftColumns={activeTable.leftColumns}
               hiddenLeftColumns={activeTable.hiddenLeftColumns}
               relanceSteps={activeTable.relanceSteps}
-              deliveries={filterDeliveriesForTableau(deliveries, activeTable.id)}
+              deliveries={activeDeliveries}
               rightColumns={getRightColumns(activeTable.relanceSteps)}
               onLeftColumnsChange={(leftColumns) =>
                 updateTable(activeTable.id, (current) => ({ ...current, leftColumns }))

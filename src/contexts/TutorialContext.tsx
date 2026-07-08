@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 
-export const TUTORIAL_STEP_COUNT = 5;
+export const TUTORIAL_STEP_COUNT = 7;
 
 type TutorialPhase = "idle" | "confirm" | "running";
 

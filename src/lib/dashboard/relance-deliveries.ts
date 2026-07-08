@@ -125,6 +125,7 @@ export function resolveRelanceMessageTemplate(
     ["Échéance", ["Échéance", "Echeance"]],
     ["Date", ["Date", "date"]],
     ["Mail", ["Mail", "Email"]],
+    ["Lien de paiement", ["Lien de paiement", "Lien paiement", "Paiement", "Payment link"]],
     ["N°Facture", ["N°Facture", "Référence", "reference", "Facture"]],
     ["Téléphone", ["Téléphone", "Numéro", "numero", "Tel", "Phone"]],
   ];
@@ -143,6 +144,10 @@ export function resolveRelanceMessageTemplate(
     }
     if (label === "N°Facture") {
       resolved = resolved.replaceAll("[Référence]", value);
+    }
+    if (label === "Lien de paiement") {
+      resolved = resolved.replaceAll("[LienPaiement]", value);
+      resolved = resolved.replaceAll("[Lien paiement]", value);
     }
     if (label === "Téléphone") {
       resolved = resolved.replaceAll("[Numéro]", value);

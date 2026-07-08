@@ -57,20 +57,37 @@ export function RelanceProgressCell({
   const paidStrikeClass = paid
     ? "line-through decoration-[2.5px] decoration-solid decoration-white/60"
     : "";
+  const accentTextClass =
+    stepStyle.accent === "green"
+      ? "text-emerald-100/95"
+      : stepStyle.accent === "yellow"
+        ? "text-amber-100/95"
+        : stepStyle.accent === "orange"
+          ? "text-orange-100/95"
+          : stepStyle.accent === "red"
+            ? "text-rose-100/95"
+            : "text-fuchsia-100/95";
+  const arrowButtonClass =
+    status === "sent"
+      ? "border-emerald-300/45 bg-emerald-500/10 text-emerald-100/85 hover:bg-emerald-500/20"
+      : status === "queued"
+        ? "border-sky-300/45 bg-sky-500/10 text-sky-100/85 hover:bg-sky-500/20"
+        : status === "failed"
+          ? "border-rose-300/45 bg-rose-500/10 text-rose-100/85 hover:bg-rose-500/20"
+          : status === "overdue"
+            ? "border-amber-300/45 bg-amber-500/10 text-amber-100/85 hover:bg-amber-500/20"
+            : "border-orange-300/45 bg-orange-500/10 text-orange-100/85 hover:bg-orange-500/20";
 
   return (
-    <div className="flex w-full min-w-0 items-center gap-1 px-0.5">
-      <div
-        className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md border px-1.5 py-1 ${stepStyle.accent === "green" ? "border-emerald-400/20 bg-emerald-500/10" : stepStyle.accent === "yellow" ? "border-amber-400/20 bg-amber-400/10" : stepStyle.accent === "orange" ? "border-orange-400/20 bg-orange-500/10" : stepStyle.accent === "red" ? "border-rose-400/20 bg-rose-500/10" : "border-fuchsia-400/20 bg-fuchsia-500/10"}`}
-        title={badgeTitle}
-      >
+    <div className="flex w-full min-w-0 items-center gap-1 px-0.5" title={badgeTitle}>
+      <div className="flex min-w-0 flex-1 items-center justify-center gap-2 px-0.5">
         <RelanceStatusDot
           status={status}
           animate={status === "scheduled"}
           size="sm"
         />
         <span
-          className={`min-w-0 truncate text-[11px] font-medium tabular-nums leading-tight ${styles.text} ${paidStrikeClass}`}
+          className={`min-w-0 truncate text-[13px] font-semibold tabular-nums leading-tight ${styles.text} ${accentTextClass} ${paidStrikeClass}`}
         >
           {badgeLabel}
         </span>
@@ -79,7 +96,7 @@ export function RelanceProgressCell({
         type="button"
         onClick={onOpenTimeline}
         aria-label="Voir la timeline des relances"
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] text-brand-muted transition-colors hover:border-violet-400/30 hover:bg-violet-500/15 hover:text-violet-100"
+        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-colors ${arrowButtonClass}`}
       >
         <svg
           className="h-3.5 w-3.5"
