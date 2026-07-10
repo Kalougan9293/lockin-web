@@ -13,9 +13,10 @@ import {
 import { isRecoveryRequired, getRowFieldValue } from "@/lib/dashboard/recovery";
 import { parseDateOnly } from "@/lib/dashboard/date-only";
 import {
+  getDueDateHighlightClass,
+  getDueDateHighlightLevel,
   isDueDateColumnLabel,
   rowMissingDueDate,
-  todayDateOnly,
 } from "@/lib/dashboard/relance-schedule";
 import {
   dashboardColumnHeaderClassName,
@@ -827,7 +828,6 @@ function TableColumn({
   const isDateColumn = isDateColumnLabel(column.label);
   const isAmountColumn = isAmountColumnLabel(column.label);
   const isDueDateColumn = isDueDateColumnLabel(column.label);
-  const today = todayDateOnly().getTime();
   const sortable = isDateColumn || isAmountColumn;
 
   const columnStyle = {
@@ -901,21 +901,10 @@ function TableColumn({
         const displayValue = isDataRow ? getCellValue(rowIndex, column.id) : "";
         const rawDateValue = isDataRow ? getCellRawValue?.(rowIndex, column.id) ?? "" : "";
         const parsedDate = isDateColumn ? parseDateOnly(rawDateValue) : null;
-        const overdueDays =
-          isDataRow &&
-          isDueDateColumn &&
-          parsedDate !== null &&
-          parsedDate.getTime() < today
-            ? Math.floor((today - parsedDate.getTime()) / 86_400_000)
-            : 0;
         const overdueDueDateClass =
-          overdueDays >= 30
-            ? "!bg-rose-500/[0.2] hover:!bg-rose-500/[0.26]"
-            : overdueDays >= 7
-              ? "!bg-orange-500/[0.2] hover:!bg-orange-500/[0.26]"
-              : overdueDays >= 1
-                ? "!bg-orange-400/[0.14] hover:!bg-orange-400/[0.2]"
-                : "";
+          isDataRow && isDueDateColumn && parsedDate !== null
+            ? getDueDateHighlightClass(getDueDateHighlightLevel(parsedDate))
+            : "";
 
         return (
           <div

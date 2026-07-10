@@ -22,6 +22,7 @@ import {
   insertLigne,
   relanceStepsChanged,
   syncRelanceSteps,
+  tableDiffHasChanges,
   tableMetaChanged,
   updateLigne,
   updateTableMeta,
@@ -39,6 +40,26 @@ import { createTableData, ensureDefaultRelanceSteps, isRowPaid } from "@/types/t
 import type { DashboardInitialData } from "@/types/dashboard";
 
 const ROW_PERSIST_DEBOUNCE_MS = 450;
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof error.message === "string" &&
+    error.message.trim()
+  ) {
+    return error.message;
+  }
+  return fallback;
+}
+
+function shouldPersistViaApi(demoMode: boolean, persistEnabled: boolean): boolean {
+  return persistEnabled && !demoMode;
+}
 
 async function apiFetchDashboard(): Promise<{
   tables: TableData[];
@@ -59,15 +80,26 @@ async function apiFetchDashboard(): Promise<{
   };
 }
 
+async function readApiError(response: Response, fallback: string): Promise<string> {
+  try {
+    const data = (await response.json()) as { error?: string; message?: string };
+    const message = data.error?.trim() || data.message?.trim();
+    if (message) return message;
+  } catch {
+    // Corps non JSON (ex. page d'erreur HTML)
+  }
+
+  return `${fallback} (erreur ${response.status})`;
+}
+
 async function apiPersistTableDiff(prev: TableData, next: TableData) {
   const response = await fetch("/api/dashboard/tableaux", {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ prev, next }),
   });
-  const data = (await response.json()) as { error?: string };
   if (!response.ok) {
-    throw new Error(data.error ?? "Impossible d'enregistrer le tableau.");
+    throw new Error(await readApiError(response, "Impossible d'enregistrer le tableau."));
   }
 }
 
@@ -77,9 +109,8 @@ async function apiPersistRow(row: ClientRow, previous?: ClientRow) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ row, previous }),
   });
-  const data = (await response.json()) as { error?: string };
   if (!response.ok) {
-    throw new Error(data.error ?? "Impossible d'enregistrer la ligne.");
+    throw new Error(await readApiError(response, "Impossible d'enregistrer la ligne."));
   }
 }
 
@@ -89,9 +120,8 @@ async function apiInsertTable(table: TableData) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ table }),
   });
-  const data = (await response.json()) as { error?: string };
   if (!response.ok) {
-    throw new Error(data.error ?? "Impossible de créer le tableau.");
+    throw new Error(await readApiError(response, "Impossible de créer le tableau."));
   }
 }
 
@@ -101,9 +131,8 @@ async function apiDeleteTable(tableId: string) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "deleteTable", tableId }),
   });
-  const data = (await response.json()) as { error?: string };
   if (!response.ok) {
-    throw new Error(data.error ?? "Impossible de supprimer le tableau.");
+    throw new Error(await readApiError(response, "Impossible de supprimer le tableau."));
   }
 }
 
@@ -126,27 +155,50 @@ export function useDashboardTables(
   const [persistError, setPersistError] = useState<string | null>(null);
 
   const persistEnabledRef = useRef(hasInitialData);
-  const useApiRef = useRef(impersonationMode);
+  const demoModeRef = useRef(demoMode);
   const rowTimersRef = useRef(
     new Map<string, ReturnType<typeof setTimeout>>(),
   );
   const rowPersistSnapshotsRef = useRef(new Map<string, ClientRow>());
   const rowPersistColumnsRef = useRef(new Map<string, ColumnDef[]>());
+  const tablePersistQueuesRef = useRef(new Map<string, Promise<void>>());
   const supabaseRef = useRef(createClient());
 
-  useApiRef.current = impersonationMode;
+  demoModeRef.current = demoMode;
 
   const reportPersistError = useCallback((message: string) => {
     setPersistError(message);
     console.error("[dashboard persist]", message);
   }, []);
 
+  const clearPersistError = useCallback(() => {
+    setPersistError(null);
+  }, []);
+
+  const enqueueTablePersist = useCallback(
+    (tableId: string, task: () => Promise<void>) => {
+      const queues = tablePersistQueuesRef.current;
+      const previous = queues.get(tableId) ?? Promise.resolve();
+      const next = previous
+        .catch(() => undefined)
+        .then(task)
+        .finally(() => {
+          if (queues.get(tableId) === next) {
+            queues.delete(tableId);
+          }
+        });
+      queues.set(tableId, next);
+      return next;
+    },
+    [],
+  );
+
   const persistRowNow = useCallback(
     async (row: ClientRow, previous?: ClientRow, columns?: ColumnDef[]) => {
       if (!persistEnabledRef.current) return;
 
       try {
-        if (useApiRef.current) {
+        if (shouldPersistViaApi(demoModeRef.current, persistEnabledRef.current)) {
           await apiPersistRow(row, previous);
           if (
             (previous && didDueDateChange(previous, row, columns)) ||
@@ -169,15 +221,14 @@ export function useDashboardTables(
             );
           }
         }
+        clearPersistError();
       } catch (error) {
         reportPersistError(
-          error instanceof Error
-            ? error.message
-            : "Impossible d'enregistrer la ligne.",
+          getErrorMessage(error, "Impossible d'enregistrer la ligne."),
         );
       }
     },
-    [reportPersistError],
+    [reportPersistError, clearPersistError],
   );
 
   const scheduleRowPersist = useCallback(
@@ -215,64 +266,74 @@ export function useDashboardTables(
   const persistTableDiff = useCallback(
     async (prev: TableData, next: TableData) => {
       if (!persistEnabledRef.current) return;
+      if (!tableDiffHasChanges(prev, next)) return;
 
-      try {
-        if (useApiRef.current) {
-          await apiPersistTableDiff(prev, next);
+      await enqueueTablePersist(next.id, async () => {
+        try {
+          if (shouldPersistViaApi(demoModeRef.current, persistEnabledRef.current)) {
+            await apiPersistTableDiff(prev, next);
+            if (relanceStepsChanged(prev, next)) {
+              setDeliveries((current) =>
+                markDeliveriesCancelledLocallyForTableau(current, next.id),
+              );
+            }
+            clearPersistError();
+            return;
+          }
+
+          if (tableMetaChanged(prev, next)) {
+            await updateTableMeta(supabaseRef.current, next);
+          }
+
           if (relanceStepsChanged(prev, next)) {
+            await cancelCancellableDeliveriesForTableau(
+              supabaseRef.current,
+              next.id,
+            );
+            await syncRelanceSteps(
+              supabaseRef.current,
+              next.id,
+              next.relanceSteps,
+            );
             setDeliveries((current) =>
               markDeliveriesCancelledLocallyForTableau(current, next.id),
             );
           }
-          return;
-        }
 
-        if (tableMetaChanged(prev, next)) {
-          await updateTableMeta(supabaseRef.current, next);
-        }
+          const columns = [...next.leftColumns, ...next.hiddenLeftColumns];
 
-        if (relanceStepsChanged(prev, next)) {
-          await cancelCancellableDeliveriesForTableau(
-            supabaseRef.current,
-            next.id,
-          );
-          await syncRelanceSteps(
-            supabaseRef.current,
-            next.id,
-            next.relanceSteps,
-          );
-          setDeliveries((current) =>
-            markDeliveriesCancelledLocallyForTableau(current, next.id),
-          );
-        }
-
-        const columns = [...next.leftColumns, ...next.hiddenLeftColumns];
-
-        for (const row of getRemovedRows(prev.rows, next.rows)) {
-          await deleteLigne(supabaseRef.current, row.id);
-        }
-
-        for (const row of getAddedRows(prev.rows, next.rows)) {
-          await insertLigne(supabaseRef.current, next.id, row);
-        }
-
-        for (const row of getUpdatedRows(prev.rows, next.rows)) {
-          const previous = prev.rows.find((entry) => entry.id === row.id);
-          if (previous && isPaymentStatusOnlyChange(previous, row)) {
-            void persistRowNow(row, previous, columns);
-          } else {
-            scheduleRowPersist(row, previous, columns);
+          for (const row of getRemovedRows(prev.rows, next.rows)) {
+            await deleteLigne(supabaseRef.current, row.id);
           }
+
+          for (const row of getAddedRows(prev.rows, next.rows)) {
+            await insertLigne(supabaseRef.current, next.id, row);
+          }
+
+          for (const row of getUpdatedRows(prev.rows, next.rows)) {
+            const previous = prev.rows.find((entry) => entry.id === row.id);
+            if (previous && isPaymentStatusOnlyChange(previous, row)) {
+              await persistRowNow(row, previous, columns);
+            } else {
+              scheduleRowPersist(row, previous, columns);
+            }
+          }
+
+          clearPersistError();
+        } catch (error) {
+          reportPersistError(
+            getErrorMessage(error, "Impossible d'enregistrer le tableau."),
+          );
         }
-      } catch (error) {
-        reportPersistError(
-          error instanceof Error
-            ? error.message
-            : "Impossible d'enregistrer le tableau.",
-        );
-      }
+      });
     },
-    [reportPersistError, scheduleRowPersist],
+    [
+      clearPersistError,
+      enqueueTablePersist,
+      persistRowNow,
+      reportPersistError,
+      scheduleRowPersist,
+    ],
   );
 
   const updateTable = useCallback(
@@ -321,7 +382,7 @@ export function useDashboardTables(
       if (!persistEnabledRef.current) return createdId;
 
       try {
-        if (useApiRef.current) {
+        if (shouldPersistViaApi(demoModeRef.current, persistEnabledRef.current)) {
           await apiInsertTable(newTable);
           return createdId;
         }
@@ -335,9 +396,7 @@ export function useDashboardTables(
         return createdId;
       } catch (error) {
         reportPersistError(
-          error instanceof Error
-            ? error.message
-            : "Impossible de créer le tableau.",
+          getErrorMessage(error, "Impossible de créer le tableau."),
         );
         return createdId;
       }
@@ -355,7 +414,7 @@ export function useDashboardTables(
       if (!persistEnabledRef.current) return;
 
       try {
-        if (useApiRef.current) {
+        if (shouldPersistViaApi(demoModeRef.current, persistEnabledRef.current)) {
           await apiDeleteTable(tableId);
           return;
         }
@@ -363,9 +422,7 @@ export function useDashboardTables(
         await deleteTable(supabaseRef.current, tableId);
       } catch (error) {
         reportPersistError(
-          error instanceof Error
-            ? error.message
-            : "Impossible de supprimer le tableau.",
+          getErrorMessage(error, "Impossible de supprimer le tableau."),
         );
       }
     },
@@ -397,7 +454,6 @@ export function useDashboardTables(
       if (hasInitialData && initialData) {
         persistEnabledRef.current = true;
         if (!cancelled) {
-          setTables(initialData.tables.map(ensureDefaultRelanceSteps));
           setDeliveries(initialData.deliveries);
           setLoading(false);
         }
@@ -408,7 +464,7 @@ export function useDashboardTables(
       setLoadError(null);
 
       try {
-        if (useApiRef.current) {
+        if (!demoModeRef.current) {
           persistEnabledRef.current = true;
           const { tables: loaded, deliveries: loadedDeliveries } =
             await apiFetchDashboard();
@@ -469,9 +525,7 @@ export function useDashboardTables(
       } catch (error) {
         if (!cancelled) {
           setLoadError(
-            error instanceof Error
-              ? error.message
-              : "Impossible de charger vos tableaux.",
+            getErrorMessage(error, "Impossible de charger vos tableaux."),
           );
           setTables([createTableData()]);
           persistEnabledRef.current = false;
@@ -498,6 +552,7 @@ export function useDashboardTables(
     loading,
     loadError,
     persistError,
+    dismissPersistError: clearPersistError,
     updateTable,
     addTableAfter,
     removeTable,

@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { getProfileAction } from "@/app/actions/profile";
 import { SignOutForm } from "@/components/auth/SignOutForm";
@@ -130,6 +131,23 @@ export function AuthenticatedProfileMenu({
       document.removeEventListener("keydown", handleEscape);
     };
   }, [open, profileOpen, settingsOpen]);
+
+  useEffect(() => {
+    if (!summaryOpen) return;
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setSummaryOpen(false);
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [summaryOpen]);
 
   function toggleProfile() {
     setSettingsOpen(false);
@@ -277,97 +295,96 @@ export function AuthenticatedProfileMenu({
       </div>
 
       <ContactModal open={contactOpen} onClose={() => setContactOpen(false)} />
-      {summaryOpen ? (
-        <div className="fixed inset-0 z-[210] flex items-center justify-center p-4">
-          <button
-            type="button"
-            aria-label="Fermer"
-            className="absolute inset-0 bg-black/65"
-            onClick={() => setSummaryOpen(false)}
-          />
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="summary-title"
-            className="relative z-10 w-full max-w-md rounded-2xl border border-white/10 bg-brand-card p-5 shadow-2xl shadow-black/50"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p
-                  id="summary-title"
-                  className="text-base font-semibold text-white"
-                >
-                  Synthèse
-                </p>
-                <p className="text-xs text-brand-muted">
-                  Vue rapide du tableau actif.
-                </p>
-              </div>
+      {summaryOpen && typeof document !== "undefined"
+        ? createPortal(
+            <div className="fixed inset-0 z-[210] flex items-center justify-center p-4">
               <button
                 type="button"
-                aria-label="Fermer la synthèse"
+                aria-label="Fermer"
+                className="absolute inset-0 bg-black/65"
                 onClick={() => setSummaryOpen(false)}
-                className="rounded-md px-2 py-1 text-brand-muted transition-colors hover:bg-white/5 hover:text-white"
+              />
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="summary-title"
+                className="relative z-10 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-white/10 bg-brand-card p-5 text-center shadow-2xl shadow-black/50"
               >
-                ×
-              </button>
-            </div>
+                <button
+                  type="button"
+                  aria-label="Fermer la synthèse"
+                  onClick={() => setSummaryOpen(false)}
+                  className="absolute right-3 top-3 rounded-md px-2 py-1 text-brand-muted transition-colors hover:bg-white/5 hover:text-white"
+                >
+                  ×
+                </button>
 
-            {!summary ? (
-              <p className="mt-4 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-brand-muted">
-                Aucune donnée à afficher pour le moment.
-              </p>
-            ) : (
-              <div className="mt-4 space-y-3">
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded-lg border border-emerald-400/20 bg-emerald-500/[0.08] px-3 py-2">
-                    <p className="text-[11px] uppercase tracking-wide text-emerald-200/75">
-                      Montant récupéré
-                    </p>
-                    <p className="mt-1 text-lg font-semibold text-emerald-100">
-                      {formatAmountForDisplay(String(summary.recoveredAmount)) || "0,00 €"}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-amber-400/20 bg-amber-500/[0.08] px-3 py-2">
-                    <p className="text-[11px] uppercase tracking-wide text-amber-200/75">
-                      Montant en attente
-                    </p>
-                    <p className="mt-1 text-lg font-semibold text-amber-100">
-                      {formatAmountForDisplay(String(summary.pendingAmount)) || "0,00 €"}
-                    </p>
-                  </div>
+                <div className="px-6">
+                  <p
+                    id="summary-title"
+                    className="text-base font-semibold text-white"
+                  >
+                    Synthèse
+                  </p>
                 </div>
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-2">
-                    <p className="text-[10px] uppercase tracking-wide text-brand-muted">
-                      Payé
-                    </p>
-                    <p className="mt-0.5 text-sm font-semibold text-white">
-                      {summary.paidCount}
-                    </p>
+
+                {!summary ? (
+                  <p className="mt-4 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-brand-muted">
+                    Aucune donnée à afficher pour le moment.
+                  </p>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-lg border border-emerald-400/20 bg-emerald-500/[0.08] px-3 py-2 text-center">
+                        <p className="text-[11px] uppercase tracking-wide text-emerald-200/75">
+                          Montant récupéré
+                        </p>
+                        <p className="mt-1 text-lg font-semibold text-emerald-100">
+                          {formatAmountForDisplay(String(summary.recoveredAmount)) || "0,00 €"}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-amber-400/20 bg-amber-500/[0.08] px-3 py-2 text-center">
+                        <p className="text-[11px] uppercase tracking-wide text-amber-200/75">
+                          Montant en attente
+                        </p>
+                        <p className="mt-1 text-lg font-semibold text-amber-100">
+                          {formatAmountForDisplay(String(summary.pendingAmount)) || "0,00 €"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-2">
+                        <p className="text-[10px] uppercase tracking-wide text-brand-muted">
+                          Payé
+                        </p>
+                        <p className="mt-0.5 text-sm font-semibold text-white">
+                          {summary.paidCount}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-2">
+                        <p className="text-[10px] uppercase tracking-wide text-brand-muted">
+                          En cours
+                        </p>
+                        <p className="mt-0.5 text-sm font-semibold text-white">
+                          {summary.inProgressCount}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-2">
+                        <p className="text-[10px] uppercase tracking-wide text-brand-muted">
+                          Mails envoyés
+                        </p>
+                        <p className="mt-0.5 text-sm font-semibold text-white">
+                          {summary.sentRelancesCount}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-2">
-                    <p className="text-[10px] uppercase tracking-wide text-brand-muted">
-                      En cours
-                    </p>
-                    <p className="mt-0.5 text-sm font-semibold text-white">
-                      {summary.inProgressCount}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-2">
-                    <p className="text-[10px] uppercase tracking-wide text-brand-muted">
-                      Mails envoyés
-                    </p>
-                    <p className="mt-0.5 text-sm font-semibold text-white">
-                      {summary.sentRelancesCount}
-                    </p>
-                  </div>
-                </div>
+                )}
               </div>
-            )}
-          </div>
-        </div>
-      ) : null}
+            </div>,
+            document.body,
+          )
+        : null}
     </>
   );
 }

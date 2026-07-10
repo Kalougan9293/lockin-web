@@ -131,6 +131,45 @@ export function buildRelanceScheduleForRow(
 export const DUE_DATE_MUST_BE_TOMORROW_ERROR =
   "La date d'échéance doit être fixée au moins à demain (J+1) pour pouvoir planifier les relances correctement.";
 
+export type DueDateHighlightLevel = "approaching" | "overdue" | null;
+
+/** Jours restants avant l'échéance (positif = futur, 0 = aujourd'hui, négatif = retard). */
+export function getDaysUntilDue(
+  dueDate: Date,
+  referenceToday: Date = todayDateOnly(),
+): number {
+  const today = startOfDay(referenceToday).getTime();
+  const due = startOfDay(dueDate).getTime();
+  return Math.floor((due - today) / 86_400_000);
+}
+
+/**
+ * Surbrillance colonne Échéance (2 niveaux) — ex. aujourd'hui 10/07/2026 :
+ * - jaune léger quasi transparent : échéances du 03/07 au 09/07 (J-7 à J-1)
+ * - rouge vif : échéance du 10/07 et au-delà (jour J → futur)
+ */
+export function getDueDateHighlightLevel(
+  dueDate: Date,
+  referenceToday: Date = todayDateOnly(),
+): DueDateHighlightLevel {
+  const daysUntilDue = getDaysUntilDue(dueDate, referenceToday);
+
+  if (daysUntilDue >= -7 && daysUntilDue <= -1) return "approaching";
+  if (daysUntilDue >= 0) return "overdue";
+  return null;
+}
+
+export function getDueDateHighlightClass(level: DueDateHighlightLevel): string {
+  switch (level) {
+    case "approaching":
+      return "!bg-yellow-300/[0.16] hover:!bg-yellow-300/[0.21]";
+    case "overdue":
+      return "!bg-red-500/[0.48] hover:!bg-red-500/[0.54] ring-1 ring-inset ring-red-400/45";
+    default:
+      return "";
+  }
+}
+
 /** Échéance au plus tard aujourd'hui → invalide pour planifier les relances. */
 export function isDueDateOnOrBeforeToday(isoDate: string): boolean {
   const dueDate = parseDateOnly(isoDate);

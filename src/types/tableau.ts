@@ -455,10 +455,10 @@ export function createTableData(index = 1): TableData {
 
 const MIN_CONFIGURED_RELANCE_MESSAGE_LENGTH = 40;
 
-function buildDefaultRelanceSteps(): RelanceStep[] {
+function buildDefaultRelanceSteps(existing: RelanceStep[] = []): RelanceStep[] {
   return DEFAULT_RELANCE_STEPS.map((step, ordre) => ({
     ...step,
-    id: crypto.randomUUID(),
+    id: existing[ordre]?.id ?? crypto.randomUUID(),
     name: step.name.trim() || defaultRelanceStepName(ordre),
   }));
 }
@@ -490,7 +490,7 @@ export function ensureDefaultRelanceSteps(table: TableData): TableData {
 
   return {
     ...table,
-    relanceSteps: buildDefaultRelanceSteps(),
+    relanceSteps: buildDefaultRelanceSteps(table.relanceSteps),
   };
 }
 

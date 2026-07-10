@@ -329,6 +329,15 @@ export function relanceStepsChanged(prev: TableData, next: TableData): boolean {
   return JSON.stringify(prev.relanceSteps) !== JSON.stringify(next.relanceSteps);
 }
 
+export function tableDiffHasChanges(prev: TableData, next: TableData): boolean {
+  if (tableMetaChanged(prev, next)) return true;
+  if (relanceStepsChanged(prev, next)) return true;
+  if (getRemovedRows(prev.rows, next.rows).length > 0) return true;
+  if (getAddedRows(prev.rows, next.rows).length > 0) return true;
+  if (getUpdatedRows(prev.rows, next.rows).length > 0) return true;
+  return false;
+}
+
 export function getAddedRows(prev: ClientRow[], next: ClientRow[]): ClientRow[] {
   const prevIds = new Set(prev.map((row) => row.id));
   return next.filter((row) => !prevIds.has(row.id));

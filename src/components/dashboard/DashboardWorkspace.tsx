@@ -71,6 +71,7 @@ export function DashboardWorkspace({
     loading,
     loadError,
     persistError,
+    dismissPersistError,
     updateTable,
     addTableAfter,
     removeTable,
@@ -381,9 +382,20 @@ export function DashboardWorkspace({
       ) : null}
 
       {persistError ? (
-        <p className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-100">
-          {persistError}
-        </p>
+        <div
+          role="alert"
+          className="relative mb-4 rounded-lg border border-red-500/30 bg-red-500/10 py-2 pl-4 pr-10 text-sm text-red-100"
+        >
+          <p>{persistError}</p>
+          <button
+            type="button"
+            onClick={dismissPersistError}
+            aria-label="Fermer le message d'erreur"
+            className="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-red-200/80 transition-colors hover:bg-white/10 hover:text-white"
+          >
+            ×
+          </button>
+        </div>
       ) : null}
 
       {importSuccess ? (

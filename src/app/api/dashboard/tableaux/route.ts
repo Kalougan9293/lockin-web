@@ -148,7 +148,14 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Erreur de mise à jour.";
+      error instanceof Error
+        ? error.message
+        : typeof error === "object" &&
+            error !== null &&
+            "message" in error &&
+            typeof error.message === "string"
+          ? error.message
+          : "Erreur de mise à jour.";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
@@ -222,7 +229,14 @@ export async function PUT(request: Request) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Erreur de mise à jour.";
+      error instanceof Error
+        ? error.message
+        : typeof error === "object" &&
+            error !== null &&
+            "message" in error &&
+            typeof error.message === "string"
+          ? error.message
+          : "Erreur de mise à jour.";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
