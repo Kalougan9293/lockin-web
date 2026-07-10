@@ -188,21 +188,45 @@ type TableColumnProps = {
 };
 
 const REMOVE_BUTTON_CH = 2.25;
+const SORT_BUTTON_CH = 2.25;
 const COLUMN_WIDTH_PAD_CH = 0.35;
+/** En-tête compressé au redimensionnement : 3 caractères visibles + contrôles. */
+const MIN_HEADER_VISIBLE_CHARS = 3;
+
+function columnReservesSortButton(column: ColumnDef): boolean {
+  return isDateColumnLabel(column.label) || isAmountColumnLabel(column.label);
+}
+
+function getColumnControlsWidthCh(
+  column: ColumnDef,
+  reserveRemoveButton: boolean,
+): number {
+  return (
+    (reserveRemoveButton ? REMOVE_BUTTON_CH : 0) +
+    (columnReservesSortButton(column) ? SORT_BUTTON_CH : 0)
+  );
+}
 
 function getTitleBasedColumnWidthCh(
   column: ColumnDef,
   reserveRemoveButton: boolean,
 ): number {
-  const controlsCh = reserveRemoveButton ? REMOVE_BUTTON_CH : 0;
-  return column.label.length + controlsCh + COLUMN_WIDTH_PAD_CH;
+  return (
+    column.label.length +
+    getColumnControlsWidthCh(column, reserveRemoveButton) +
+    COLUMN_WIDTH_PAD_CH
+  );
 }
 
 function getMinColumnWidthCh(
   column: ColumnDef,
   reserveRemoveButton: boolean,
 ): number {
-  return getTitleBasedColumnWidthCh(column, reserveRemoveButton);
+  return (
+    MIN_HEADER_VISIBLE_CHARS +
+    getColumnControlsWidthCh(column, reserveRemoveButton) +
+    COLUMN_WIDTH_PAD_CH
+  );
 }
 const RIGHT_COLUMN_WIDTH_PAD_CH = 1.5;
 /** Largeur minimale d'une colonne relance (texte « Prévu : DD/MM »). */
@@ -243,7 +267,7 @@ function computeDefaultColumnWidthCh(
     return getTitleBasedColumnWidthCh(column, reserveRemoveButton);
   }
 
-  const controlsCh = reserveRemoveButton ? REMOVE_BUTTON_CH : 0;
+  const controlsCh = getColumnControlsWidthCh(column, reserveRemoveButton);
   return Math.max(
     getTitleBasedColumnWidthCh(column, reserveRemoveButton),
     getColumnCharWidth(column, rows, getLength, controlsCh) + COLUMN_WIDTH_PAD_CH,
