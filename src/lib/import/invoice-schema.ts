@@ -2,6 +2,10 @@ import { z } from "zod";
 
 import { validateDueDateForRelance } from "@/lib/dashboard/relance-schedule";
 import { parseAmountToStorage } from "@/lib/preferences/currency-format";
+import {
+  COLUMN_LABEL_FACTURE,
+  COLUMN_LABEL_TELEPHONE,
+} from "@/types/tableau";
 
 import {
   rowMatchesIssuer,
@@ -204,6 +208,7 @@ export function mapLlmRowToReviewPayload(
   const dateEmissionRaw = row.date_emission.trim();
   const email = row.email.trim();
   const montantRaw = row.montant.trim();
+  const numero = row.numero.trim();
 
   const hasContent =
     nom.length > 0 ||
@@ -211,7 +216,8 @@ export function mapLlmRowToReviewPayload(
     echeanceRaw.length > 0 ||
     dateEmissionRaw.length > 0 ||
     email.length > 0 ||
-    montantRaw.length > 0;
+    montantRaw.length > 0 ||
+    numero.length > 0;
 
   if (!hasContent) return null;
 
@@ -225,8 +231,8 @@ export function mapLlmRowToReviewPayload(
     Nom: nom,
     Mail: email,
     Échéance: echeanceIso,
-    Référence: reference,
-    Numéro: row.numero.trim(),
+    ...(reference ? { [COLUMN_LABEL_FACTURE]: reference } : {}),
+    ...(numero ? { [COLUMN_LABEL_TELEPHONE]: numero } : {}),
     ...(montantStored ? { Montant: montantStored } : {}),
     ...(dateEmissionIso ? { Date: dateEmissionIso } : {}),
   };

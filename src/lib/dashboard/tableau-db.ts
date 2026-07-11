@@ -54,15 +54,18 @@ export function mapTableauToTableData(tableau: TableauWithRelations): TableData 
     .map(mapLigneRow);
 
   return ensureDefaultRelanceSteps(
-    upgradeLegacyDefaultColumns({
-      id: tableau.id,
-      name: tableau.name,
-      leftColumns: tableau.left_columns as ColumnDef[],
-      hiddenLeftColumns: tableau.hidden_left_columns as ColumnDef[],
-      rows,
-      relanceSteps,
-      ccCreditor: tableau.cc_creditor ?? false,
-    }),
+    upgradeLegacyDefaultColumns(
+      {
+        id: tableau.id,
+        name: tableau.name,
+        leftColumns: tableau.left_columns as ColumnDef[],
+        hiddenLeftColumns: (tableau.hidden_left_columns ?? []) as ColumnDef[],
+        rows,
+        relanceSteps,
+        ccCreditor: tableau.cc_creditor ?? false,
+      },
+      { seedMissingOptionalColumns: false },
+    ),
   );
 }
 
@@ -71,7 +74,13 @@ function rawTableauNeedsColumnUpgrade(
   table: TableData,
 ): boolean {
   const rawColumns = raw.left_columns as ColumnDef[];
+  const rawHiddenColumns = (raw.hidden_left_columns ?? []) as ColumnDef[];
   if (JSON.stringify(rawColumns) !== JSON.stringify(table.leftColumns)) {
+    return true;
+  }
+  if (
+    JSON.stringify(rawHiddenColumns) !== JSON.stringify(table.hiddenLeftColumns)
+  ) {
     return true;
   }
 

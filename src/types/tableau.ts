@@ -126,6 +126,40 @@ export function canonicalColumnLabel(label: string): string {
   return LEGACY_COLUMN_LABEL_ALIASES[trimmed] ?? trimmed;
 }
 
+/** Unifie les clés import IA (Référence, Numéro…) vers les libellés colonnes actuels. */
+export function normalizeImportedFieldKeys(
+  fields: Record<string, string>,
+): Record<string, string> {
+  const normalized: Record<string, string> = {};
+
+  for (const [key, raw] of Object.entries(fields)) {
+    const value = raw?.trim() ?? "";
+    if (!value) continue;
+
+    const canonical = canonicalColumnLabel(key);
+    if (!normalized[canonical]) {
+      normalized[canonical] = value;
+    }
+  }
+
+  return normalized;
+}
+
+/** Lit une valeur importée même si elle est encore sous une clé legacy. */
+export function getImportFieldValue(
+  fields: Record<string, string>,
+  label: string,
+): string {
+  const direct = fields[label]?.trim();
+  if (direct) return direct;
+
+  const legacyKey = Object.entries(LEGACY_COLUMN_LABEL_ALIASES).find(([, canonical]) =>
+    labelsMatch(canonical, label),
+  )?.[0];
+
+  return legacyKey ? fields[legacyKey]?.trim() ?? "" : fields[label] ?? "";
+}
+
 export const STANDARD_TEMPLATE_LABELS = [
   "Nom",
   "Mail",
@@ -292,7 +326,23 @@ export const LEFT_COLUMN_PRESETS = [
 ];
 
 function isColumnLabelPresent(columns: ColumnDef[], label: string) {
-  return columns.some((column) => labelsMatch(column.label, label));
+  const canonical = canonicalColumnLabel(label);
+  return columns.some(
+    (column) =>
+      labelsMatch(column.label, label) ||
+      labelsMatch(column.label, canonical) ||
+      labelsMatch(canonicalColumnLabel(column.label), canonical),
+  );
+}
+
+function columnPresetExistsInTable(
+  leftColumns: ColumnDef[],
+  hiddenLeftColumns: ColumnDef[],
+  preset: ColumnDef,
+): boolean {
+  const all = [...leftColumns, ...hiddenLeftColumns];
+  if (all.some((column) => column.id === preset.id)) return true;
+  return isColumnLabelPresent(all, preset.label);
 }
 
 /**
@@ -505,8 +555,20 @@ function hasEcheanceColumn(columns: ColumnDef[]) {
   );
 }
 
+export type UpgradeLegacyDefaultColumnsOptions = {
+  /**
+   * Ajoute les colonnes optionnelles manquantes (Téléphone, Date, etc.).
+   * Réservé à la création d'un nouveau tableau — pas au chargement depuis la base.
+   */
+  seedMissingOptionalColumns?: boolean;
+};
+
 /** Migrations colonnes par défaut (Date→Échéance, ordre Montant/Échéance). */
-export function upgradeLegacyDefaultColumns(table: TableData): TableData {
+export function upgradeLegacyDefaultColumns(
+  table: TableData,
+  options: UpgradeLegacyDefaultColumnsOptions = {},
+): TableData {
+  const seedMissingOptionalColumns = options.seedMissingOptionalColumns ?? true;
   let next = table;
 
   if (
@@ -535,15 +597,20 @@ export function upgradeLegacyDefaultColumns(table: TableData): TableData {
     }
   }
 
+  next = renameStandardColumnLabels(next);
   next = reorderMontantBeforeEcheance(next);
-  next = ensureDefaultOptionalLeftColumns(next);
-  if (
-    looksLikeLegacyDefaultColumnOrder(next.leftColumns) ||
-    hasOnlyDefaultLeftColumnLabels(next.leftColumns)
-  ) {
-    next = reorderLeftColumnsToDefaultOrder(next);
+
+  if (seedMissingOptionalColumns) {
+    next = ensureDefaultOptionalLeftColumns(next);
+    if (
+      looksLikeLegacyDefaultColumnOrder(next.leftColumns) ||
+      hasOnlyDefaultLeftColumnLabels(next.leftColumns)
+    ) {
+      next = reorderLeftColumnsToDefaultOrder(next);
+    }
   }
-  return renameStandardColumnLabels(next);
+
+  return next;
 }
 
 function renameStandardColumnLabels(table: TableData): TableData {
@@ -576,10 +643,7 @@ function ensureDefaultOptionalLeftColumns(table: TableData): TableData {
   let changed = false;
 
   for (const preset of [...DEFAULT_OPTIONAL_LEFT_COLUMNS, { id: "info", label: "Info" }]) {
-    if (
-      isColumnLabelPresent(leftColumns, preset.label) ||
-      isColumnLabelPresent(table.hiddenLeftColumns, preset.label)
-    ) {
+    if (columnPresetExistsInTable(leftColumns, hiddenLeftColumns, preset)) {
       continue;
     }
     leftColumns.push({ ...preset });
@@ -587,8 +651,10 @@ function ensureDefaultOptionalLeftColumns(table: TableData): TableData {
   }
 
   if (
-    !isColumnLabelPresent(leftColumns, COLUMN_LABEL_PAYMENT_LINK) &&
-    !isColumnLabelPresent(hiddenLeftColumns, COLUMN_LABEL_PAYMENT_LINK)
+    !columnPresetExistsInTable(leftColumns, hiddenLeftColumns, {
+      id: "lien_paiement",
+      label: COLUMN_LABEL_PAYMENT_LINK,
+    })
   ) {
     hiddenLeftColumns.push({
       id: "lien_paiement",

@@ -21,6 +21,8 @@ import {
   getColumnAutocomplete,
   getColumnFieldName,
   getColumnInputType,
+  getImportFieldValue,
+  normalizeImportedFieldKeys,
   resolveActiveFieldsFromImport,
   type TableSummary,
 } from "@/types/tableau";
@@ -205,7 +207,8 @@ export function AddClientModal({
     if (!open) return;
 
     if (importedFields) {
-      const detected = resolveActiveFieldsFromImport(importedFields);
+      const normalizedFields = normalizeImportedFieldKeys(importedFields);
+      const detected = resolveActiveFieldsFromImport(normalizedFields);
       const customs = detected.filter(
         (label) =>
           !MODAL_FIELD_POOL.some(
@@ -213,7 +216,7 @@ export function AddClientModal({
           ),
       );
 
-      setValues({ ...importedFields });
+      setValues(normalizedFields);
       setActiveFields(
         detected.length > 0 ? detected : [...DEFAULT_MODAL_FIELDS],
       );
@@ -274,7 +277,7 @@ export function AddClientModal({
 
     const payloadInput: Record<string, string> = {};
     for (const label of activeFields) {
-      payloadInput[label] = values[label] ?? "";
+      payloadInput[label] = getImportFieldValue(values, label);
     }
 
     const payload = normalizeImportFields(payloadInput, dateFormat);
@@ -439,7 +442,7 @@ export function AddClientModal({
                     <PreferenceDateField
                       id={`field-${label}`}
                       name={label}
-                      value={values[label] ?? ""}
+                      value={getImportFieldValue(values, label)}
                       dateFormat={dateFormat}
                       onChange={(isoValue) =>
                         setValues((prev) => ({
@@ -452,7 +455,7 @@ export function AddClientModal({
                     <PreferenceAmountField
                       id={`field-${label}`}
                       name={label}
-                      value={values[label] ?? ""}
+                      value={getImportFieldValue(values, label)}
                       onChange={(storedValue) =>
                         setValues((prev) => ({
                           ...prev,
@@ -467,7 +470,7 @@ export function AddClientModal({
                       name={getColumnFieldName(label)}
                       type={getColumnInputType({ id: label, label })}
                       autoComplete={getColumnAutocomplete(label)}
-                      value={values[label] ?? ""}
+                      value={getImportFieldValue(values, label)}
                       onChange={(event) =>
                         setValues((prev) => ({
                           ...prev,

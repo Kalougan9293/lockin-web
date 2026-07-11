@@ -62,6 +62,52 @@ const TABLE_BORDER = "border-white/[0.12]";
 const TABLE_CELL_BORDER = "border-white/[0.08]";
 const TABLE_ROW_EVEN = "bg-white/[0.05]";
 const TABLE_ROW_ODD = "bg-white/[0.025]";
+const DROPDOWN_VIEWPORT_PADDING = 8;
+const DROPDOWN_ANCHOR_GAP = 8;
+const STATUT_MENU_WIDTH_PX = 220;
+const STATUT_MENU_PREFERRED_MAX_HEIGHT_PX = 352;
+const STATUT_MENU_MIN_HEIGHT_PX = 120;
+
+function computeAnchoredDropdownPosition(
+  anchorRect: DOMRect,
+  menuWidth: number,
+  preferredMaxHeight: number,
+  minHeight = STATUT_MENU_MIN_HEIGHT_PX,
+): { top: number; left: number; maxHeight: number } {
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+
+  const left = Math.min(
+    Math.max(DROPDOWN_VIEWPORT_PADDING, anchorRect.left),
+    viewportWidth - menuWidth - DROPDOWN_VIEWPORT_PADDING,
+  );
+
+  const spaceBelow =
+    viewportHeight -
+    anchorRect.bottom -
+    DROPDOWN_ANCHOR_GAP -
+    DROPDOWN_VIEWPORT_PADDING;
+  const spaceAbove =
+    anchorRect.top - DROPDOWN_ANCHOR_GAP - DROPDOWN_VIEWPORT_PADDING;
+
+  const openBelow = spaceBelow >= spaceAbove;
+  const available = Math.max(0, openBelow ? spaceBelow : spaceAbove);
+  const maxHeight = Math.max(
+    minHeight,
+    Math.min(preferredMaxHeight, available || preferredMaxHeight),
+  );
+
+  let top = openBelow
+    ? anchorRect.bottom + DROPDOWN_ANCHOR_GAP
+    : anchorRect.top - DROPDOWN_ANCHOR_GAP - maxHeight;
+
+  top = Math.max(
+    DROPDOWN_VIEWPORT_PADDING,
+    Math.min(top, viewportHeight - maxHeight - DROPDOWN_VIEWPORT_PADDING),
+  );
+
+  return { top, left, maxHeight };
+}
 
 function dataRowSurfaceClass(rowIndex: number, paid = false) {
   return `${rowIndex % 2 === 0 ? TABLE_ROW_EVEN : TABLE_ROW_ODD} transition-colors hover:bg-white/[0.08] ${
@@ -511,10 +557,13 @@ function StatutCell({
     current?.bubbleClassName ??
     "bg-white/[0.1] text-white/90 ring-white/20";
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(
-    null,
-  );
+  const [menuPosition, setMenuPosition] = useState<{
+    top: number;
+    left: number;
+    maxHeight: number;
+  } | null>(null);
 
   useEffect(() => {
     if (!open || !buttonRef.current) return;
@@ -522,31 +571,44 @@ function StatutCell({
     function updatePosition() {
       if (!buttonRef.current) return;
       const rect = buttonRef.current.getBoundingClientRect();
-      const menuWidth = 220;
-      const left = Math.min(
-        Math.max(8, rect.left),
-        window.innerWidth - menuWidth - 8,
+      const preferredMaxHeight = Math.min(
+        window.innerHeight * 0.7,
+        STATUT_MENU_PREFERRED_MAX_HEIGHT_PX,
       );
 
-      setMenuPosition({
-        top: rect.bottom + 8,
-        left,
-      });
+      setMenuPosition(
+        computeAnchoredDropdownPosition(
+          rect,
+          STATUT_MENU_WIDTH_PX,
+          preferredMaxHeight,
+        ),
+      );
     }
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") setOpen(false);
     }
 
+    function handlePointerDown(event: MouseEvent | TouchEvent) {
+      const target = event.target as Node;
+      if (buttonRef.current?.contains(target)) return;
+      if (menuRef.current?.contains(target)) return;
+      setOpen(false);
+    }
+
     updatePosition();
     window.addEventListener("resize", updatePosition);
     window.addEventListener("scroll", updatePosition, true);
     window.addEventListener("keydown", onKeyDown);
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown);
 
     return () => {
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
       window.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
     };
   }, [open]);
 
@@ -580,18 +642,16 @@ function StatutCell({
 
       {open && menuPosition && typeof document !== "undefined"
         ? createPortal(
-            <>
-              <button
-                type="button"
-                aria-label="Fermer"
-                className="fixed inset-0 z-[110] cursor-default bg-transparent"
-                onClick={() => setOpen(false)}
-              />
-              <div
-                role="menu"
-                style={{ top: menuPosition.top, left: menuPosition.left }}
-                className="fixed z-[111] max-h-[min(70vh,22rem)] min-w-[13.75rem] space-y-1 overflow-y-auto rounded-xl border border-white/10 bg-brand-card p-2 shadow-xl shadow-black/50"
-              >
+            <div
+              ref={menuRef}
+              role="menu"
+              style={{
+                top: menuPosition.top,
+                left: menuPosition.left,
+                maxHeight: menuPosition.maxHeight,
+              }}
+              className="fixed z-[111] min-w-[13.75rem] space-y-1 overflow-y-auto rounded-xl border border-white/10 bg-brand-card p-2 shadow-xl shadow-black/50"
+            >
                 {STATUT_OPTIONS.map((option) => {
                   const selected = option.value === status;
                   return (
@@ -619,8 +679,7 @@ function StatutCell({
                     </button>
                   );
                 })}
-              </div>
-            </>,
+            </div>,
             document.body,
           )
         : null}

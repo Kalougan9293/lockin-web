@@ -62,8 +62,10 @@ Pour chaque facture, une entrée dans "rows" :
 - "nom" : nom ou raison sociale du DESTINATAIRE. Chaîne vide "" si introuvable.
 - "email" : email du DESTINATAIRE uniquement, rattaché à son bloc. "" si absent ou incertain.
   Ne jamais réutiliser l'email de l'émetteur. Ne jamais inventer un email à partir d'un nom.
-- "numero" : téléphone du DESTINATAIRE dans son bloc. "" sinon. Jamais dans reference.
-- "reference" : numéro unique DE CETTE facture (« Facture n° », « Invoice n° », « FA-2026-042 »).
+- "numero" : téléphone du DESTINATAIRE dans son bloc (ligne « Tél : », « Téléphone : », « Tel : » sous le nom client).
+  Ex. bloc CLIENT « Tél : 06 88 21 47 60 » → "0688214760" ou "06 88 21 47 60".
+  Ignore le téléphone du bloc PRESTATAIRE / ÉMETTEUR. "" si absent. Jamais dans reference.
+- "reference" : numéro unique DE CETTE facture (« Facture n° », « Invoice n° », « N° FA-2026-0917 », « FA-2026-042 »).
   Jamais : téléphone, SIRET, SIREN, TVA, CP seul, IBAN, bon de commande client.
   Si aucun numéro de facture n'apparaît : "" (pas ambigu pour cette seule raison).
 - "montant" : montant TOTAL à payer par le client, en euros.
