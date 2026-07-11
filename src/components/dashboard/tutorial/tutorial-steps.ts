@@ -26,7 +26,7 @@ export const DASHBOARD_TUTORIAL_STEPS: TutorialStep[] = [
   {
     target: '[data-tutorial="configure-btn"]',
     message:
-      'Vous pouvez recevoir les relances en copie en cochant "CC".',
+      "Gérez ici le nombre, rythme et message de vos relances. N'oubliez pas de cocher le CC si vous voulez recevoir les relances en copie.",
   },
   {
     target: '[data-tutorial="table-right"]',
