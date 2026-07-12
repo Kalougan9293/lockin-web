@@ -7,10 +7,16 @@ export const RELANCE_EMAIL_DISCLAIMER =
 export const RELANCE_EMAIL_SERVICE_LINE =
   "LockIn — Service de gestion des impayés";
 
-/** Pied de page : #6b7280 sur blanc ≈ 4,8:1 (WCAG AA texte normal). */
-const FOOTER_TEXT_COLOR = "#6b7280";
-/** Liens du pied : #4b5563 sur blanc ≈ 7:1 (WCAG AAA). */
-const FOOTER_LINK_COLOR = "#4b5563";
+/** Corps et texte principal : #333 sur blanc ≈ 12:1 (WCAG AAA). */
+const BODY_TEXT_COLOR = "#333333";
+/** Signature : #444 sur blanc ≈ 9:1 (WCAG AAA). */
+const SIGNATURE_TEXT_COLOR = "#444444";
+/** Pied de page et mentions secondaires : #555 sur blanc ≈ 7:1 (WCAG AAA). */
+const FOOTER_TEXT_COLOR = "#555555";
+/** Liens du pied : #444 sur blanc ≈ 9:1 (WCAG AAA). */
+const FOOTER_LINK_COLOR = "#444444";
+/** Séparateurs de section (ex. « — Facture 1 — »). */
+const SECTION_HEADER_COLOR = "#555555";
 
 export type RelanceEmailCreditor = {
   companyName: string;
@@ -75,6 +81,13 @@ function buildEmailFooterHtml(): string {
               <p style="margin:0;font-size:12px;line-height:1.55;color:${FOOTER_TEXT_COLOR};text-align:center">${escapeHtml(RELANCE_EMAIL_DISCLAIMER)}</p>`;
 }
 
+function buildUnsubscribeHtml(): string {
+  return `<br><br>
+<p style="font-size: 12px; color: ${FOOTER_TEXT_COLOR};">
+  Pour ne plus recevoir ces e-mails, <a href="mailto:contact@lockin-web.online?subject=Désinscription" style="color:${FOOTER_LINK_COLOR};text-decoration:underline">cliquez ici pour vous désinscrire</a>.
+</p>`;
+}
+
 /** Template HTML complet pour l'envoi n8n (SMTP en mode HTML). */
 export function buildRelanceEmailHtml(
   messageBody: string,
@@ -117,7 +130,7 @@ export function buildRelanceEmailHtml(
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
                   <td style="border-top:1px solid #eef0f2;padding-top:28px">
-                    <p style="margin:0;font-size:15px;line-height:1.7;color:#4b5563">
+                    <p style="margin:0;font-size:15px;line-height:1.7;color:${SIGNATURE_TEXT_COLOR}">
                       Cordialement,<br />
                       <span style="color:#111827;font-weight:500">${companyName}</span>
                     </p>
@@ -135,6 +148,7 @@ export function buildRelanceEmailHtml(
       </td>
     </tr>
   </table>
+  ${buildUnsubscribeHtml()}
 </body>
 </html>`;
 }
@@ -146,7 +160,7 @@ function formatMessageBodyHtml(messageBody: string): string {
     .filter(Boolean);
 
   if (blocks.length === 0) {
-    return `<p style="margin:0;font-size:15px;line-height:1.7;color:#374151">&nbsp;</p>`;
+    return `<p style="margin:0;font-size:15px;line-height:1.7;color:${BODY_TEXT_COLOR}">&nbsp;</p>`;
   }
 
   return blocks
@@ -156,11 +170,11 @@ function formatMessageBodyHtml(messageBody: string): string {
 
       if (/^—\s*.+\s*—$/.test(block)) {
         const html = escapeHtml(block);
-        return `<p style="margin:28px 0 12px;font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:#6b7280">${html}</p>`;
+        return `<p style="margin:28px 0 12px;font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:${SECTION_HEADER_COLOR}">${html}</p>`;
       }
 
       const html = escapeHtml(block).replace(/\n/g, "<br />");
-      return `<p style="margin:0 0 ${marginBottom};font-size:15px;line-height:1.7;color:#374151">${html}</p>`;
+      return `<p style="margin:0 0 ${marginBottom};font-size:15px;line-height:1.7;color:${BODY_TEXT_COLOR}">${html}</p>`;
     })
     .join("");
 }
