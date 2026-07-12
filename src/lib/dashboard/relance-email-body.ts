@@ -1,3 +1,5 @@
+import { buildSafeEmailHref } from "@/lib/invoices/sanitize-href-url";
+
 export const RELANCE_EMAIL_BRAND_URL = "https://lockin-web.online";
 export const RELANCE_EMAIL_CONTACT_URL = `${RELANCE_EMAIL_BRAND_URL}/contact`;
 
@@ -108,9 +110,16 @@ function buildDownloadLinkHtml(
               </p>`;
   }
 
-  return `<p style="margin:24px 0 0;font-size:14px;line-height:1.6;color:${BODY_TEXT_COLOR}">
-                <a href="${escapeHtml(downloadUrl)}" style="${linkStyle}">Télécharger ici le PDF</a>
-              </p>`;
+  const safeHref = buildSafeEmailHref(downloadUrl);
+  if (!safeHref) return "";
+
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 0">
+    <tr>
+      <td>
+        <a href="${safeHref}" target="_blank" rel="noopener noreferrer" style="${linkStyle}">Télécharger ici le PDF</a>
+      </td>
+    </tr>
+  </table>`;
 }
 
 /** Template HTML complet pour l'envoi n8n (SMTP en mode HTML). */

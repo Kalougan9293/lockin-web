@@ -15,6 +15,19 @@ function normalizeAppUrl(url: string): string {
   return `https://${trimTrailingSlash(trimmed)}`;
 }
 
+/** Extrait une URL propre depuis une valeur brute ou un lien Markdown. */
+export function sanitizePublicUrlInput(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  const markdownMatch = trimmed.match(/\[([^\]]*)\]\(([^)]+)\)/);
+  if (markdownMatch?.[2]) {
+    return normalizeAppUrl(markdownMatch[2].trim());
+  }
+
+  return normalizeAppUrl(trimmed);
+}
+
 const rawSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
 
@@ -38,13 +51,13 @@ export function getSupabaseEnv() {
 /** URL publique de l'app (Vercel, Netlify ou domaine custom). */
 export function getAppOrigin(): string {
   const explicit = process.env.NEXT_PUBLIC_APP_URL?.trim();
-  if (explicit) return normalizeAppUrl(explicit);
+  if (explicit) return sanitizePublicUrlInput(explicit);
 
   const vercelUrl = process.env.VERCEL_URL?.trim();
-  if (vercelUrl) return normalizeAppUrl(vercelUrl);
+  if (vercelUrl) return sanitizePublicUrlInput(vercelUrl);
 
   const netlifyUrl = process.env.URL?.trim();
-  if (netlifyUrl) return normalizeAppUrl(netlifyUrl);
+  if (netlifyUrl) return sanitizePublicUrlInput(netlifyUrl);
 
   if (process.env.NODE_ENV === "production") {
     throw new Error(

@@ -4,6 +4,7 @@ import {
   createInvoiceDownloadToken,
   isInvoiceDownloadConfigured,
 } from "./download-token";
+import { sanitizeHrefUrl } from "./sanitize-href-url";
 
 export function buildInvoiceDownloadUrl(
   ligneIds: string[],
@@ -17,7 +18,8 @@ export function buildInvoiceDownloadUrl(
     const origin = getAppOrigin();
     const token = createInvoiceDownloadToken(ligneIds, userId, { messageBody });
     const params = new URLSearchParams({ token });
-    return `${origin}/api/invoices/download/${encodeURIComponent(primaryId)}?${params.toString()}`;
+    const rawUrl = `${origin}/api/invoices/download/${encodeURIComponent(primaryId)}?${params.toString()}`;
+    return sanitizeHrefUrl(rawUrl) || rawUrl;
   } catch {
     return "";
   }
