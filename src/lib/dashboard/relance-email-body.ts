@@ -25,26 +25,6 @@ export type RelanceEmailCreditor = {
   email: string;
 };
 
-/** Pied de page texte (export / logs). */
-export function finalizeRelanceEmailBody(
-  messageBody: string,
-  creditor: RelanceEmailCreditor,
-): string {
-  const trimmed = messageBody.trimEnd();
-  const companyName = creditor.companyName.trim() || "—";
-
-  return `${trimmed}
-
-Cordialement,
-${companyName}
-
----
-${RELANCE_EMAIL_SERVICE_LINE}
-Contact : ${RELANCE_EMAIL_CONTACT_URL}
-
-${RELANCE_EMAIL_DISCLAIMER}`;
-}
-
 function extractDueDateForPreheader(
   emphasisValues: string[],
   messageBody: string,

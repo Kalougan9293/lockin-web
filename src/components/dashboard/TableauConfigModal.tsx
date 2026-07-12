@@ -289,7 +289,6 @@ export function TableauConfigModal({
     if (!previewStep || previewStepIndex === null) return null;
 
     return {
-      mode: "draft" as const,
       tableauId,
       stepIndex: previewStepIndex,
       messageTemplate: previewStep.messageTemplate,
@@ -648,7 +647,6 @@ export function TableauConfigModal({
             : ""
         }
         previewRequest={previewRequest}
-        simple
       />
     </div>,
     document.body,

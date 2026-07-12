@@ -85,7 +85,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ $env.LOCKIN_API_URL.replace(/\\/$/, '') + '/api/cron/check-status?id=' + encodeURIComponent($json.ligneId) }}",
+        "url": "={{ $env.LOCKIN_API_URL.replace(/\\/$/, '') + '/api/cron/check-status?ids=' + encodeURIComponent((Array.isArray($json.ligneIds) && $json.ligneIds.length ? $json.ligneIds : [$json.ligneId]).join(',')) }}",
         "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {
@@ -176,7 +176,9 @@
         "subject": "={{ $('4. Une relance à la fois').item.json.subject }}",
         "emailFormat": "html",
         "html": "={{ $('4. Une relance à la fois').item.json.body }}",
-        "options": {}
+        "options": {
+          "ccEmail": "={{ $('4. Une relance à la fois').item.json.cc || '' }}"
+        }
       },
       "id": "e823f9b2-3642-4f11-9fa6-07f8cfcb9b01",
       "name": "8a. Envoyer l'email (Seul)",
@@ -264,7 +266,9 @@
         "subject": "={{ $('4. Une relance à la fois').item.json.subject }}",
         "emailFormat": "html",
         "html": "={{ $('4. Une relance à la fois').item.json.body }}",
-        "options": {}
+        "options": {
+          "ccEmail": "={{ $('4. Une relance à la fois').item.json.cc || '' }}"
+        }
       },
       "id": "e919f2b8-1642-4f11-9fa6-07f8cfcb9b01",
       "name": "8c. Envoyer l'email (Double)",

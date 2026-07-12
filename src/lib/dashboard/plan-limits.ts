@@ -1,9 +1,10 @@
 import type { ClientRow, TableData } from "@/types/tableau";
 
+/** Limites généreuses pendant la bêta (10 premiers clients, usage illimité). */
 export const PLAN_LIMITS = {
-  MAX_TABLES: 3,
-  MAX_ROWS_PER_TABLE: 50,
-  MAX_TOTAL_ROWS: 200,
+  MAX_TABLES: 50,
+  MAX_ROWS_PER_TABLE: 1000,
+  MAX_TOTAL_ROWS: 10000,
 } as const;
 
 export function countTotalRows(tables: TableData[]): number {

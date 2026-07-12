@@ -7,8 +7,6 @@ type RelancePreviewModalProps = {
   onClose: () => void;
   stepLabel: string;
   previewRequest: Record<string, unknown> | null;
-  /** Aperçu minimal : rendu e-mail seulement. */
-  simple?: boolean;
 };
 
 type PreviewState =
@@ -18,8 +16,6 @@ type PreviewState =
       status: "ready";
       subject: string;
       body: string;
-      to: string;
-      originalTo: string;
       sendEmail: boolean;
     }
   | { status: "error"; message: string };
@@ -29,7 +25,6 @@ export function RelancePreviewModal({
   onClose,
   stepLabel,
   previewRequest,
-  simple = false,
 }: RelancePreviewModalProps) {
   const [preview, setPreview] = useState<PreviewState>({ status: "idle" });
 
@@ -42,20 +37,16 @@ export function RelancePreviewModal({
     let cancelled = false;
     setPreview({ status: "loading" });
 
-    const requestBody = JSON.stringify(previewRequest);
-
     fetch("/api/dashboard/relances/preview", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: requestBody,
+      body: JSON.stringify(previewRequest),
     })
       .then(async (response) => {
         const payload = (await response.json()) as {
           error?: string;
           subject?: string;
           body?: string;
-          to?: string;
-          originalTo?: string;
           sendEmail?: boolean;
         };
 
@@ -69,8 +60,6 @@ export function RelancePreviewModal({
           status: "ready",
           subject: payload.subject ?? "",
           body: payload.body ?? "",
-          to: payload.to ?? "",
-          originalTo: payload.originalTo ?? "",
           sendEmail: Boolean(payload.sendEmail),
         });
       })
@@ -152,27 +141,9 @@ export function RelancePreviewModal({
             </p>
           ) : preview.status === "ready" ? (
             <div className="space-y-4">
-              {!simple ? (
-                <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-brand-muted">
-                  <p>
-                    <span className="text-white/70">Destinataire réel :</span>{" "}
-                    {preview.originalTo || "—"}
-                  </p>
-                  <p className="mt-1">
-                    <span className="text-white/70">Aperçu envoyé vers :</span>{" "}
-                    <span className="text-fuchsia-200">{preview.to}</span>
-                  </p>
-                  <p className="mt-1">
-                    <span className="text-white/70">Objet :</span>{" "}
-                    {preview.subject}
-                  </p>
-                </div>
-              ) : (
-                <p className="text-sm text-brand-muted">
-                  <span className="text-white/70">Objet :</span>{" "}
-                  {preview.subject}
-                </p>
-              )}
+              <p className="text-sm text-brand-muted">
+                <span className="text-white/70">Objet :</span> {preview.subject}
+              </p>
 
               {preview.sendEmail ? (
                 <div className="overflow-hidden rounded-xl border border-white/10 bg-white">
