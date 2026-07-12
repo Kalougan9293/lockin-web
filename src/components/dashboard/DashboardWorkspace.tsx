@@ -513,6 +513,8 @@ export function DashboardWorkspace({
       {configTable ? (
         <TableauConfigModal
           open
+          tableauId={configTable.id}
+          sampleLigneId={configTable.rows[0]?.id ?? null}
           initialSteps={configTable.relanceSteps}
           initialCcCreditor={configTable.ccCreditor}
           leftColumns={configTable.leftColumns}

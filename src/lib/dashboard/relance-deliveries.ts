@@ -33,6 +33,7 @@ import {
   getCreditorContext,
 } from "./creditor-context";
 import { buildRelanceEmailHtml } from "./relance-email-body";
+import { buildInvoiceDownloadUrl } from "@/lib/invoices/invoice-download-url";
 import { mapTableauToTableData } from "./tableau-db";
 
 type Supabase = SupabaseClient<Database>;
@@ -386,6 +387,11 @@ export async function collectDueRelancesForCron(
     const creditorEmail = creditor.email.trim();
     const cc =
       ccCreditor && sendEmail && creditorEmail ? creditorEmail : undefined;
+    const ligneIds = item.ligneIds ?? [item.ligneId];
+    const downloadUrl =
+      sendEmail && messageBody.trim()
+        ? buildInvoiceDownloadUrl(ligneIds, item.userId, messageBody)
+        : undefined;
 
     return {
       ...rest,
@@ -395,6 +401,7 @@ export async function collectDueRelancesForCron(
             messageBody,
             creditor,
             item.emphasisValues ?? [],
+            { downloadUrl },
           )
         : "",
       bodyFormat: "html" as const,

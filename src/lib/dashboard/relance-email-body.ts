@@ -82,10 +82,35 @@ function buildEmailFooterHtml(): string {
 }
 
 function buildUnsubscribeHtml(): string {
-  return `<br><br>
-<p style="font-size: 12px; color: ${FOOTER_TEXT_COLOR};">
-  Pour ne plus recevoir ces e-mails, <a href="mailto:contact@lockin-web.online?subject=Désinscription" style="color:${FOOTER_LINK_COLOR};text-decoration:underline">cliquez ici pour vous désinscrire</a>.
-</p>`;
+  const linkStyle = `color:${FOOTER_LINK_COLOR};text-decoration:underline`;
+
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f5f7;padding:0 20px 32px">
+    <tr>
+      <td align="center">
+        <p style="margin:0;max-width:560px;font-size:12px;line-height:1.55;color:${FOOTER_TEXT_COLOR};text-align:center">
+          Pour ne plus recevoir ces e-mails,
+          <a href="mailto:contact@lockin-web.online?subject=Désinscription" style="${linkStyle}">cliquez ici pour vous désinscrire</a>.
+        </p>
+      </td>
+    </tr>
+  </table>`;
+}
+
+function buildDownloadLinkHtml(
+  downloadUrl: string,
+  previewOnly = false,
+): string {
+  const linkStyle = `color:${FOOTER_LINK_COLOR};text-decoration:underline;font-weight:500`;
+
+  if (previewOnly) {
+    return `<p style="margin:24px 0 0;font-size:14px;line-height:1.6;color:${BODY_TEXT_COLOR}">
+                <span style="${linkStyle};cursor:default">Télécharger ici le PDF</span>
+              </p>`;
+  }
+
+  return `<p style="margin:24px 0 0;font-size:14px;line-height:1.6;color:${BODY_TEXT_COLOR}">
+                <a href="${escapeHtml(downloadUrl)}" style="${linkStyle}">Télécharger ici le PDF</a>
+              </p>`;
 }
 
 /** Template HTML complet pour l'envoi n8n (SMTP en mode HTML). */
@@ -93,6 +118,7 @@ export function buildRelanceEmailHtml(
   messageBody: string,
   creditor: RelanceEmailCreditor,
   emphasisValues: string[] = [],
+  options?: { downloadUrl?: string; downloadLinkPreviewOnly?: boolean },
 ): string {
   const trimmedBody = messageBody.trim();
   const messageHtml = formatMessageBodyHtml(trimmedBody);
@@ -101,6 +127,14 @@ export function buildRelanceEmailHtml(
     extractDueDateForPreheader(emphasisValues, trimmedBody),
   );
   const footerHtml = buildEmailFooterHtml();
+  const downloadHtml = options?.downloadUrl
+    ? buildDownloadLinkHtml(
+        options.downloadUrl,
+        options.downloadLinkPreviewOnly,
+      )
+    : options?.downloadLinkPreviewOnly
+      ? buildDownloadLinkHtml("#", true)
+      : "";
 
   return `<!DOCTYPE html>
 <html lang="fr" xmlns="http://www.w3.org/1999/xhtml">
@@ -123,6 +157,7 @@ export function buildRelanceEmailHtml(
           <tr>
             <td style="padding:44px 40px 20px">
               ${messageHtml}
+              ${downloadHtml}
             </td>
           </tr>
           <tr>

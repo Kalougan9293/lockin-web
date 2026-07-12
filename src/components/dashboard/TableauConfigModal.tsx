@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import type { ColumnDef, RelanceStep, RelanceStepChannel } from "@/types/tableau";
@@ -15,8 +15,12 @@ import {
   validateRelanceStepsOrder,
 } from "@/types/tableau";
 
+import { RelancePreviewModal, PreviewEyeIcon } from "./RelancePreviewModal";
+
 type TableauConfigModalProps = {
   open: boolean;
+  tableauId: string;
+  sampleLigneId: string | null;
   initialSteps: RelanceStep[];
   initialCcCreditor: boolean;
   leftColumns: ColumnDef[];
@@ -102,6 +106,8 @@ function normalizeStepForUi(step: RelanceStep): RelanceStep {
 
 export function TableauConfigModal({
   open,
+  tableauId,
+  sampleLigneId,
   initialSteps,
   initialCcCreditor,
   leftColumns,
@@ -112,6 +118,7 @@ export function TableauConfigModal({
   const [ccCreditor, setCcCreditor] = useState(initialCcCreditor);
   const [activeStepId, setActiveStepId] = useState<string | null>(null);
   const [flashError, setFlashError] = useState<string | null>(null);
+  const [previewStepIndex, setPreviewStepIndex] = useState<number | null>(null);
   const messageRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -263,6 +270,40 @@ export function TableauConfigModal({
     updateStep(stepId, { messageTemplate: step.messageTemplate + token });
   }
 
+  function openPreview(index: number) {
+    if (!sampleLigneId) {
+      showFlashError(
+        "Ajoutez au moins une ligne au tableau pour prévisualiser l'e-mail.",
+      );
+      return;
+    }
+
+    const step = steps[index];
+    if (!step || !channelIncludesEmail(step.channel)) return;
+    setPreviewStepIndex(index);
+  }
+
+  const previewStep =
+    previewStepIndex !== null ? steps[previewStepIndex] : null;
+  const previewRequest = useMemo(() => {
+    if (!previewStep || previewStepIndex === null) return null;
+
+    return {
+      mode: "draft" as const,
+      tableauId,
+      stepIndex: previewStepIndex,
+      messageTemplate: previewStep.messageTemplate,
+      days: previewStep.days,
+      channel: previewStep.channel,
+      ligneId: sampleLigneId ?? undefined,
+    };
+  }, [
+    previewStep,
+    previewStepIndex,
+    tableauId,
+    sampleLigneId,
+  ]);
+
   function handleSave() {
     const orderError = validateRelanceStepsOrder(steps);
     if (orderError) {
@@ -364,7 +405,7 @@ export function TableauConfigModal({
                 Message
               </th>
               <th
-                className="w-12 border-l border-white/[0.08] px-2 py-3"
+                className="w-14 border-l border-white/[0.08] px-2 py-3"
                 aria-label="Actions"
               />
             </tr>
@@ -512,18 +553,33 @@ export function TableauConfigModal({
                   </td>
                   <td className="border-l border-white/[0.08] p-0 align-middle">
                     <div
-                      className={`flex ${rowHeightClass} items-center justify-center px-2`}
+                      className={`flex ${rowHeightClass} flex-col items-center justify-center gap-1 px-2`}
                     >
+                      {showEmail ? (
+                        <button
+                          type="button"
+                          onClick={() => openPreview(index)}
+                          title="Aperçu"
+                          aria-label={`Aperçu e-mail de la relance ${index + 1}`}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-sky-200/90 transition-colors hover:bg-sky-500/15 hover:text-sky-100"
+                        >
+                          <PreviewEyeIcon />
+                        </button>
+                      ) : (
+                        <span className="h-8 w-8" aria-hidden />
+                      )}
                       {canRemove ? (
                         <button
                           type="button"
                           onClick={() => removeStep(step.id)}
                           aria-label={`Supprimer la relance ${index + 1}`}
-                          className="flex h-9 w-9 items-center justify-center rounded-lg text-xl font-medium leading-none text-red-500 transition-colors hover:bg-red-500/15 hover:text-red-400"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-xl font-medium leading-none text-red-500 transition-colors hover:bg-red-500/15 hover:text-red-400"
                         >
                           ×
                         </button>
-                      ) : null}
+                      ) : (
+                        <span className="h-8 w-8" aria-hidden />
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -582,6 +638,18 @@ export function TableauConfigModal({
           {steps.length} / {MAX_RELANCES}
         </p>
       </footer>
+
+      <RelancePreviewModal
+        open={previewStepIndex !== null}
+        onClose={() => setPreviewStepIndex(null)}
+        stepLabel={
+          previewStepIndex !== null
+            ? `Relance ${previewStepIndex + 1}`
+            : ""
+        }
+        previewRequest={previewRequest}
+        simple
+      />
     </div>,
     document.body,
   );
