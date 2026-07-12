@@ -199,8 +199,9 @@ export default function CguPage() {
         <li>200 lignes maximum au total sur l&apos;ensemble des tableaux.</li>
       </ul>
       <p>
-        LockIn se réserve le droit de faire évoluer ces plafonds, notamment dans
-        le cadre d&apos;offres payantes futures.
+        Les forfaits et tarifs définitifs seront précisés prochainement. LockIn
+        se réserve le droit de faire évoluer ces plafonds, notamment dans le
+        cadre d&apos;offres payantes futures.
       </p>
 
       <h2>10. Propriété intellectuelle</h2>
@@ -260,10 +261,10 @@ export default function CguPage() {
 
       <h2>14. Tarification</h2>
       <p>
-        Le Service peut être proposé gratuitement pendant la phase de lancement.
-        Toute facturation future fera l&apos;objet d&apos;informations claires
-        avant tout engagement payant et, le cas échéant, de conditions
-        particulières.
+        Le Service est proposé gratuitement pendant la phase de lancement. Les
+        forfaits et tarifs définitifs seront communiqués prochainement. Toute
+        facturation future fera l&apos;objet d&apos;informations claires avant
+        tout engagement payant et, le cas échéant, de conditions particulières.
       </p>
 
       <h2>15. Droit applicable et litiges</h2>
