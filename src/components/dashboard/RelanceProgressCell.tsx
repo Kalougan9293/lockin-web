@@ -79,8 +79,8 @@ export function RelanceProgressCell({
             : "border-orange-300/45 bg-orange-500/10 text-orange-100/85 hover:bg-orange-500/20";
 
   return (
-    <div className="flex w-full min-w-0 items-center gap-1 px-0.5" title={badgeTitle}>
-      <div className="flex min-w-0 flex-1 items-center justify-center gap-2 px-0.5">
+    <div className="flex w-full min-w-0 items-center gap-1" title={badgeTitle}>
+      <div className="flex min-w-0 flex-1 items-center justify-start gap-1.5">
         <RelanceStatusDot
           status={status}
           animate={status === "scheduled"}

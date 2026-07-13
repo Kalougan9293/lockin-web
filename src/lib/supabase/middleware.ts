@@ -5,7 +5,7 @@ import { IMPERSONATE_COOKIE } from "@/lib/admin/impersonation";
 import { getDashboardPathForEmail, isAdminEmail } from "@/lib/auth/redirect";
 import { DEMO_SEARCH_PARAM, isMvpDemoMode } from "@/lib/mvp-demo";
 
-const AUTH_ROUTES = ["/login", "/signup"];
+const AUTH_ROUTES = ["/login", "/signup", "/forgot-password"];
 const PROTECTED_PREFIXES = ["/dashboard", "/admin"];
 
 function isAuthRoute(pathname: string) {

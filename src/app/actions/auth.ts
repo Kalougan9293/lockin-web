@@ -12,6 +12,8 @@ import {
 import { getDashboardPathForEmail } from "@/lib/auth/redirect";
 import {
   getFirstError,
+  validateForgotPassword,
+  validateResetPassword,
   validateSignIn,
   validateSignUp,
 } from "@/lib/auth/validation";
@@ -173,6 +175,96 @@ export async function signInAction(
   const clientError = await ensureClientFromAuthUser(supabase, user);
   if (clientError) {
     console.warn("[signIn] clients_lockin upsert:", clientError);
+  }
+
+  redirect(getDashboardPathForEmail(user.email));
+}
+
+export async function requestPasswordResetAction(
+  _prevState: AuthActionState,
+  formData: FormData,
+): Promise<AuthActionState> {
+  const input = {
+    email: String(formData.get("email") ?? ""),
+  };
+
+  const fieldErrors = validateForgotPassword(input);
+  const firstError = getFirstError(fieldErrors);
+  if (firstError) {
+    return {
+      error: firstError,
+      fieldErrors: fieldErrors as Record<string, string>,
+    };
+  }
+
+  const supabase = await createClient();
+  const origin = await getOrigin();
+
+  const { error } = await supabase.auth.resetPasswordForEmail(input.email.trim(), {
+    redirectTo: `${origin}/auth/callback?next=/reset-password`,
+  });
+
+  if (error) {
+    if (
+      error.message.includes("Invalid API key") ||
+      error.message.includes("Failed to fetch")
+    ) {
+      return {
+        error:
+          "Connexion Supabase impossible. Vérifiez NEXT_PUBLIC_SUPABASE_URL et NEXT_PUBLIC_SUPABASE_ANON_KEY dans lockin-web/.env.local.",
+      };
+    }
+
+    console.warn("[requestPasswordReset]", error.message);
+  }
+
+  return {
+    success:
+      "Si un compte existe avec cette adresse, vous recevrez un e-mail avec un lien pour réinitialiser votre mot de passe.",
+  };
+}
+
+export async function updatePasswordAction(
+  _prevState: AuthActionState,
+  formData: FormData,
+): Promise<AuthActionState> {
+  const input = {
+    password: String(formData.get("password") ?? ""),
+    confirmPassword: String(formData.get("confirmPassword") ?? ""),
+  };
+
+  const fieldErrors = validateResetPassword(input);
+  const firstError = getFirstError(fieldErrors);
+  if (firstError) {
+    return {
+      error: firstError,
+      fieldErrors: fieldErrors as Record<string, string>,
+    };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user?.email) {
+    return {
+      error:
+        "Lien expiré ou invalide. Demandez un nouveau lien depuis la page Mot de passe oublié.",
+    };
+  }
+
+  const { error } = await supabase.auth.updateUser({
+    password: input.password,
+  });
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  const clientError = await ensureClientFromAuthUser(supabase, user);
+  if (clientError) {
+    console.warn("[updatePassword] clients_lockin upsert:", clientError);
   }
 
   redirect(getDashboardPathForEmail(user.email));

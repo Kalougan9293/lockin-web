@@ -967,6 +967,14 @@ export function isPhoneColumnLabel(label: string): boolean {
   );
 }
 
+export function isMailColumnLabel(label: string): boolean {
+  const normalized = label
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "");
+  return normalized.includes("mail") || normalized === "email";
+}
+
 /** Évite que le navigateur associe téléphone / montant à un formulaire de paiement. */
 export function getColumnFieldName(label: string): string {
   const slug = label

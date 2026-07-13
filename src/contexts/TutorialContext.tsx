@@ -9,7 +9,9 @@ import {
   type ReactNode,
 } from "react";
 
-export const TUTORIAL_STEP_COUNT = 7;
+import { TUTORIAL_STEP_COUNT } from "@/components/dashboard/tutorial/tutorial-steps";
+
+export { TUTORIAL_STEP_COUNT };
 
 type TutorialPhase = "idle" | "confirm" | "running";
 

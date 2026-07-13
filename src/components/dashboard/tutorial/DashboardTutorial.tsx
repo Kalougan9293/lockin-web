@@ -4,11 +4,10 @@ import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
 import {
+  DASHBOARD_TUTORIAL_STEPS,
   TUTORIAL_STEP_COUNT,
-  useTutorial,
-} from "@/contexts/TutorialContext";
-
-import { DASHBOARD_TUTORIAL_STEPS } from "./tutorial-steps";
+} from "@/components/dashboard/tutorial/tutorial-steps";
+import { useTutorial } from "@/contexts/TutorialContext";
 
 type SpotlightRect = {
   top: number;
@@ -95,7 +94,9 @@ function TutorialConfirmDialog({
         >
           Lancer le tutoriel ?
         </p>
-        <p className="mt-1 text-center text-sm text-brand-muted">Étape 1 / 7</p>
+        <p className="mt-1 text-center text-sm text-brand-muted">
+          Étape 1 / {TUTORIAL_STEP_COUNT}
+        </p>
         <p className="mt-1 text-center text-xs text-brand-muted/80">
           Durée estimée : ~1 minute
         </p>

@@ -18,8 +18,23 @@ export type SignInInput = {
   password: string;
 };
 
+export type ForgotPasswordInput = {
+  email: string;
+};
+
+export type ResetPasswordInput = {
+  password: string;
+  confirmPassword: string;
+};
+
 export type FieldErrors = Partial<
-  Record<keyof SignUpInput | keyof SignInInput, string>
+  Record<
+    | keyof SignUpInput
+    | keyof SignInInput
+    | keyof ForgotPasswordInput
+    | keyof ResetPasswordInput,
+    string
+  >
 >;
 
 export function getPasswordCriteria(password: string) {
@@ -99,6 +114,35 @@ export function validateSignIn(input: SignInInput): FieldErrors {
 
   if (!input.password) {
     errors.password = "Le mot de passe est requis.";
+  }
+
+  return errors;
+}
+
+export function validateForgotPassword(input: ForgotPasswordInput): FieldErrors {
+  const errors: FieldErrors = {};
+
+  if (!input.email.trim()) {
+    errors.email = "L'email est requis.";
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email.trim())) {
+    errors.email = "Adresse email invalide.";
+  }
+
+  return errors;
+}
+
+export function validateResetPassword(input: ResetPasswordInput): FieldErrors {
+  const errors: FieldErrors = {};
+
+  const passwordError = validatePassword(input.password);
+  if (passwordError) {
+    errors.password = passwordError;
+  }
+
+  if (!input.confirmPassword) {
+    errors.confirmPassword = "Confirmez votre mot de passe.";
+  } else if (input.password !== input.confirmPassword) {
+    errors.confirmPassword = "Les mots de passe ne correspondent pas.";
   }
 
   return errors;

@@ -40,6 +40,7 @@ import {
   getColumnAutocomplete,
   getColumnFieldName,
   getColumnInputType,
+  isMailColumnLabel,
   isRowPaid,
   STATUT_COLUMN_ID,
 } from "@/types/tableau";
@@ -120,6 +121,10 @@ type RowNumberColumnProps = {
   totalRows: number;
   onAddClient?: () => void;
   addRowDisabled?: boolean;
+  addColumn?: {
+    availableLabels: string[];
+    onAdd: (label: string) => void;
+  };
 };
 
 function RowNumberColumn({
@@ -127,12 +132,23 @@ function RowNumberColumn({
   totalRows,
   onAddClient,
   addRowDisabled = false,
+  addColumn,
   showHeader = true,
 }: RowNumberColumnProps & { showHeader?: boolean }) {
   return (
     <div className={`w-7 shrink-0 border-r ${TABLE_BORDER} sm:w-8`}>
       {showHeader ? (
-        <div className={`h-11 border-b ${TABLE_CELL_BORDER} bg-violet-500/20`} />
+        <div
+          className={`flex h-11 items-center justify-center border-b ${TABLE_CELL_BORDER} bg-violet-500/20`}
+        >
+          {addColumn ? (
+            <AddColumnHeaderButton
+              availableLabels={addColumn.availableLabels}
+              onAdd={addColumn.onAdd}
+              dataTutorial="add-column-btn"
+            />
+          ) : null}
+        </div>
       ) : null}
       {Array.from({ length: totalRows }).map((_, rowIndex) => {
         const isDataRow = rowIndex < rows.length;
@@ -151,6 +167,7 @@ function RowNumberColumn({
                 onClick={onAddClient}
                 disabled={addRowDisabled}
                 aria-label="Ajouter un client"
+                data-tutorial="add-client-btn"
                 className="flex h-5 w-5 items-center justify-center rounded-full border border-violet-400/20 bg-violet-500/10 text-xs text-violet-300/80 transition-all hover:border-violet-400/40 hover:bg-violet-500/20 hover:text-violet-200 disabled:cursor-not-allowed disabled:opacity-30"
               >
                 +
@@ -232,11 +249,19 @@ type TableColumnProps = {
   ) => void;
   sortDirection?: "asc" | "desc" | null;
   onToggleSort?: () => void;
+  autoWidthEm?: number;
 };
 
 const REMOVE_BUTTON_CH = 2.25;
 const SORT_BUTTON_CH = 2.25;
 const COLUMN_WIDTH_PAD_CH = 0.35;
+/** Colonne Mail : largeur par défaut serrée sur le plus long e-mail. */
+const MAIL_COLUMN_WIDTH_PAD_CH = 0.1;
+const MAIL_COLUMN_HEADER_CONTROLS_CH = 1.5;
+/** Estimation serrée : largeur moyenne d'un caractère d'e-mail en em (text-sm). */
+const MAIL_CHAR_WIDTH_EM = 0.48;
+const MAIL_HEADER_LABEL_CHAR_EM = 0.55;
+const MAIL_HEADER_CONTROLS_EM = 1.2;
 /** En-tête compressé au redimensionnement : 3 caractères visibles + contrôles. */
 const MIN_HEADER_VISIBLE_CHARS = 3;
 
@@ -281,7 +306,7 @@ const DEFAULT_RELANCE_COLUMN_MIN_WIDTH = "7rem";
 /** Largeur minimale de la colonne Statut. */
 const DEFAULT_STATUT_COLUMN_MIN_WIDTH = "5.75rem";
 /** Largeur de la colonne Progression (badge + bouton timeline). */
-const PROGRESSION_COLUMN_WIDTH = "12.75rem";
+const PROGRESSION_COLUMN_WIDTH = "11.25rem";
 type SortDirection = "asc" | "desc";
 
 function getColumnCharWidth(
@@ -304,12 +329,60 @@ function columnHasCellContent(
   return rows.some((_, rowIndex) => getLength(rowIndex, column.id) > 0);
 }
 
+function computeMailColumnAutoWidthEm(
+  column: ColumnDef,
+  rows: ClientRow[],
+  getLength: (rowIndex: number, columnId: string) => number,
+): number {
+  const lengths = rows.map((_, rowIndex) => getLength(rowIndex, column.id));
+  const contentMax = lengths.length > 0 ? Math.max(...lengths, 0) : 0;
+  const headerEm =
+    column.label.length * MAIL_HEADER_LABEL_CHAR_EM + MAIL_HEADER_CONTROLS_EM;
+
+  if (contentMax === 0) {
+    return headerEm;
+  }
+
+  return Math.max(headerEm, contentMax * MAIL_CHAR_WIDTH_EM);
+}
+
+function computeMailColumnDefaultWidthCh(
+  column: ColumnDef,
+  rows: ClientRow[],
+  getLength: (rowIndex: number, columnId: string) => number,
+  reserveRemoveButton: boolean,
+): number {
+  const controlsCh = reserveRemoveButton ? MAIL_COLUMN_HEADER_CONTROLS_CH : 0;
+  const lengths = rows.map((_, rowIndex) => getLength(rowIndex, column.id));
+  const contentMax = lengths.length > 0 ? Math.max(...lengths, 0) : 0;
+
+  if (contentMax === 0) {
+    return column.label.length + controlsCh + MAIL_COLUMN_WIDTH_PAD_CH;
+  }
+
+  // L'unité CSS `ch` surestime les e-mails (beaucoup de glyphes étroits).
+  const adjustedContent = Math.ceil(contentMax * 0.62);
+  return Math.max(
+    column.label.length,
+    adjustedContent,
+  ) + controlsCh + MAIL_COLUMN_WIDTH_PAD_CH;
+}
+
 function computeDefaultColumnWidthCh(
   column: ColumnDef,
   rows: ClientRow[],
   getLength: (rowIndex: number, columnId: string) => number,
   reserveRemoveButton: boolean,
 ): number {
+  if (isMailColumnLabel(column.label)) {
+    return computeMailColumnDefaultWidthCh(
+      column,
+      rows,
+      getLength,
+      reserveRemoveButton,
+    );
+  }
+
   if (!columnHasCellContent(column, rows, getLength)) {
     return getTitleBasedColumnWidthCh(column, reserveRemoveButton);
   }
@@ -799,7 +872,7 @@ function RightTableColumn({
         return (
           <div
             key={rowIndex}
-            className={`flex ${TABLE_DATA_ROW_HEIGHT} items-center justify-center border-b ${TABLE_CELL_BORDER} px-2 ${
+            className={`flex ${TABLE_DATA_ROW_HEIGHT} items-center justify-center border-b ${TABLE_CELL_BORDER} ${isProgressionColumn ? "px-1.5" : "px-2"} ${
               recovery && isProgressionColumn
                 ? "border-transparent bg-transparent"
                 : dataRowSurfaceClass(rowIndex, paid)
@@ -878,6 +951,7 @@ function TableColumn({
   onResizeStart,
   sortDirection = null,
   onToggleSort,
+  autoWidthEm,
 }: TableColumnProps) {
   const itemProps = draggable && bindItem ? bindItem(column.id) : null;
   const handleProps = draggable && bindHandle ? bindHandle(column.id) : null;
@@ -887,27 +961,41 @@ function TableColumn({
   const isDateColumn = isDateColumnLabel(column.label);
   const isAmountColumn = isAmountColumnLabel(column.label);
   const isDueDateColumn = isDueDateColumnLabel(column.label);
+  const isMailColumn = isMailColumnLabel(column.label);
   const sortable = isDateColumn || isAmountColumn;
+  const mailAutoWidth = autoWidthEm != null;
+  const cellHorizontalPadding = isMailColumn ? "px-0" : "px-0.5";
 
-  const columnStyle = {
-    ...computeColumnStyle(columnWidthCh),
-    minWidth: `${minColumnWidthCh}ch`,
-  };
+  const columnStyle =
+    mailAutoWidth
+      ? {
+          width: `${autoWidthEm}em`,
+          minWidth: `${minColumnWidthCh}ch`,
+        }
+      : {
+          ...computeColumnStyle(columnWidthCh),
+          minWidth: `${minColumnWidthCh}ch`,
+        };
 
   return (
     <div
+      data-column-id={column.id}
       data-drag-item-id={itemProps?.["data-drag-item-id"]}
       style={columnStyle}
       className={`relative shrink-0 border-r ${TABLE_BORDER} transition-[opacity,box-shadow] duration-150 ${itemProps?.className ?? ""}`}
     >
       {showHeader ? (
       <div
-        className={`flex h-11 items-center gap-0 border-b ${TABLE_CELL_BORDER} px-0.5 ${headerClass}`}
+        className={`flex h-11 items-center gap-0 border-b ${TABLE_CELL_BORDER} ${cellHorizontalPadding} ${isMailColumn ? "justify-center" : ""} ${headerClass}`}
       >
         <span
           {...(handleProps ?? {})}
           title={column.label}
-          className={`${dashboardColumnHeaderClassName} min-w-0 flex-1 truncate text-center ${handleProps?.className ?? ""}`}
+          className={
+            isMailColumn
+              ? `${dashboardColumnHeaderClassName} shrink-0 whitespace-nowrap ${handleProps?.className ?? ""}`
+              : `${dashboardColumnHeaderClassName} min-w-0 flex-1 truncate text-center ${handleProps?.className ?? ""}`
+          }
         >
           {column.label}
         </span>
@@ -968,7 +1056,7 @@ function TableColumn({
         return (
           <div
             key={rowIndex}
-            className={`flex ${TABLE_DATA_ROW_HEIGHT} items-center justify-center border-b ${TABLE_CELL_BORDER} px-0.5 text-center ${dataRowSurfaceClass(rowIndex, rowPaid)} ${overdueDueDateClass}`}
+            className={`flex ${TABLE_DATA_ROW_HEIGHT} items-center justify-center border-b ${TABLE_CELL_BORDER} ${cellHorizontalPadding} text-center ${dataRowSurfaceClass(rowIndex, rowPaid)} ${overdueDueDateClass}`}
           >
             {isDataRow && cellsEditable ? (
               isDateColumn ? (
@@ -992,7 +1080,8 @@ function TableColumn({
                 />
               ) : (
               <input
-                type={getColumnInputType(column)}
+                type={isMailColumn ? "text" : getColumnInputType(column)}
+                inputMode={isMailColumn ? "email" : undefined}
                 value={getCellRawValue!(rowIndex, column.id)}
                 onChange={(event) =>
                   onCellChange!(rowIndex, column.id, event.target.value)
@@ -1021,20 +1110,17 @@ function TableColumn({
   );
 }
 
-type AddColumnButtonProps = {
+type AddColumnHeaderButtonProps = {
   availableLabels: string[];
   onAdd: (label: string) => void;
-  accentClass: string;
-  totalRows: number;
+  dataTutorial?: string;
 };
 
-function AddColumnButton({
+function AddColumnHeaderButton({
   availableLabels,
   onAdd,
-  accentClass,
-  totalRows,
-  showHeader = true,
-}: AddColumnButtonProps & { showHeader?: boolean }) {
+  dataTutorial,
+}: AddColumnHeaderButtonProps) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(
@@ -1084,31 +1170,18 @@ function AddColumnButton({
   }
 
   return (
-    <div className={`relative min-w-[2.75rem] shrink-0 border-r ${TABLE_BORDER} last:border-r-0`}>
-      {showHeader ? (
-      <div
-        className={`flex h-11 items-center justify-center border-b ${TABLE_CELL_BORDER} ${accentClass}`}
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-label="Ajouter une colonne"
+        aria-expanded={open}
+        data-tutorial={dataTutorial}
+        className="flex h-7 w-7 items-center justify-center rounded-lg text-lg text-white/50 transition-all hover:bg-white/10 hover:text-violet-200"
       >
-        <button
-          ref={buttonRef}
-          type="button"
-          onClick={() => setOpen((value) => !value)}
-          aria-label="Ajouter une colonne"
-          aria-expanded={open}
-          className="flex h-7 w-7 items-center justify-center rounded-lg text-lg text-white/50 transition-all hover:bg-white/10 hover:text-violet-200"
-        >
-          +
-        </button>
-      </div>
-      ) : null}
-      {Array.from({ length: totalRows }).map((_, index) => (
-        <div
-          key={index}
-          className={`${TABLE_DATA_ROW_HEIGHT} border-b ${TABLE_CELL_BORDER} ${
-            index % 2 === 0 ? TABLE_ROW_EVEN : TABLE_ROW_ODD
-          }`}
-        />
-      ))}
+        +
+      </button>
 
       {open && menuPosition && typeof document !== "undefined"
         ? createPortal(
@@ -1151,7 +1224,7 @@ function AddColumnButton({
             document.body,
           )
         : null}
-    </div>
+    </>
   );
 }
 
@@ -1364,6 +1437,21 @@ export function TableauGrid({
     };
   }, []);
 
+  function measureColumnWidthCh(columnId: string, fallbackCh: number): number {
+    const columnEl = document.querySelector(
+      `[data-column-id="${columnId}"]`,
+    );
+    if (!(columnEl instanceof HTMLElement)) return fallbackCh;
+
+    const headerLabel = columnEl.querySelector("span");
+    const measuredChPx = measureChPixelWidth(
+      (headerLabel ?? columnEl) as HTMLElement,
+    );
+    if (!measuredChPx) return fallbackCh;
+
+    return columnEl.offsetWidth / measuredChPx;
+  }
+
   function beginColumnResize(
     columnId: string,
     event: React.MouseEvent,
@@ -1373,11 +1461,20 @@ export function TableauGrid({
     let widths = columnWidthsChRef.current;
     if (Object.keys(widths).length === 0) {
       widths = { ...displayColumnWidthsRef.current };
+      for (const column of leftColumns) {
+        if (
+          isMailColumnLabel(column.label) &&
+          !(column.id in columnWidthsChRef.current)
+        ) {
+          widths[column.id] = measureColumnWidthCh(
+            column.id,
+            displayColumnWidthsRef.current[column.id] ?? currentWidthCh,
+          );
+        }
+      }
       columnWidthsChRef.current = widths;
       setColumnWidthsCh(widths);
     }
-
-    const startWidthCh = widths[columnId] ?? currentWidthCh;
 
     const handle = event.currentTarget as HTMLElement;
     const columnEl = handle.parentElement;
@@ -1385,6 +1482,15 @@ export function TableauGrid({
     const measuredChPx = measureChPixelWidth(
       (headerLabel ?? columnEl ?? handle) as HTMLElement,
     );
+
+    let startWidthCh = widths[columnId];
+    if (startWidthCh == null) {
+      startWidthCh =
+        columnEl instanceof HTMLElement
+          ? columnEl.offsetWidth / measuredChPx
+          : currentWidthCh;
+    }
+
     columnResizeRef.current = {
       columnId,
       startX: event.clientX,
@@ -1532,12 +1638,26 @@ export function TableauGrid({
                   totalRows={totalRows}
                   onAddClient={onAddClient}
                   addRowDisabled={addRowDisabled}
+                  addColumn={{
+                    availableLabels: addableColumnLabels,
+                    onAdd: onAddLeftColumn,
+                  }}
                 />
                 {leftColumns.map((column) => {
                   const titleMinColumnWidthCh = getMinColumnWidthCh(column, true);
+                  const mailUsesAutoWidth =
+                    isMailColumnLabel(column.label) &&
+                    !(column.id in columnWidthsCh);
                   const columnWidthCh =
                     displayColumnWidthsCh[column.id] ??
                     defaultColumnWidthsCh[column.id];
+                  const autoWidthEm = mailUsesAutoWidth
+                    ? computeMailColumnAutoWidthEm(
+                        column,
+                        rows,
+                        getColumnLengthForWidth,
+                      )
+                    : undefined;
 
                   return (
                     <TableColumn
@@ -1553,6 +1673,7 @@ export function TableauGrid({
                       totalRows={totalRows}
                       columnWidthCh={columnWidthCh}
                       minColumnWidthCh={titleMinColumnWidthCh}
+                      autoWidthEm={autoWidthEm}
                       resizable
                       onResizeStart={(event, currentWidthCh) =>
                         beginColumnResize(
@@ -1573,12 +1694,6 @@ export function TableauGrid({
                     />
                   );
                 })}
-                <AddColumnButton
-                  availableLabels={addableColumnLabels}
-                  accentClass="bg-violet-500/16"
-                  totalRows={totalRows}
-                  onAdd={(label) => onAddLeftColumn(label)}
-                />
               </div>
             </div>
           </div>
