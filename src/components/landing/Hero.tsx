@@ -1,4 +1,5 @@
-import { DemoEntryLink } from "@/components/landing/DemoEntryLink";
+import { DemoEntryLinkDesktopOnly } from "@/components/landing/DemoEntryLink";
+import { MobileDiscoveryCta } from "@/components/landing/MobileDiscoveryCta";
 import { fredoka } from "@/lib/fonts/fredoka";
 
 export function Hero() {
@@ -23,8 +24,9 @@ export function Hero() {
         Choisissez la cadence, le ton et le rythme de vos relances.
       </p>
 
-      <div className="flex flex-col items-center gap-5">
-        <DemoEntryLink />
+      <div className="flex w-full max-w-lg flex-col items-center gap-5">
+        <DemoEntryLinkDesktopOnly />
+        <MobileDiscoveryCta />
         <p className="text-xs font-medium text-brand-muted">
           L&apos;extension de rétention pour votre CRM actuelle.
         </p>

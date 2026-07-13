@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { ResponsiveDesktopGate } from "@/components/layout/ResponsiveDesktopGate";
 import { requireAdminUser } from "@/lib/admin/impersonation";
 import { isMvpDemoMode } from "@/lib/mvp-demo";
 
@@ -11,10 +12,18 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   if (isMvpDemoMode()) {
-    return children;
+    return (
+      <ResponsiveDesktopGate>
+        {children}
+      </ResponsiveDesktopGate>
+    );
   }
 
   await requireAdminUser();
 
-  return children;
+  return (
+    <ResponsiveDesktopGate>
+      {children}
+    </ResponsiveDesktopGate>
+  );
 }

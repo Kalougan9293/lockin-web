@@ -37,3 +37,12 @@ export function DemoEntryLink() {
     </button>
   );
 }
+
+/** Bouton démo visible uniquement à partir de md (768px). */
+export function DemoEntryLinkDesktopOnly() {
+  return (
+    <div className="hidden md:block">
+      <DemoEntryLink />
+    </div>
+  );
+}
