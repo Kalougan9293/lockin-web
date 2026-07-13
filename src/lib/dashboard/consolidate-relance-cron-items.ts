@@ -7,6 +7,8 @@ export type CronRelanceDraftItem = Omit<
   messageBody: string;
   smsMessageBody: string;
   ccCreditor?: boolean;
+  paymentUrl?: string;
+  paymentUrls?: string[];
 };
 
 function normalizeEmail(email: string): string {
@@ -84,6 +86,22 @@ function mergeEmphasisValues(items: CronRelanceDraftItem[]): string[] {
   return [...values];
 }
 
+function mergePaymentUrls(items: CronRelanceDraftItem[]): string[] {
+  const urls = new Set<string>();
+
+  for (const item of items) {
+    const direct = item.paymentUrl?.trim();
+    if (direct) urls.add(direct);
+
+    for (const url of item.paymentUrls ?? []) {
+      const trimmed = url.trim();
+      if (trimmed) urls.add(trimmed);
+    }
+  }
+
+  return [...urls];
+}
+
 function mergeRecipientGroup(items: CronRelanceDraftItem[]): CronRelanceDraftItem {
   const normalized = items.map(withDeliveryArrays);
   const primary = normalized[0];
@@ -103,6 +121,7 @@ function mergeRecipientGroup(items: CronRelanceDraftItem[]): CronRelanceDraftIte
     sendSms,
     ccCreditor: normalized.some((item) => item.ccCreditor),
     emphasisValues: mergeEmphasisValues(normalized),
+    paymentUrls: mergePaymentUrls(normalized),
     scheduledFor: normalized
       .map((item) => item.scheduledFor)
       .sort()

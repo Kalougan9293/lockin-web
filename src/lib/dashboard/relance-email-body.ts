@@ -1,4 +1,4 @@
-import { buildSafeEmailHref } from "@/lib/invoices/sanitize-href-url";
+import { buildSafeEmailHref, sanitizeHrefUrl } from "@/lib/invoices/sanitize-href-url";
 
 export const RELANCE_EMAIL_BRAND_URL = "https://lockin-web.online";
 export const RELANCE_EMAIL_CONTACT_URL = `${RELANCE_EMAIL_BRAND_URL}/contact`;
@@ -78,6 +78,48 @@ function buildUnsubscribeHtml(): string {
   </table>`;
 }
 
+function buildPaymentLinkHtml(
+  paymentUrl: string,
+  previewOnly = false,
+): string {
+  const linkStyle = `color:${FOOTER_LINK_COLOR};text-decoration:underline;font-weight:500`;
+
+  if (previewOnly) {
+    return `<span style="${linkStyle};cursor:default">Payer ici</span>`;
+  }
+
+  const safeHref = buildSafeEmailHref(paymentUrl);
+  if (!safeHref) return escapeHtml(paymentUrl.trim());
+
+  return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer" style="${linkStyle}">Payer ici</a>`;
+}
+
+function linkifyPaymentUrlInHtml(
+  html: string,
+  paymentUrl: string,
+  previewOnly = false,
+): string {
+  const trimmed = paymentUrl.trim();
+  if (!trimmed) return html;
+
+  const linkHtml = buildPaymentLinkHtml(trimmed, previewOnly);
+  const candidates = new Set<string>([escapeHtml(trimmed)]);
+
+  const sanitized = sanitizeHrefUrl(trimmed);
+  if (sanitized && sanitized !== trimmed) {
+    candidates.add(escapeHtml(sanitized));
+  }
+
+  let result = html;
+  for (const candidate of candidates) {
+    if (candidate) {
+      result = result.replaceAll(candidate, linkHtml);
+    }
+  }
+
+  return result;
+}
+
 function buildDownloadLinkHtml(
   downloadUrl: string,
   previewOnly = false,
@@ -107,10 +149,18 @@ export function buildRelanceEmailHtml(
   messageBody: string,
   creditor: RelanceEmailCreditor,
   emphasisValues: string[] = [],
-  options?: { downloadUrl?: string; downloadLinkPreviewOnly?: boolean },
+  options?: {
+    downloadUrl?: string;
+    downloadLinkPreviewOnly?: boolean;
+    paymentUrls?: string[];
+    paymentLinkPreviewOnly?: boolean;
+  },
 ): string {
   const trimmedBody = messageBody.trim();
-  const messageHtml = formatMessageBodyHtml(trimmedBody);
+  const messageHtml = formatMessageBodyHtml(trimmedBody, {
+    paymentUrls: options?.paymentUrls,
+    paymentLinkPreviewOnly: options?.paymentLinkPreviewOnly,
+  });
   const companyName = escapeHtml(creditor.companyName.trim() || "—");
   const preheaderHtml = buildPreheaderHtml(
     extractDueDateForPreheader(emphasisValues, trimmedBody),
@@ -177,7 +227,10 @@ export function buildRelanceEmailHtml(
 </html>`;
 }
 
-function formatMessageBodyHtml(messageBody: string): string {
+function formatMessageBodyHtml(
+  messageBody: string,
+  options?: { paymentUrls?: string[]; paymentLinkPreviewOnly?: boolean },
+): string {
   const blocks = messageBody
     .split(/\n{2,}/)
     .map((block) => block.trim())
@@ -186,6 +239,11 @@ function formatMessageBodyHtml(messageBody: string): string {
   if (blocks.length === 0) {
     return `<p style="margin:0;font-size:15px;line-height:1.7;color:${BODY_TEXT_COLOR}">&nbsp;</p>`;
   }
+
+  const paymentUrls = (options?.paymentUrls ?? [])
+    .map((url) => url.trim())
+    .filter(Boolean);
+  const paymentLinkPreviewOnly = options?.paymentLinkPreviewOnly ?? false;
 
   return blocks
     .map((block, index) => {
@@ -197,7 +255,11 @@ function formatMessageBodyHtml(messageBody: string): string {
         return `<p style="margin:28px 0 12px;font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:${SECTION_HEADER_COLOR}">${html}</p>`;
       }
 
-      const html = escapeHtml(block).replace(/\n/g, "<br />");
+      let html = escapeHtml(block).replace(/\n/g, "<br />");
+      for (const paymentUrl of paymentUrls) {
+        html = linkifyPaymentUrlInHtml(html, paymentUrl, paymentLinkPreviewOnly);
+      }
+
       return `<p style="margin:0 0 ${marginBottom};font-size:15px;line-height:1.7;color:${BODY_TEXT_COLOR}">${html}</p>`;
     })
     .join("");

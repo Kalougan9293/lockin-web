@@ -6,6 +6,7 @@ import {
 } from "@/lib/dashboard/creditor-context";
 import {
   getRelanceEmphasisValues,
+  getRowPaymentLink,
   resolveRelanceMessageTemplate,
 } from "@/lib/dashboard/relance-deliveries";
 import { buildRelanceEmailHtml } from "@/lib/dashboard/relance-email-body";
@@ -81,12 +82,17 @@ export async function buildRelancePreviewDraft(
         columns,
       )
     : "";
+  const paymentUrls = needsEmail
+    ? [getRowPaymentLink(preferredRow, columns)].filter(Boolean)
+    : [];
 
   return {
     subject: buildRelanceSubjectForStep(input.stepIndex, input.days),
     body: needsEmail
       ? buildRelanceEmailHtml(messageBody, creditor, emphasisValues, {
           downloadLinkPreviewOnly: true,
+          paymentUrls,
+          paymentLinkPreviewOnly: true,
         })
       : "",
     sendEmail: needsEmail,

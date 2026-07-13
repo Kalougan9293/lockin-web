@@ -108,6 +108,20 @@ function formatFieldForTemplate(label: string, raw: string): string {
   return raw.trim();
 }
 
+export function getRowPaymentLink(
+  row: ClientRow,
+  columns: ColumnDef[],
+): string {
+  return getRowFieldValue(
+    row,
+    columns,
+    "Lien de paiement",
+    "Lien paiement",
+    "Paiement",
+    "Payment link",
+  ).trim();
+}
+
 export function resolveRelanceMessageTemplate(
   template: string,
   row: ClientRow,
@@ -368,6 +382,7 @@ export async function collectDueRelancesForCron(
           emphasisValues: needsEmail
             ? getRelanceEmphasisValues(row, columns)
             : [],
+          paymentUrl: needsEmail ? getRowPaymentLink(row, columns) : undefined,
           scheduledFor,
         });
       }
@@ -393,6 +408,10 @@ export async function collectDueRelancesForCron(
         ? buildInvoiceDownloadUrl(ligneIds, item.userId, messageBody)
         : undefined;
 
+    const paymentUrls =
+      item.paymentUrls ??
+      (item.paymentUrl?.trim() ? [item.paymentUrl.trim()] : []);
+
     return {
       ...rest,
       ...(cc ? { cc } : {}),
@@ -401,7 +420,7 @@ export async function collectDueRelancesForCron(
             messageBody,
             creditor,
             item.emphasisValues ?? [],
-            { downloadUrl },
+            { downloadUrl, paymentUrls },
           )
         : "",
       bodyFormat: "html" as const,
