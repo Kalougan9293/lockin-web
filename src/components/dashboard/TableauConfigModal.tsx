@@ -294,6 +294,7 @@ export function TableauConfigModal({
       messageTemplate: previewStep.messageTemplate,
       days: previewStep.days,
       channel: previewStep.channel,
+      stepName: previewStep.name,
       ligneId: sampleLigneId ?? undefined,
     };
   }, [

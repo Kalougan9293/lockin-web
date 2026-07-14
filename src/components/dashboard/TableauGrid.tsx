@@ -305,8 +305,12 @@ const RIGHT_COLUMN_WIDTH_PAD_CH = 1.5;
 const DEFAULT_RELANCE_COLUMN_MIN_WIDTH = "7rem";
 /** Largeur minimale de la colonne Statut. */
 const DEFAULT_STATUT_COLUMN_MIN_WIDTH = "5.75rem";
+/** Plus long libellé compact : « Non envoyé : 31/12 ». */
+const PROGRESSION_LABEL_MAX_LENGTH = "Non envoyé : 31/12".length;
+/** Espace pastille + bouton timeline + marges internes, en ch. */
+const PROGRESSION_COLUMN_CONTROLS_CH = 5;
 /** Largeur de la colonne Progression (badge + bouton timeline). */
-const PROGRESSION_COLUMN_WIDTH = "11.25rem";
+const PROGRESSION_COLUMN_WIDTH = `${PROGRESSION_LABEL_MAX_LENGTH + PROGRESSION_COLUMN_CONTROLS_CH}ch`;
 type SortDirection = "asc" | "desc";
 
 function getColumnCharWidth(

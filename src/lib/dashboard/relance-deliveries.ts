@@ -8,9 +8,9 @@ import {
 import type { Database, RelanceDeliveryRow } from "@/types/database";
 import type { ClientRow, ColumnDef, RelanceStep, RelanceStepChannel, TableData } from "@/types/tableau";
 import {
+  COLUMN_LABEL_PAYMENT_LINK,
   defaultSmsTemplateForStep,
-  formatRelanceStepNumber,
-  formatRelanceTiming,
+  formatRelanceEmailSubject,
   isRowPaid,
   normalizeRelanceStepChannel,
   relanceStepNeedsEmail,
@@ -126,6 +126,7 @@ export function resolveRelanceMessageTemplate(
   template: string,
   row: ClientRow,
   columns: ColumnDef[],
+  options?: { preservePaymentLinkPlaceholder?: boolean },
 ): string {
   const replacements = new Map<string, string>();
 
@@ -153,6 +154,13 @@ export function resolveRelanceMessageTemplate(
 
   let resolved = template;
   for (const [label, value] of replacements) {
+    if (
+      options?.preservePaymentLinkPlaceholder &&
+      label === COLUMN_LABEL_PAYMENT_LINK
+    ) {
+      continue;
+    }
+
     resolved = resolved.replaceAll(`[${label}]`, value);
     if (label === "Échéance") {
       resolved = resolved.replaceAll("[Echeance]", value);
@@ -195,7 +203,7 @@ export function getRelanceEmphasisValues(
 }
 
 function buildRelanceSubject(step: RelanceStep, stepIndex: number): string {
-  return `${formatRelanceStepNumber(stepIndex)} — ${formatRelanceTiming(step.days)}`;
+  return formatRelanceEmailSubject(stepIndex, step.days, step.name);
 }
 
 function getAllColumns(table: TableData): ColumnDef[] {
@@ -373,7 +381,9 @@ export async function collectDueRelancesForCron(
           clientName: clientName || undefined,
           subject: buildRelanceSubject(step, stepIndex),
           messageBody: needsEmail
-            ? resolveRelanceMessageTemplate(step.messageTemplate, row, columns)
+            ? resolveRelanceMessageTemplate(step.messageTemplate, row, columns, {
+                preservePaymentLinkPlaceholder: true,
+              })
             : "",
           smsMessageBody: needsSms ? resolveSmsBody(step, row, columns) : "",
           sendEmail: needsEmail,

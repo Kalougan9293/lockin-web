@@ -80,14 +80,14 @@ export function RelanceProgressCell({
 
   return (
     <div className="flex w-full min-w-0 items-center gap-1" title={badgeTitle}>
-      <div className="flex min-w-0 flex-1 items-center justify-start gap-1.5">
+      <div className="flex flex-1 items-center justify-start gap-1.5">
         <RelanceStatusDot
           status={status}
           animate={status === "scheduled"}
           size="sm"
         />
         <span
-          className={`min-w-0 truncate text-[13px] font-semibold tabular-nums leading-tight ${styles.text} ${accentTextClass} ${paidStrikeClass}`}
+          className={`whitespace-nowrap text-[13px] font-semibold tabular-nums leading-tight ${styles.text} ${accentTextClass} ${paidStrikeClass}`}
         >
           {badgeLabel}
         </span>

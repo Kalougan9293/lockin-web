@@ -18,6 +18,7 @@ export async function POST(request: Request) {
       messageTemplate?: string;
       days?: number;
       channel?: string;
+      stepName?: string;
       ligneId?: string;
     };
 
@@ -35,6 +36,7 @@ export async function POST(request: Request) {
       messageTemplate: body.messageTemplate ?? "",
       days: Number.isFinite(body.days) ? Number(body.days) : 0,
       channel: normalizeRelanceStepChannel(body.channel),
+      stepName: body.stepName?.trim(),
       ligneId: body.ligneId?.trim(),
     });
 

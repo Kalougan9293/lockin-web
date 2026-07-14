@@ -115,6 +115,13 @@ export const COLUMN_LABEL_TELEPHONE = "Téléphone";
 export const COLUMN_LABEL_FACTURE = "N°Facture";
 export const COLUMN_LABEL_PAYMENT_LINK = "Lien de paiement";
 
+/** Variables modèle remplacées par un lien « Payer ici » dans les e-mails HTML. */
+export const PAYMENT_LINK_TEMPLATE_PLACEHOLDERS = [
+  "[Lien de paiement]",
+  "[LienPaiement]",
+  "[Lien paiement]",
+] as const;
+
 /** Anciens libellés UI / clés import IA — mappés vers les colonnes actuelles (ids inchangés). */
 export const LEGACY_COLUMN_LABEL_ALIASES: Record<string, string> = {
   Numéro: COLUMN_LABEL_TELEPHONE,
@@ -423,6 +430,27 @@ export function formatRelanceTiming(days: number): string {
   if (days < 0) return `J${days}`;
   if (days === 0) return "J0";
   return `J+${days}`;
+}
+
+/** Libellé d'objet e-mail lisible, sans chiffres en fin de ligne (évite KAM_NUMSUBJECT). */
+export function formatRelanceEmailSubject(
+  stepIndex: number,
+  days: number,
+  stepName?: string,
+): string {
+  const label = stepName?.trim() || `Relance ${stepIndex + 1}`;
+
+  if (days < 0) {
+    const leadDays = Math.abs(days);
+    return `${label} — rappel ${leadDays} jours avant l'échéance`;
+  }
+  if (days === 0) {
+    return `${label} — échéance de facture aujourd'hui`;
+  }
+  if (days <= 14) {
+    return `${label} — facture impayée, merci de régulariser`;
+  }
+  return `${label} — facture toujours impayée, merci de régulariser`;
 }
 
 export function formatRelanceColumnLabel(days: number): string {

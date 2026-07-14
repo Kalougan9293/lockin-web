@@ -14,12 +14,7 @@ import { getRowFieldValue } from "@/lib/dashboard/recovery";
 import { mapTableauToTableData } from "@/lib/dashboard/tableau-db";
 import type { Database } from "@/types/database";
 import type { ColumnDef, RelanceStepChannel } from "@/types/tableau";
-import {
-  formatRelanceStepNumber,
-  formatRelanceTiming,
-  normalizeRelanceStepChannel,
-  relanceStepNeedsEmail,
-} from "@/types/tableau";
+import { formatRelanceEmailSubject, normalizeRelanceStepChannel, relanceStepNeedsEmail } from "@/types/tableau";
 
 type Supabase = SupabaseClient<Database>;
 
@@ -35,6 +30,7 @@ export type RelancePreviewDraftInput = {
   messageTemplate: string;
   days: number;
   channel: RelanceStepChannel;
+  stepName?: string;
   ligneId?: string;
 };
 
@@ -42,8 +38,12 @@ function getAllColumns(table: ReturnType<typeof mapTableauToTableData>): ColumnD
   return [...table.leftColumns, ...table.hiddenLeftColumns];
 }
 
-function buildRelanceSubjectForStep(stepIndex: number, days: number): string {
-  return `${formatRelanceStepNumber(stepIndex)} — ${formatRelanceTiming(days)}`;
+function buildRelanceSubjectForStep(
+  stepIndex: number,
+  days: number,
+  stepName?: string,
+): string {
+  return formatRelanceEmailSubject(stepIndex, days, stepName);
 }
 
 export async function buildRelancePreviewDraft(
@@ -80,6 +80,7 @@ export async function buildRelancePreviewDraft(
         input.messageTemplate,
         preferredRow,
         columns,
+        { preservePaymentLinkPlaceholder: true },
       )
     : "";
   const paymentUrls = needsEmail
@@ -87,7 +88,11 @@ export async function buildRelancePreviewDraft(
     : [];
 
   return {
-    subject: buildRelanceSubjectForStep(input.stepIndex, input.days),
+    subject: buildRelanceSubjectForStep(
+      input.stepIndex,
+      input.days,
+      input.stepName,
+    ),
     body: needsEmail
       ? buildRelanceEmailHtml(messageBody, creditor, emphasisValues, {
           downloadLinkPreviewOnly: true,

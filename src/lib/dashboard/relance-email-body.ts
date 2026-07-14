@@ -1,4 +1,5 @@
 import { buildSafeEmailHref, sanitizeHrefUrl } from "@/lib/invoices/sanitize-href-url";
+import { PAYMENT_LINK_TEMPLATE_PLACEHOLDERS } from "@/types/tableau";
 
 export const RELANCE_EMAIL_BRAND_URL = "https://lockin-web.online";
 export const RELANCE_EMAIL_CONTACT_URL = `${RELANCE_EMAIL_BRAND_URL}/contact`;
@@ -9,16 +10,32 @@ export const RELANCE_EMAIL_DISCLAIMER =
 export const RELANCE_EMAIL_SERVICE_LINE =
   "LockIn — Service de gestion des impayés";
 
-/** Corps et texte principal : #333 sur blanc ≈ 12:1 (WCAG AAA). */
-const BODY_TEXT_COLOR = "#333333";
-/** Signature : #444 sur blanc ≈ 9:1 (WCAG AAA). */
-const SIGNATURE_TEXT_COLOR = "#444444";
-/** Pied de page et mentions secondaires : #555 sur blanc ≈ 7:1 (WCAG AAA). */
-const FOOTER_TEXT_COLOR = "#555555";
-/** Liens du pied : #444 sur blanc ≈ 9:1 (WCAG AAA). */
-const FOOTER_LINK_COLOR = "#444444";
+/** Fond extérieur de l'e-mail (body, désinscription). */
+const EMAIL_OUTER_BG = "#f4f5f7";
+/** Fond de la carte principale (blanc). */
+const EMAIL_CARD_BG = "#ffffff";
+/** Corps et texte principal : #1a1a1a sur blanc — contraste maximal (SpamAssassin + WCAG). */
+const BODY_TEXT_COLOR = "#1a1a1a";
+/** Signature et texte secondaire. */
+const SIGNATURE_TEXT_COLOR = "#1a1a1a";
+/** Pied de page et mentions secondaires. */
+const FOOTER_TEXT_COLOR = "#222222";
+/** Liens : bleu foncé lisible sur fond clair. */
+const LINK_COLOR = "#0b57d0";
 /** Séparateurs de section (ex. « — Facture 1 — »). */
-const SECTION_HEADER_COLOR = "#555555";
+const SECTION_HEADER_COLOR = "#1a1a1a";
+/** Nom du créancier en signature. */
+const SIGNATURE_NAME_COLOR = "#000000";
+
+/** Styles inline explicites : SpamAssassin exige color + background-color sur chaque texte. */
+function inlineTextStyle(
+  color: string,
+  backgroundColor: string,
+  extra = "",
+): string {
+  const base = `color:${color};background-color:${backgroundColor}`;
+  return extra ? `${base};${extra}` : base;
+}
 
 export type RelanceEmailCreditor = {
   companyName: string;
@@ -46,30 +63,38 @@ function buildPreheaderHtml(dueDate: string | null): string {
     ? `Rappel de facture – échéance du ${dueDate}.`
     : "Rappel de facture.";
 
-  return `<div style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all">${escapeHtml(text)}</div>`;
+  return `<div style="display:none;font-size:1px;${inlineTextStyle(EMAIL_OUTER_BG, EMAIL_OUTER_BG)};line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all">${escapeHtml(text)}</div>`;
 }
 
 function buildEmailFooterHtml(): string {
-  const linkStyle = `color:${FOOTER_LINK_COLOR};text-decoration:underline`;
+  const linkStyle = inlineTextStyle(
+    LINK_COLOR,
+    EMAIL_CARD_BG,
+    "text-decoration:underline",
+  );
 
-  return `<p style="margin:0 0 10px;font-size:12px;line-height:1.55;color:${FOOTER_TEXT_COLOR};text-align:center">
+  return `<p style="margin:0 0 10px;font-size:12px;line-height:1.55;${inlineTextStyle(FOOTER_TEXT_COLOR, EMAIL_CARD_BG)};text-align:center">
                 ${escapeHtml(RELANCE_EMAIL_SERVICE_LINE)}
               </p>
-              <p style="margin:0 0 12px;font-size:12px;line-height:1.55;color:${FOOTER_TEXT_COLOR};text-align:center">
+              <p style="margin:0 0 12px;font-size:12px;line-height:1.55;${inlineTextStyle(FOOTER_TEXT_COLOR, EMAIL_CARD_BG)};text-align:center">
                 <a href="${RELANCE_EMAIL_BRAND_URL}" style="${linkStyle}">Envoyé via LockIn</a>
-                <span style="color:${FOOTER_TEXT_COLOR}"> · </span>
+                <span style="${inlineTextStyle(FOOTER_TEXT_COLOR, EMAIL_CARD_BG)}"> · </span>
                 <a href="${RELANCE_EMAIL_CONTACT_URL}" style="${linkStyle}">Contact</a>
               </p>
-              <p style="margin:0;font-size:12px;line-height:1.55;color:${FOOTER_TEXT_COLOR};text-align:center">${escapeHtml(RELANCE_EMAIL_DISCLAIMER)}</p>`;
+              <p style="margin:0;font-size:12px;line-height:1.55;${inlineTextStyle(FOOTER_TEXT_COLOR, EMAIL_CARD_BG)};text-align:center">${escapeHtml(RELANCE_EMAIL_DISCLAIMER)}</p>`;
 }
 
 function buildUnsubscribeHtml(): string {
-  const linkStyle = `color:${FOOTER_LINK_COLOR};text-decoration:underline`;
+  const linkStyle = inlineTextStyle(
+    LINK_COLOR,
+    EMAIL_OUTER_BG,
+    "text-decoration:underline",
+  );
 
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f5f7;padding:0 20px 32px">
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${EMAIL_OUTER_BG};padding:0 20px 32px">
     <tr>
-      <td align="center">
-        <p style="margin:0;max-width:560px;font-size:12px;line-height:1.55;color:${FOOTER_TEXT_COLOR};text-align:center">
+      <td align="center" style="background-color:${EMAIL_OUTER_BG}">
+        <p style="margin:0;max-width:560px;font-size:12px;line-height:1.55;${inlineTextStyle(FOOTER_TEXT_COLOR, EMAIL_OUTER_BG)};text-align:center">
           Pour ne plus recevoir ces e-mails,
           <a href="mailto:contact@lockin-web.online?subject=Désinscription" style="${linkStyle}">cliquez ici pour vous désinscrire</a>.
         </p>
@@ -82,7 +107,11 @@ function buildPaymentLinkHtml(
   paymentUrl: string,
   previewOnly = false,
 ): string {
-  const linkStyle = `color:${FOOTER_LINK_COLOR};text-decoration:underline;font-weight:500`;
+  const linkStyle = inlineTextStyle(
+    LINK_COLOR,
+    EMAIL_CARD_BG,
+    "text-decoration:underline;font-weight:500",
+  );
 
   if (previewOnly) {
     return `<span style="${linkStyle};cursor:default">Payer ici</span>`;
@@ -92,6 +121,26 @@ function buildPaymentLinkHtml(
   if (!safeHref) return escapeHtml(paymentUrl.trim());
 
   return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer" style="${linkStyle}">Payer ici</a>`;
+}
+
+function linkifyPaymentPlaceholdersInHtml(
+  html: string,
+  paymentUrl: string | undefined,
+  previewOnly: boolean,
+): string {
+  const trimmedUrl = paymentUrl?.trim();
+  const linkHtml = trimmedUrl
+    ? buildPaymentLinkHtml(trimmedUrl, previewOnly)
+    : previewOnly
+      ? buildPaymentLinkHtml("#", true)
+      : escapeHtml("—");
+
+  let result = html;
+  for (const placeholder of PAYMENT_LINK_TEMPLATE_PLACEHOLDERS) {
+    result = result.replaceAll(placeholder, linkHtml);
+  }
+
+  return result;
 }
 
 function linkifyPaymentUrlInHtml(
@@ -124,10 +173,14 @@ function buildDownloadLinkHtml(
   downloadUrl: string,
   previewOnly = false,
 ): string {
-  const linkStyle = `color:${FOOTER_LINK_COLOR};text-decoration:underline;font-weight:500`;
+  const linkStyle = inlineTextStyle(
+    LINK_COLOR,
+    EMAIL_CARD_BG,
+    "text-decoration:underline;font-weight:500",
+  );
 
   if (previewOnly) {
-    return `<p style="margin:24px 0 0;font-size:14px;line-height:1.6;color:${BODY_TEXT_COLOR}">
+    return `<p style="margin:24px 0 0;font-size:14px;line-height:1.6;${inlineTextStyle(BODY_TEXT_COLOR, EMAIL_CARD_BG)}">
                 <span style="${linkStyle};cursor:default">Télécharger ici le PDF</span>
               </p>`;
   }
@@ -137,7 +190,7 @@ function buildDownloadLinkHtml(
 
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 0">
     <tr>
-      <td>
+      <td style="background-color:${EMAIL_CARD_BG}">
         <a href="${safeHref}" target="_blank" rel="noopener noreferrer" style="${linkStyle}">Télécharger ici le PDF</a>
       </td>
     </tr>
@@ -184,29 +237,29 @@ export function buildRelanceEmailHtml(
   <meta name="x-apple-disable-message-reformatting" />
   <title>Relance</title>
 </head>
-<body style="margin:0;padding:0;background-color:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;-ms-text-size-adjust:100%;-webkit-text-size-adjust:100%">
+<body style="margin:0;padding:0;background-color:${EMAIL_OUTER_BG};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;-ms-text-size-adjust:100%;-webkit-text-size-adjust:100%">
   ${preheaderHtml}
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f5f7;padding:48px 20px">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${EMAIL_OUTER_BG};padding:48px 20px">
     <tr>
-      <td align="center">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;background-color:#ffffff;border-radius:12px;border:1px solid #e8eaed">
+      <td align="center" style="background-color:${EMAIL_OUTER_BG}">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;background-color:${EMAIL_CARD_BG};border-radius:12px;border:1px solid #e8eaed">
           <tr>
             <td style="height:3px;background-color:#8b5cf6;font-size:0;line-height:0">&nbsp;</td>
           </tr>
           <tr>
-            <td style="padding:44px 40px 20px">
+            <td style="padding:44px 40px 20px;background-color:${EMAIL_CARD_BG}">
               ${messageHtml}
               ${downloadHtml}
             </td>
           </tr>
           <tr>
-            <td style="padding:8px 40px 36px">
+            <td style="padding:8px 40px 36px;background-color:${EMAIL_CARD_BG}">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
-                  <td style="border-top:1px solid #eef0f2;padding-top:28px">
-                    <p style="margin:0;font-size:15px;line-height:1.7;color:${SIGNATURE_TEXT_COLOR}">
+                  <td style="border-top:1px solid #eef0f2;padding-top:28px;background-color:${EMAIL_CARD_BG}">
+                    <p style="margin:0;font-size:15px;line-height:1.7;${inlineTextStyle(SIGNATURE_TEXT_COLOR, EMAIL_CARD_BG)}">
                       Cordialement,<br />
-                      <span style="color:#111827;font-weight:500">${companyName}</span>
+                      <span style="${inlineTextStyle(SIGNATURE_NAME_COLOR, EMAIL_CARD_BG, "font-weight:500")}">${companyName}</span>
                     </p>
                   </td>
                 </tr>
@@ -214,7 +267,7 @@ export function buildRelanceEmailHtml(
             </td>
           </tr>
           <tr>
-            <td style="padding:0 40px 36px">
+            <td style="padding:0 40px 36px;background-color:${EMAIL_CARD_BG}">
               ${footerHtml}
             </td>
           </tr>
@@ -237,7 +290,7 @@ function formatMessageBodyHtml(
     .filter(Boolean);
 
   if (blocks.length === 0) {
-    return `<p style="margin:0;font-size:15px;line-height:1.7;color:${BODY_TEXT_COLOR}">&nbsp;</p>`;
+    return `<p style="margin:0;font-size:15px;line-height:1.7;${inlineTextStyle(BODY_TEXT_COLOR, EMAIL_CARD_BG)}">&nbsp;</p>`;
   }
 
   const paymentUrls = (options?.paymentUrls ?? [])
@@ -252,15 +305,20 @@ function formatMessageBodyHtml(
 
       if (/^—\s*.+\s*—$/.test(block)) {
         const html = escapeHtml(block);
-        return `<p style="margin:28px 0 12px;font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:${SECTION_HEADER_COLOR}">${html}</p>`;
+        return `<p style="margin:28px 0 12px;font-size:12px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;${inlineTextStyle(SECTION_HEADER_COLOR, EMAIL_CARD_BG)}">${html}</p>`;
       }
 
       let html = escapeHtml(block).replace(/\n/g, "<br />");
+      html = linkifyPaymentPlaceholdersInHtml(
+        html,
+        paymentUrls[0],
+        paymentLinkPreviewOnly,
+      );
       for (const paymentUrl of paymentUrls) {
         html = linkifyPaymentUrlInHtml(html, paymentUrl, paymentLinkPreviewOnly);
       }
 
-      return `<p style="margin:0 0 ${marginBottom};font-size:15px;line-height:1.7;color:${BODY_TEXT_COLOR}">${html}</p>`;
+      return `<p style="margin:0 0 ${marginBottom};font-size:15px;line-height:1.7;${inlineTextStyle(BODY_TEXT_COLOR, EMAIL_CARD_BG)}">${html}</p>`;
     })
     .join("");
 }

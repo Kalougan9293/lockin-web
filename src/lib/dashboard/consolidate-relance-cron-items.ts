@@ -41,10 +41,10 @@ function buildMergedSubject(items: CronRelanceDraftItem[]): string {
 
   const clientName = items[0].clientName?.trim();
   if (clientName) {
-    return `Relances — ${clientName} (${items.length} factures)`;
+    return `Relances — ${clientName}, plusieurs factures en attente`;
   }
 
-  return `Relances concernant vos factures (${items.length})`;
+  return "Relances concernant vos factures en attente";
 }
 
 function buildMergedBody(items: CronRelanceDraftItem[]): string {
