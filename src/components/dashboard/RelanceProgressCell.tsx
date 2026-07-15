@@ -26,7 +26,7 @@ export function RelanceProgressCell({
   if (missingDueDate) {
     return (
       <span
-        className="text-center text-[11px] font-medium leading-tight text-rose-400/90"
+        className="text-center text-[13px] font-semibold leading-tight text-rose-400/90"
         title="Renseignez la date d'échéance pour planifier les relances"
       >
         Échéance ?

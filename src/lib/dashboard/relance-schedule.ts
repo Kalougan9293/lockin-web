@@ -144,10 +144,10 @@ export function getDaysUntilDue(
 }
 
 /**
- * Surbrillance colonne Échéance (2 niveaux) — ex. aujourd'hui 11/07/2026 :
- * - jaune : 7 jours avant l'échéance (12/07→18/07) ou 7 jours après (04/07→10/07)
- * - rouge : échéance atteinte (11/07) ou dépassée de plus de 7 jours (≤ 03/07)
- * - rien : échéance à plus de 7 jours (ex. 25/08/2026)
+ * Surbrillance colonne Échéance — ex. aujourd'hui 15/07/2026 :
+ * - rouge : échéance aujourd'hui ou dépassée (≤ 15/07)
+ * - jaune : échéance dans 1 à 7 jours (16/07→22/07, fenêtre J-7)
+ * - rien : échéance à plus de 7 jours (≥ 23/07)
  */
 export function getDueDateHighlightLevel(
   dueDate: Date,
@@ -155,9 +155,8 @@ export function getDueDateHighlightLevel(
 ): DueDateHighlightLevel {
   const daysUntilDue = getDaysUntilDue(dueDate, referenceToday);
 
-  if (daysUntilDue >= 1 && daysUntilDue <= 7) return "approaching";
-  if (daysUntilDue >= -7 && daysUntilDue <= -1) return "approaching";
-  if (daysUntilDue === 0 || daysUntilDue < -7) return "overdue";
+  if (daysUntilDue <= 0) return "overdue";
+  if (daysUntilDue <= 7) return "approaching";
   return null;
 }
 
