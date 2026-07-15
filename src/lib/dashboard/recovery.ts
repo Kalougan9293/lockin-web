@@ -76,10 +76,53 @@ export function getLastRelanceStep(
   relanceSteps: RelanceStep[],
 ): RelanceStep | null {
   if (relanceSteps.length === 0) return null;
-  return relanceSteps[relanceSteps.length - 1];
+
+  return relanceSteps.reduce((latest, step) =>
+    step.days > latest.days ? step : latest,
+  );
 }
 
-/** Dernière relance programmée dépassée et facture non payée. */
+/** Date calendaire la plus tardive parmi toutes les relances programmées. */
+export function getLastScheduledRelanceDate(
+  row: ClientRow,
+  columns: ColumnDef[],
+  relanceSteps: RelanceStep[],
+): Date | null {
+  const schedule = buildRelanceScheduleForRow(row, columns, relanceSteps);
+  if (schedule.size === 0) return null;
+
+  let lastDate: Date | null = null;
+  for (const item of schedule.values()) {
+    const scheduledDay = startOfDay(item.scheduledDate);
+    if (!lastDate || scheduledDay.getTime() > lastDate.getTime()) {
+      lastDate = scheduledDay;
+    }
+  }
+
+  return lastDate;
+}
+
+/** Au moins une relance est encore prévue aujourd'hui ou plus tard. */
+export function hasRemainingScheduledRelances(
+  row: ClientRow,
+  columns: ColumnDef[],
+  relanceSteps: RelanceStep[],
+  referenceDate: Date = todayDateOnly(),
+): boolean {
+  const schedule = buildRelanceScheduleForRow(row, columns, relanceSteps);
+  if (schedule.size === 0) return false;
+
+  const today = startOfDay(referenceDate).getTime();
+  for (const item of schedule.values()) {
+    if (startOfDay(item.scheduledDate).getTime() >= today) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/** Toutes les relances programmées sont passées et la facture n'est pas payée. */
 export function isRecoveryRequired(
   row: ClientRow,
   columns: ColumnDef[],
@@ -87,22 +130,19 @@ export function isRecoveryRequired(
   referenceDate: Date = todayDateOnly(),
 ): boolean {
   if (isRowPaid(row)) return false;
+  if (relanceSteps.length === 0) return false;
 
-  const lastStep = getLastRelanceStep(relanceSteps);
-  if (!lastStep) return false;
-
-  const schedule = buildRelanceScheduleForRow(
-    row,
-    columns,
-    relanceSteps,
-  );
-  const lastItem = schedule.get(lastStep.id);
-  if (!lastItem) return false;
+  const schedule = buildRelanceScheduleForRow(row, columns, relanceSteps);
+  if (schedule.size === 0) return false;
 
   const today = startOfDay(referenceDate).getTime();
-  const lastRelanceDay = startOfDay(lastItem.scheduledDate).getTime();
+  for (const item of schedule.values()) {
+    if (startOfDay(item.scheduledDate).getTime() >= today) {
+      return false;
+    }
+  }
 
-  return today > lastRelanceDay;
+  return true;
 }
 
 export function extractRecoveryFields(
