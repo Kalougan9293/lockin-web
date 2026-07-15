@@ -79,8 +79,12 @@ export function RelanceProgressCell({
             : "border-orange-300/45 bg-orange-500/10 text-orange-100/85 hover:bg-orange-500/20";
 
   return (
-    <div className="flex w-full min-w-0 items-center gap-1" title={badgeTitle}>
-      <div className="flex flex-1 items-center justify-start gap-1.5">
+    <div
+      className="grid w-full grid-cols-[1.75rem_minmax(0,1fr)_1.75rem] items-center gap-1"
+      title={badgeTitle}
+    >
+      <div aria-hidden className="h-7 w-7 shrink-0" />
+      <div className="flex min-w-0 items-center justify-center gap-1.5">
         <RelanceStatusDot
           status={status}
           animate={status === "scheduled"}
