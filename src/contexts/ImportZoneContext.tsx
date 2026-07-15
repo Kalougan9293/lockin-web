@@ -4,13 +4,10 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
-
-const IMPORT_ZONE_VISIBLE_STORAGE_KEY = "lockin-import-zone-visible";
 
 type ImportZoneContextValue = {
   importZoneVisible: boolean;
@@ -22,19 +19,8 @@ const ImportZoneContext = createContext<ImportZoneContextValue | null>(null);
 export function ImportZoneProvider({ children }: { children: ReactNode }) {
   const [importZoneVisible, setImportZoneVisible] = useState(true);
 
-  useEffect(() => {
-    const stored = localStorage.getItem(IMPORT_ZONE_VISIBLE_STORAGE_KEY);
-    if (stored === "0") {
-      setImportZoneVisible(false);
-    }
-  }, []);
-
   const toggleImportZone = useCallback(() => {
-    setImportZoneVisible((current) => {
-      const next = !current;
-      localStorage.setItem(IMPORT_ZONE_VISIBLE_STORAGE_KEY, next ? "1" : "0");
-      return next;
-    });
+    setImportZoneVisible((current) => !current);
   }, []);
 
   const value = useMemo(

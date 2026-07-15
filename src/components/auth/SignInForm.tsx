@@ -44,7 +44,7 @@ export function SignInForm() {
           error={state.fieldErrors?.password}
         />
 
-        <div className="text-right">
+        <div className="text-center">
           <Link
             href="/forgot-password"
             className="text-sm text-brand-muted transition-colors hover:text-white"

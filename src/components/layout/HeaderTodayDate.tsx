@@ -13,7 +13,7 @@ export function HeaderTodayDate() {
 
   return (
     <p
-      className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[11px] font-medium tracking-wide text-white/55 sm:text-xs"
+      className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[11px] font-medium tracking-wide text-white sm:text-xs"
       aria-label={`Date du jour : ${label}`}
     >
       {label}
