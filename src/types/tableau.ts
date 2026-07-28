@@ -432,13 +432,13 @@ export function formatRelanceTiming(days: number): string {
   return `J+${days}`;
 }
 
-/** Libellé d'objet e-mail lisible, sans chiffres en fin de ligne (évite KAM_NUMSUBJECT). */
+/** Libellé d'objet e-mail : numéro de relance dérivé de l'index (ordre dans le tableau). */
 export function formatRelanceEmailSubject(
   stepIndex: number,
   days: number,
-  stepName?: string,
+  _stepName?: string,
 ): string {
-  const label = stepName?.trim() || `Relance ${stepIndex + 1}`;
+  const label = `Relance numéro ${stepIndex + 1}`;
 
   if (days < 0) {
     const leadDays = Math.abs(days);
