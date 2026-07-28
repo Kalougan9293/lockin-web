@@ -1,6 +1,8 @@
 export type ColumnDef = {
   id: string;
   label: string;
+  /** Largeur utilisateur en caractères (`ch`), persistée par tableau. */
+  widthCh?: number;
 };
 
 export type ClientRow = {
@@ -841,6 +843,23 @@ function takeHiddenColumnByLabel(
     column: match,
     hiddenLeftColumns: hiddenLeftColumns.filter((column) => column.id !== match.id),
   };
+}
+
+/** Arrondit une largeur de colonne pour limiter le bruit flottant en base. */
+export function normalizeColumnWidthCh(widthCh: number): number {
+  return Math.round(widthCh * 10) / 10;
+}
+
+/** Met à jour la largeur persistée d'une colonne visible. */
+export function setLeftColumnWidthCh(
+  leftColumns: ColumnDef[],
+  columnId: string,
+  widthCh: number,
+): ColumnDef[] {
+  const normalized = normalizeColumnWidthCh(widthCh);
+  return leftColumns.map((column) =>
+    column.id === columnId ? { ...column, widthCh: normalized } : column,
+  );
 }
 
 /** Masque une colonne visible sans effacer les valeurs des lignes. */

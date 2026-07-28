@@ -1241,6 +1241,7 @@ type TableauGridProps = {
   deliveries: RelanceDeliveryRow[];
   rightColumns: RightColumnDef[];
   onLeftColumnsChange: (columns: ColumnDef[]) => void;
+  onLeftColumnWidthChange: (columnId: string, widthCh: number) => void;
   onHideLeftColumn: (columnId: string) => void;
   onAddLeftColumn: (label: string) => void;
   rows: ClientRow[];
@@ -1264,6 +1265,7 @@ export function TableauGrid({
   deliveries,
   rightColumns,
   onLeftColumnsChange,
+  onLeftColumnWidthChange,
   onHideLeftColumn,
   onAddLeftColumn,
   rows,
@@ -1278,8 +1280,11 @@ export function TableauGrid({
   simulateRelances = false,
 }: TableauGridProps) {
   const { dateFormat } = useUserPreferences();
-  const [columnWidthsCh, setColumnWidthsCh] = useState<Record<string, number>>({});
-  const columnWidthsChRef = useRef<Record<string, number>>({});
+  const [resizeOverrideWidthsCh, setResizeOverrideWidthsCh] = useState<
+    Record<string, number>
+  >({});
+  const resizeOverrideWidthsChRef = useRef<Record<string, number>>({});
+  const onLeftColumnWidthChangeRef = useRef(onLeftColumnWidthChange);
   const displayColumnWidthsRef = useRef<Record<string, number>>({});
   const columnResizeRef = useRef<{
     columnId: string;
@@ -1358,12 +1363,6 @@ export function TableauGrid({
   }
 
   function hideLeftColumn(id: string) {
-    setColumnWidthsCh((current) => {
-      if (!(id in current)) return current;
-      const next = { ...current };
-      delete next[id];
-      return next;
-    });
     onHideLeftColumn(id);
   }
 
@@ -1397,14 +1396,17 @@ export function TableauGrid({
       Object.fromEntries(
         leftColumns.map((column) => [
           column.id,
-          columnWidthsCh[column.id] ?? defaultColumnWidthsCh[column.id],
+          resizeOverrideWidthsCh[column.id] ??
+            column.widthCh ??
+            defaultColumnWidthsCh[column.id],
         ]),
       ),
-    [leftColumns, columnWidthsCh, defaultColumnWidthsCh],
+    [leftColumns, resizeOverrideWidthsCh, defaultColumnWidthsCh],
   );
 
-  columnWidthsChRef.current = columnWidthsCh;
+  resizeOverrideWidthsChRef.current = resizeOverrideWidthsCh;
   displayColumnWidthsRef.current = displayColumnWidthsCh;
+  onLeftColumnWidthChangeRef.current = onLeftColumnWidthChange;
 
   useEffect(() => {
     function handleMouseMove(event: MouseEvent) {
@@ -1418,15 +1420,32 @@ export function TableauGrid({
       );
 
       const next = {
-        ...columnWidthsChRef.current,
+        ...resizeOverrideWidthsChRef.current,
         [session.columnId]: nextWidthCh,
       };
-      columnWidthsChRef.current = next;
-      setColumnWidthsCh(next);
+      resizeOverrideWidthsChRef.current = next;
+      setResizeOverrideWidthsCh(next);
     }
 
     function handleMouseUp() {
-      if (!columnResizeRef.current) return;
+      const session = columnResizeRef.current;
+      if (!session) return;
+
+      const finalWidthCh =
+        resizeOverrideWidthsChRef.current[session.columnId] ??
+        displayColumnWidthsRef.current[session.columnId];
+      if (finalWidthCh != null) {
+        onLeftColumnWidthChangeRef.current(session.columnId, finalWidthCh);
+      }
+
+      setResizeOverrideWidthsCh((current) => {
+        if (!(session.columnId in current)) return current;
+        const next = { ...current };
+        delete next[session.columnId];
+        return next;
+      });
+      delete resizeOverrideWidthsChRef.current[session.columnId];
+
       columnResizeRef.current = null;
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
@@ -1462,13 +1481,14 @@ export function TableauGrid({
     currentWidthCh: number,
     minWidthCh: number,
   ) {
-    let widths = columnWidthsChRef.current;
+    let widths = resizeOverrideWidthsChRef.current;
     if (Object.keys(widths).length === 0) {
       widths = { ...displayColumnWidthsRef.current };
       for (const column of leftColumns) {
         if (
           isMailColumnLabel(column.label) &&
-          !(column.id in columnWidthsChRef.current)
+          column.widthCh == null &&
+          !(column.id in resizeOverrideWidthsChRef.current)
         ) {
           widths[column.id] = measureColumnWidthCh(
             column.id,
@@ -1476,8 +1496,8 @@ export function TableauGrid({
           );
         }
       }
-      columnWidthsChRef.current = widths;
-      setColumnWidthsCh(widths);
+      resizeOverrideWidthsChRef.current = widths;
+      setResizeOverrideWidthsCh(widths);
     }
 
     const handle = event.currentTarget as HTMLElement;
@@ -1651,7 +1671,8 @@ export function TableauGrid({
                   const titleMinColumnWidthCh = getMinColumnWidthCh(column, true);
                   const mailUsesAutoWidth =
                     isMailColumnLabel(column.label) &&
-                    !(column.id in columnWidthsCh);
+                    column.widthCh == null &&
+                    !(column.id in resizeOverrideWidthsCh);
                   const columnWidthCh =
                     displayColumnWidthsCh[column.id] ??
                     defaultColumnWidthsCh[column.id];

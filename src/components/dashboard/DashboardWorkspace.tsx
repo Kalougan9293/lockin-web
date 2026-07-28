@@ -28,6 +28,7 @@ import {
   addOrRestoreLeftColumn,
   mergeClientValuesIntoTable,
   isRowPaid,
+  setLeftColumnWidthCh,
 } from "@/types/tableau";
 
 import { ImportPrompt } from "./ImportPrompt";
@@ -447,6 +448,16 @@ export function DashboardWorkspace({
               rightColumns={getRightColumns(activeTable.relanceSteps)}
               onLeftColumnsChange={(leftColumns) =>
                 updateTable(activeTable.id, (current) => ({ ...current, leftColumns }))
+              }
+              onLeftColumnWidthChange={(columnId, widthCh) =>
+                updateTable(activeTable.id, (current) => ({
+                  ...current,
+                  leftColumns: setLeftColumnWidthCh(
+                    current.leftColumns,
+                    columnId,
+                    widthCh,
+                  ),
+                }))
               }
               onHideLeftColumn={(columnId) =>
                 updateTable(activeTable.id, (current) =>
