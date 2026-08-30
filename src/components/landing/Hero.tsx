@@ -10,12 +10,10 @@ export function Hero() {
       <h1
         className={`${fredoka.className} max-w-4xl text-4xl font-bold leading-[1.15] tracking-tight md:text-6xl`}
       >
-        Suivez & relancez vos factures,{" "}
+        Suivez & relancez vos{" "}
+        <span className="bg-gradient-to-r from-violet-300 via-fuchsia-300 to-indigo-300 bg-clip-text text-transparent">clients</span>,{" "}
         <br className="hidden md:inline" />
-        <span className="bg-gradient-to-r from-violet-300 via-fuchsia-300 to-indigo-300 bg-clip-text text-transparent">
-          simplement
-        </span>
-        &nbsp;!
+        simplement&nbsp;!
       </h1>
 
       <p className="max-w-2xl text-lg font-light leading-relaxed text-white/90 md:text-xl">
