@@ -1,0 +1,225 @@
+{
+  "name": "LockIn — Réponses e-mail entrantes",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## LockIn × n8n — Réponses entrantes (B2B2C)\n\n**Variables n8n** :\n- `CRON_SECRET` — identique à Vercel\n- `LOCKIN_API_URL` — ex. `https://lockin-web.online`\n- `LOCKIN_FROM_EMAIL` — expéditeur SMTP\n\n**Flux :** IMAP → parse `[LK-deliveryId]` → POST `/api/incoming-reply` → e-mail notif au créancier (si `notification` renvoyé).\n\n**Important :** l'API ajoute déjà `[LK-…]` dans le sujet des relances. Ne pas le dupliquer dans le workflow d'envoi.",
+        "height": 340,
+        "width": 480,
+        "color": 5
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "name": "Note de configuration",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [180, 80]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "1d035963-fdf9-4b15-8c55-3d9871ab39ee",
+      "name": "1. Email Trigger (IMAP)",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2.2,
+      "position": [240, 480],
+      "credentials": {
+        "imap": {
+          "id": "REPLACE_IMAP_CREDENTIAL_ID",
+          "name": "IMAP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "for (const item of $input.all()) {\n  const email = item.json;\n  const subject = email.subject || '';\n  const textBody = email.text || email.html || '';\n  const regex = /\\[LK-([a-zA-Z0-9_-]+)\\]/;\n  const match = subject.match(regex) || textBody.match(regex);\n\n  item.json = {\n    deliveryId: match?.[1] || null,\n    senderEmail: email.from?.value?.[0]?.address || email.from || '',\n    subject,\n    body: textBody,\n    receivedAt: email.date || new Date().toISOString(),\n  };\n}\n\nreturn $input.all();"
+      },
+      "id": "c6fe0a73-0667-4acc-83a8-2bb5bd994f6f",
+      "name": "2. Extraire deliveryId",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 480]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-delivery-id",
+              "leftValue": "={{ $json.deliveryId }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-has-delivery-id",
+      "name": "3. deliveryId trouvé ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [720, 480]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.LOCKIN_API_URL.replace(/\\/$/, '') + '/api/incoming-reply' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.CRON_SECRET }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"deliveryId\": {{ JSON.stringify($json.deliveryId) }},\n  \"senderEmail\": {{ JSON.stringify($json.senderEmail) }},\n  \"subject\": {{ JSON.stringify($json.subject) }},\n  \"body\": {{ JSON.stringify($json.body) }}\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "c5b3a4ed-eea2-4c19-ab70-208651b5c658",
+      "name": "4. POST /api/incoming-reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [960, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-notification",
+              "leftValue": "={{ $json.notification?.to || '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-has-notification",
+      "name": "5. Notif à envoyer ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1200, 400]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.LOCKIN_FROM_EMAIL }}",
+        "toEmail": "={{ $json.notification.to }}",
+        "subject": "={{ $json.notification.subject }}",
+        "html": "={{ $json.notification.html }}",
+        "options": {}
+      },
+      "id": "send-creditor-notif",
+      "name": "6. Notifier le créancier",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1440, 320],
+      "webhookId": "lockin-incoming-reply-notify",
+      "credentials": {
+        "smtp": {
+          "id": "REPLACE_SMTP_CREDENTIAL_ID",
+          "name": "SMTP account"
+        }
+      },
+      "continueOnFail": true
+    }
+  ],
+  "connections": {
+    "1. Email Trigger (IMAP)": {
+      "main": [
+        [
+          {
+            "node": "2. Extraire deliveryId",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Extraire deliveryId": {
+      "main": [
+        [
+          {
+            "node": "3. deliveryId trouvé ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. deliveryId trouvé ?": {
+      "main": [
+        [
+          {
+            "node": "4. POST /api/incoming-reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "4. POST /api/incoming-reply": {
+      "main": [
+        [
+          {
+            "node": "5. Notif à envoyer ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5. Notif à envoyer ?": {
+      "main": [
+        [
+          {
+            "node": "6. Notifier le créancier",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

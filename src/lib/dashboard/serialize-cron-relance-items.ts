@@ -1,8 +1,11 @@
+import { withDeliveryTrackingTag } from "@/lib/cron/delivery-tracking-tag";
+
 import type { CronRelanceItem } from "./relance-deliveries";
 import { normalizeDateOnlyInput } from "./date-only";
 
 /**
  * Réponse JSON stable pour n8n : tableaux explicites, dates YYYY-MM-DD, pas de Date.
+ * L'objet e-mail inclut `[LK-{deliveryId}]` pour corréler les réponses IMAP.
  */
 export function serializeCronRelanceItems(items: CronRelanceItem[]): {
   items: CronRelanceItem[];
@@ -20,7 +23,7 @@ export function serializeCronRelanceItems(items: CronRelanceItem[]): {
     to: item.to,
     phone: item.phone,
     clientName: item.clientName,
-    subject: item.subject,
+    subject: withDeliveryTrackingTag(item.subject, item.deliveryId),
     body: item.body,
     bodyFormat: item.bodyFormat,
     smsBody: item.smsBody,

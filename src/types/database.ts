@@ -66,6 +66,19 @@ export type RelanceDeliveryRow = {
   updated_at: string;
 };
 
+export type IncomingReplyRow = {
+  id: string;
+  delivery_id: string;
+  tableau_id: string;
+  user_id: string;
+  ligne_id: string | null;
+  sender_email: string;
+  subject: string;
+  body: string;
+  notified_at: string | null;
+  created_at: string;
+};
+
 export type TableauWithRelations = TableauRow & {
   relance_steps: RelanceStepRow[];
   lignes_factures: LigneFactureRow[];
@@ -217,6 +230,47 @@ export type Database = {
             foreignKeyName: "relance_deliveries_tableau_id_fkey";
             columns: ["tableau_id"];
             referencedRelation: "tableaux";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      incoming_replies: {
+        Row: IncomingReplyRow;
+        Insert: {
+          id?: string;
+          delivery_id: string;
+          tableau_id: string;
+          user_id: string;
+          ligne_id?: string | null;
+          sender_email?: string;
+          subject?: string;
+          body?: string;
+          notified_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          notified_at?: string | null;
+          sender_email?: string;
+          subject?: string;
+          body?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "incoming_replies_delivery_id_fkey";
+            columns: ["delivery_id"];
+            referencedRelation: "relance_deliveries";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "incoming_replies_tableau_id_fkey";
+            columns: ["tableau_id"];
+            referencedRelation: "tableaux";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "incoming_replies_ligne_id_fkey";
+            columns: ["ligne_id"];
+            referencedRelation: "lignes_factures";
             referencedColumns: ["id"];
           },
         ];

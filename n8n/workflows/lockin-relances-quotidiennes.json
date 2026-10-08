@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## LockIn × n8n — V4 Multi-Canal (Email, SMS & Les 2)\n\n**Variables n8n** (Settings → Variables) :\n- `CRON_SECRET` — identique à Vercel / lockin-web\n- `LOCKIN_API_URL` — ex. `https://lockin-web.online`\n- `LOCKIN_FROM_EMAIL` — expéditeur SMTP\n- `TWILIO_FROM_NUMBER` — numéro expéditeur SMS (E.164)\n\n**Credentials n8n :** SMTP + Twilio API\n\n**Flux :** Cron 08h Paris → GET relances → boucle → check-status (`id`) → aiguillage `channel` → envoi SMTP / Twilio (`continueOnFail`) → ack JS → si payé : ack `cancelled`.",
+        "content": "## LockIn × n8n — V4 Multi-Canal (Email, SMS & Les 2)\n\n**Variables n8n** (Settings → Variables) :\n- `CRON_SECRET` — identique à Vercel / lockin-web\n- `LOCKIN_API_URL` — ex. `https://lockin-web.online`\n- `LOCKIN_FROM_EMAIL` — expéditeur SMTP\n- `TWILIO_FROM_NUMBER` — numéro expéditeur SMS (E.164)\n\n**Credentials n8n :** SMTP + Twilio API\n\n**Flux :** Cron 08h Paris → GET relances → boucle → check-status (`ids`) → aiguillage `channel` → envoi SMTP / Twilio (`continueOnFail`) → ack JS → si payé : ack `cancelled`.\n\n**Tracking réponses :** l'API ajoute `[LK-{deliveryId}]` dans `subject` — ne pas le re-ajouter dans le nœud Email (sinon doublon). Voir aussi le workflow « Réponses e-mail entrantes ».",
         "height": 320,
         "width": 480,
         "color": 6
