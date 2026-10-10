@@ -1,4 +1,4 @@
-export const LOCKIN_CONTACT_EMAIL = "contact@lockin.app";
+export const LOCKIN_CONTACT_EMAIL = "contact@lockin-web.online";
 
 export function buildContactMailtoUrl(senderEmail: string, message: string) {
   const subject = encodeURIComponent("Contact LockIn");
