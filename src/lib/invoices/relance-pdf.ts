@@ -175,6 +175,10 @@ export async function generateRelancePdfBuffer(
       .text("Cordialement,", 50, bodyY + 16)
       .text(companyName, 50, doc.y + 4);
 
+    if (creditorEmail) {
+      doc.text(creditorEmail, 50, doc.y + 2);
+    }
+
     doc
       .font("Helvetica-Oblique")
       .fontSize(9)

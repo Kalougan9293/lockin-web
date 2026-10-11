@@ -94,7 +94,8 @@ export default function CguPage() {
       <ul>
         <li>
           Le Service accepte l&apos;import de factures au format PDF (jusqu&apos;à
-          20 fichiers et 5 Mo par fichier) ou CSV (jusqu&apos;à 1 Mo).
+          10 fichiers et 4 Mo par fichier) ou CSV (jusqu&apos;à 1 Mo et 100
+          lignes).
         </li>
         <li>
           L&apos;extraction automatique des champs depuis un PDF ou un CSV est

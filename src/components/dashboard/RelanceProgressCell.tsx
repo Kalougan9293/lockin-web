@@ -80,18 +80,17 @@ export function RelanceProgressCell({
 
   return (
     <div
-      className="grid w-full grid-cols-[1.75rem_minmax(0,1fr)_1.75rem] items-center gap-1"
+      className="flex w-full min-w-0 items-center justify-center gap-1"
       title={badgeTitle}
     >
-      <div aria-hidden className="h-7 w-7 shrink-0" />
-      <div className="flex min-w-0 items-center justify-center gap-1.5">
+      <div className="flex min-w-0 items-center justify-center gap-1">
         <RelanceStatusDot
           status={status}
           animate={status === "scheduled"}
           size="sm"
         />
         <span
-          className={`whitespace-nowrap text-[13px] font-semibold tabular-nums leading-tight ${styles.text} ${accentTextClass} ${paidStrikeClass}`}
+          className={`whitespace-nowrap text-[12px] font-semibold tabular-nums leading-tight ${styles.text} ${accentTextClass} ${paidStrikeClass}`}
         >
           {badgeLabel}
         </span>
@@ -100,10 +99,10 @@ export function RelanceProgressCell({
         type="button"
         onClick={onOpenTimeline}
         aria-label="Voir la timeline des relances"
-        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-colors ${arrowButtonClass}`}
+        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors ${arrowButtonClass}`}
       >
         <svg
-          className="h-3.5 w-3.5"
+          className="h-3 w-3"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"

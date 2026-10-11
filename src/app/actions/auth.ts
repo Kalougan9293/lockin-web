@@ -71,6 +71,7 @@ export async function signUpAction(
     domaineActivite,
     email: String(formData.get("email") ?? ""),
     password: String(formData.get("password") ?? ""),
+    confirmPassword: String(formData.get("confirmPassword") ?? ""),
     acceptCgu: formData.get("acceptCgu") === "on",
   };
 

@@ -215,6 +215,15 @@ export function buildRelanceEmailHtml(
     paymentLinkPreviewOnly: options?.paymentLinkPreviewOnly,
   });
   const companyName = escapeHtml(creditor.companyName.trim() || "—");
+  const creditorEmail = creditor.email.trim();
+  const emailLinkStyle = inlineTextStyle(
+    LINK_COLOR,
+    EMAIL_CARD_BG,
+    "text-decoration:underline",
+  );
+  const signatureEmailHtml = creditorEmail
+    ? `<br /><a href="mailto:${escapeHtml(creditorEmail)}" style="${emailLinkStyle}">${escapeHtml(creditorEmail)}</a>`
+    : "";
   const preheaderHtml = buildPreheaderHtml(
     extractDueDateForPreheader(emphasisValues, trimmedBody),
   );
@@ -259,7 +268,7 @@ export function buildRelanceEmailHtml(
                   <td style="border-top:1px solid #eef0f2;padding-top:28px;background-color:${EMAIL_CARD_BG}">
                     <p style="margin:0;font-size:15px;line-height:1.7;${inlineTextStyle(SIGNATURE_TEXT_COLOR, EMAIL_CARD_BG)}">
                       Cordialement,<br />
-                      <span style="${inlineTextStyle(SIGNATURE_NAME_COLOR, EMAIL_CARD_BG, "font-weight:500")}">${companyName}</span>
+                      <span style="${inlineTextStyle(SIGNATURE_NAME_COLOR, EMAIL_CARD_BG, "font-weight:500")}">${companyName}</span>${signatureEmailHtml}
                     </p>
                   </td>
                 </tr>

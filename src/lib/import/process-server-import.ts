@@ -142,7 +142,7 @@ async function processCsvFile(
       issuer,
     );
 
-    const reviewQueue = extraction.rows
+    let reviewQueue = extraction.rows
       .map((row) => {
         const fields = mapLlmRowToReviewPayload(row);
         if (!fields) return null;
@@ -157,6 +157,14 @@ async function processCsvFile(
       .filter((item): item is ImportReviewQueueItem => item !== null);
 
     const errors: string[] = [];
+    if (reviewQueue.length > IMPORT_LIMITS.MAX_CSV_ROWS) {
+      const omitted = reviewQueue.length - IMPORT_LIMITS.MAX_CSV_ROWS;
+      reviewQueue = reviewQueue.slice(0, IMPORT_LIMITS.MAX_CSV_ROWS);
+      errors.push(
+        `${file.name} : maximum ${IMPORT_LIMITS.MAX_CSV_ROWS} factures par CSV — ${omitted} ignorée${omitted > 1 ? "s" : ""}.`,
+      );
+    }
+
     if (reviewQueue.length === 0) {
       errors.push(
         buildNoValidRowsMessage(file.name, rejectionReasons, false),
@@ -191,8 +199,19 @@ export async function processServerImportFiles(
 
   const { pdfs, csvs, invalid } = classifyServerImportFiles(files);
 
-  if (invalid.length > 0) {
-    return { reviewQueue, errors: ["Formats acceptés : PDF et CSV."] };
+  if (pdfs.length === 0 && csvs.length === 0) {
+    const sample = invalid
+      .slice(0, 3)
+      .map((file) => file.name || "fichier sans nom")
+      .join(", ");
+    return {
+      reviewQueue,
+      errors: [
+        sample
+          ? `Formats acceptés : PDF et CSV. Ignoré : ${sample}${invalid.length > 3 ? "…" : ""}.`
+          : "Formats acceptés : PDF et CSV.",
+      ],
+    };
   }
 
   if (pdfs.length > 0 && csvs.length > 0) {

@@ -9,6 +9,7 @@ import { useDashboardSummary } from "@/contexts/DashboardSummaryContext";
 import { useTutorial } from "@/contexts/TutorialContext";
 import { useDashboardTables } from "@/hooks/useDashboardTables";
 import { useDemoSession } from "@/hooks/useDemoSession";
+import { IMPORT_LIMITS } from "@/lib/dashboard/import-limits";
 import {
   canAddRowToTable,
   canAddTable,
@@ -98,6 +99,10 @@ export function DashboardWorkspace({
     rowIndex: number;
   } | null>(null);
   const [importLoading, setImportLoading] = useState(false);
+  const [importFileProgress, setImportFileProgress] = useState<{
+    current: number;
+    total: number;
+  } | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
   const [importQueue, setImportQueue] = useState<ImportReviewQueueItem[]>([]);
@@ -185,6 +190,37 @@ export function DashboardWorkspace({
     setImportedCountSession(0);
   }
 
+  function finishImportReview() {
+    const count = importedCountSession;
+    if (count > 0) {
+      setImportSuccess(
+        `${count} ligne${count > 1 ? "s" : ""} ajoutée${count > 1 ? "s" : ""} au tableau.`,
+      );
+    }
+    clearImportQueue();
+    setAddClientTargetId(null);
+  }
+
+  function closeAddClientModal() {
+    if (importQueue.length > 0) {
+      finishImportReview();
+      return;
+    }
+    setAddClientTargetId(null);
+  }
+
+  function handleSkipImportItem() {
+    if (importQueue.length === 0) return;
+
+    const nextIndex = importQueueIndex + 1;
+    if (nextIndex < importQueue.length) {
+      setImportQueueIndex(nextIndex);
+      return;
+    }
+
+    finishImportReview();
+  }
+
   function openAddClient(tableId: string) {
     if (!canAddRowToTable(tables, tableId)) return;
     clearImportQueue();
@@ -213,9 +249,8 @@ export function DashboardWorkspace({
     }
 
     if (addedFromQueue) {
-      const count = totalAdded;
       setImportSuccess(
-        `${count} ligne${count > 1 ? "s" : ""} ajoutée${count > 1 ? "s" : ""} au tableau.`,
+        `${totalAdded} ligne${totalAdded > 1 ? "s" : ""} ajoutée${totalAdded > 1 ? "s" : ""} au tableau.`,
       );
       clearImportQueue();
       setAddClientTargetId(null);
@@ -267,8 +302,16 @@ export function DashboardWorkspace({
 
     const { pdfs, csvs, invalid } = classifyServerImportFiles(files);
 
-    if (invalid.length > 0) {
-      setImportError("Formats acceptés : PDF et CSV.");
+    if (pdfs.length === 0 && csvs.length === 0) {
+      const sample = invalid
+        .slice(0, 3)
+        .map((file) => file.name || "fichier sans nom")
+        .join(", ");
+      setImportError(
+        sample
+          ? `Formats acceptés : PDF et CSV. Ignoré : ${sample}${invalid.length > 3 ? "…" : ""}.`
+          : "Formats acceptés : PDF et CSV.",
+      );
       return;
     }
 
@@ -282,11 +325,25 @@ export function DashboardWorkspace({
       return;
     }
 
-    setImportLoading(true);
-    try {
-      const result = await importFilesViaApi(tableId, files);
+    if (pdfs.length > IMPORT_LIMITS.MAX_PDF_FILES) {
+      setImportError(
+        `Maximum ${IMPORT_LIMITS.MAX_PDF_FILES} PDF par import.`,
+      );
+      return;
+    }
 
-      if (result.reviewQueue.length === 0 && result.errors.length > 0) {
+    const acceptedFiles = pdfs.length > 0 ? pdfs : csvs;
+
+    setImportLoading(true);
+    setImportFileProgress({ current: 0, total: acceptedFiles.length });
+    try {
+      const result = await importFilesViaApi(tableId, acceptedFiles, {
+        onFileProgress: (current, total) => {
+          setImportFileProgress({ current, total });
+        },
+      });
+
+      if (result.errors.length > 0) {
         setImportError(result.errors[0]);
       }
 
@@ -297,6 +354,7 @@ export function DashboardWorkspace({
       );
     } finally {
       setImportLoading(false);
+      setImportFileProgress(null);
     }
   }
 
@@ -426,10 +484,11 @@ export function DashboardWorkspace({
           onAddTable={() => void handleAddTable()}
           canAddTable={canCreateTable}
           isProcessing={importLoading}
+          processingProgress={importFileProgress}
           error={importError}
-        addManualDisabled={!canAddRowToActiveTable}
-        isDemoWorkspace={isDemoWorkspace}
-      />
+          addManualDisabled={!canAddRowToActiveTable}
+          isDemoWorkspace={isDemoWorkspace}
+        />
       ) : null}
 
       <section
@@ -492,11 +551,9 @@ export function DashboardWorkspace({
       {addClientTargetId !== null ? (
         <AddClientModal
           open
-          onClose={() => {
-            setAddClientTargetId(null);
-            clearImportQueue();
-          }}
+          onClose={closeAddClientModal}
           onSubmit={handleAddClient}
+          onSkip={importQueue.length > 0 ? handleSkipImportItem : undefined}
           importedFields={
             importQueue.length > 0
               ? importQueue[importQueueIndex]?.fields

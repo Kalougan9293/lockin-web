@@ -1,23 +1,42 @@
 export const IMPORT_LIMITS = {
-  MAX_PDF_BYTES: 5 * 1024 * 1024,
+  /** Sous la limite body Vercel (~4,5 Mo) avec marge multipart. */
+  MAX_PDF_BYTES: 4 * 1024 * 1024,
   MAX_CSV_BYTES: 1 * 1024 * 1024,
-  MAX_PDF_FILES: 20,
+  /** Garde-fou multi-PDF (1 appel IA / fichier, enchaînés côté client). */
+  MAX_PDF_FILES: 10,
   MAX_CSV_ROWS: 100,
   MAX_CSV_COLUMNS: 20,
 } as const;
 
+function fileNameLower(file: File): string {
+  return file.name.trim().toLowerCase();
+}
+
+function fileTypeLower(file: File): string {
+  return (file.type || "").trim().toLowerCase();
+}
+
 export function isPdfFile(file: File): boolean {
+  const name = fileNameLower(file);
+  const type = fileTypeLower(file);
+  // Extension d'abord : sous Windows le MIME est souvent vide / octet-stream.
   return (
-    file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
+    name.endsWith(".pdf") ||
+    type === "application/pdf" ||
+    type === "application/x-pdf" ||
+    type === "application/acrobat" ||
+    type.endsWith("/pdf")
   );
 }
 
 export function isCsvFile(file: File): boolean {
-  const name = file.name.toLowerCase();
+  const name = fileNameLower(file);
+  const type = fileTypeLower(file);
   return (
-    file.type === "text/csv" ||
-    file.type === "application/vnd.ms-excel" ||
-    name.endsWith(".csv")
+    name.endsWith(".csv") ||
+    type === "text/csv" ||
+    type === "application/csv" ||
+    type === "application/vnd.ms-excel"
   );
 }
 

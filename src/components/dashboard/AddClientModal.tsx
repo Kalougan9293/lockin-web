@@ -34,6 +34,8 @@ type AddClientModalProps = {
   onClose: () => void;
   /** Retourner true pour garder la modale ouverte (file d'import). */
   onSubmit: (valuesByLabel: Record<string, string>) => boolean | void;
+  /** Ignorer la facture courante et passer à la suivante (file d'import). */
+  onSkip?: () => void;
   /** Préremplissage après import PDF — seuls les champs détectés sont ouverts. */
   importedFields?: Record<string, string>;
   sourceFileName?: string;
@@ -161,6 +163,7 @@ export function AddClientModal({
   open,
   onClose,
   onSubmit,
+  onSkip,
   importedFields,
   sourceFileName,
   importProgress,
@@ -349,7 +352,21 @@ export function AddClientModal({
           aria-labelledby="add-client-title"
           className="relative z-10 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-white/10 bg-brand-card p-6 shadow-2xl shadow-black/50"
         >
-          <h2 id="add-client-title" className="text-center text-xl font-bold">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fermer"
+            title={
+              onSkip
+                ? "Fermer — les factures déjà ajoutées sont conservées"
+                : "Fermer"
+            }
+            className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-lg text-xl leading-none text-brand-muted transition-colors hover:bg-white/10 hover:text-white"
+          >
+            ×
+          </button>
+
+          <h2 id="add-client-title" className="pr-8 text-center text-xl font-bold">
             Ajouter un client
           </h2>
 
@@ -470,7 +487,7 @@ export function AddClientModal({
                       name={getColumnFieldName(label)}
                       type={getColumnInputType({ id: label, label })}
                       autoComplete={getColumnAutocomplete(label)}
-                      value={getImportFieldValue(values, label)}
+                      value={values[label] ?? ""}
                       onChange={(event) =>
                         setValues((prev) => ({
                           ...prev,
@@ -501,13 +518,23 @@ export function AddClientModal({
             ) : null}
 
             <div className="flex gap-3 pt-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="flex-1 rounded-xl border border-white/10 px-4 py-3 text-sm font-medium text-brand-muted transition-colors hover:border-white/20 hover:text-white"
-              >
-                Annuler
-              </button>
+              {onSkip ? (
+                <button
+                  type="button"
+                  onClick={onSkip}
+                  className="flex-1 rounded-xl border border-white/10 px-4 py-3 text-sm font-medium text-brand-muted transition-colors hover:border-white/20 hover:text-white"
+                >
+                  Passer
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex-1 rounded-xl border border-white/10 px-4 py-3 text-sm font-medium text-brand-muted transition-colors hover:border-white/20 hover:text-white"
+                >
+                  Annuler
+                </button>
+              )}
               <button
                 type="submit"
                 disabled={!isImportMode && !canSubmitManual}

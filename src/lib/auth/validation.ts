@@ -10,6 +10,7 @@ export type SignUpInput = {
   domaineActivite: string;
   email: string;
   password: string;
+  confirmPassword: string;
   acceptCgu: boolean;
 };
 
@@ -96,6 +97,12 @@ export function validateSignUp(input: SignUpInput): FieldErrors {
   const passwordError = validatePassword(input.password);
   if (passwordError) {
     errors.password = passwordError;
+  }
+
+  if (!input.confirmPassword) {
+    errors.confirmPassword = "Confirmez votre mot de passe.";
+  } else if (input.password !== input.confirmPassword) {
+    errors.confirmPassword = "Les mots de passe ne correspondent pas.";
   }
 
   if (!input.acceptCgu) {

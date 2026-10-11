@@ -18,6 +18,8 @@ type ImportPromptProps = {
   onAddTable?: () => void;
   canAddTable?: boolean;
   isProcessing?: boolean;
+  /** Progression multi-fichiers (ex. PDF 2 / 5). */
+  processingProgress?: { current: number; total: number } | null;
   error?: string | null;
   addManualDisabled?: boolean;
   isDemoWorkspace?: boolean;
@@ -41,6 +43,7 @@ export function ImportPrompt({
   onAddTable,
   canAddTable = true,
   isProcessing = false,
+  processingProgress = null,
   error = null,
   addManualDisabled = false,
   isDemoWorkspace = false,
@@ -225,7 +228,14 @@ export function ImportPrompt({
                 }`}
               >
                 {isProcessing ? (
-                  "Lecture des fichiers…"
+                  processingProgress && processingProgress.total > 1 ? (
+                    <>
+                      Lecture {processingProgress.current} /{" "}
+                      {processingProgress.total}…
+                    </>
+                  ) : (
+                    "Lecture des fichiers…"
+                  )
                 ) : (
                   "Glisser un ou plusieurs PDF, un CSV ou parcourir"
                 )}

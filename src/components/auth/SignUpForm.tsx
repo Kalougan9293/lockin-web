@@ -9,6 +9,7 @@ import { ACTIVITY_DOMAINS } from "@/lib/auth/activity-domains";
 
 import { AuthCard } from "./AuthCard";
 import { AuthField } from "./AuthField";
+import { AuthPasswordField } from "./AuthPasswordField";
 import { AuthSelect } from "./AuthSelect";
 import { PasswordCriteria } from "./PasswordCriteria";
 
@@ -20,6 +21,7 @@ const emptyForm = {
   domaineActivite: "",
   email: "",
   password: "",
+  confirmPassword: "",
   acceptCgu: false,
 };
 
@@ -124,10 +126,9 @@ export function SignUpForm() {
           error={state.fieldErrors?.email}
         />
         <div className="space-y-2">
-          <AuthField
+          <AuthPasswordField
             label="Mot de passe"
             name="password"
-            type="password"
             autoComplete="new-password"
             required
             value={form.password}
@@ -138,6 +139,21 @@ export function SignUpForm() {
           />
           <PasswordCriteria password={form.password} />
         </div>
+
+        <AuthPasswordField
+          label="Confirmer le mot de passe"
+          name="confirmPassword"
+          autoComplete="new-password"
+          required
+          value={form.confirmPassword}
+          onChange={(event) =>
+            setForm((current) => ({
+              ...current,
+              confirmPassword: event.target.value,
+            }))
+          }
+          error={state.fieldErrors?.confirmPassword}
+        />
 
         <div className="space-y-2">
           <label className="flex items-start gap-3 text-sm text-brand-muted">

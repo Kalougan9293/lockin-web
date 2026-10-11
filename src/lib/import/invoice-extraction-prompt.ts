@@ -164,5 +164,5 @@ export function buildInvoiceExtractionUserPrompt(
     return `Analyse cette facture PDF (${fileName}). Extrais le DESTINATAIRE (client débiteur), le montant total à payer, la date d'émission (date_emission), la date d'échéance et la référence si présente. Ignore l'émetteur LockIn.`;
   }
 
-  return `Analyse ce fichier CSV (${fileName}). Une ligne "rows" par facture. Identifie le DESTINATAIRE (pas l'émetteur LockIn), le montant et l'échéance.`;
+  return `Analyse ce fichier CSV (${fileName}). Une ligne "rows" par facture (max. 100). Identifie le DESTINATAIRE (pas l'émetteur LockIn), le montant et l'échéance.`;
 }

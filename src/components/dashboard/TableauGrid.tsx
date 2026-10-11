@@ -43,6 +43,7 @@ import {
   isMailColumnLabel,
   isRowPaid,
   STATUT_COLUMN_ID,
+  STATUT_NOTE_FIELD_ID,
 } from "@/types/tableau";
 
 import { RecoveryBadge } from "./RecoveryBadge";
@@ -300,15 +301,14 @@ function getMinColumnWidthCh(
     COLUMN_WIDTH_PAD_CH
   );
 }
-const RIGHT_COLUMN_WIDTH_PAD_CH = 1.5;
 /** Largeur minimale d'une colonne relance (texte « Prévu : DD/MM »). */
 const DEFAULT_RELANCE_COLUMN_MIN_WIDTH = "7rem";
-/** Largeur minimale de la colonne Statut. */
-const DEFAULT_STATUT_COLUMN_MIN_WIDTH = "5.75rem";
+/** Colonne Statut : 2 emojis (statut + note). */
+const STATUT_COLUMN_WIDTH = "5.75rem";
 /** Plus long libellé compact : « Non envoyé : 31/12 ». */
 const PROGRESSION_LABEL_MAX_LENGTH = "Non envoyé : 31/12".length;
-/** Espace pastille + bouton timeline + marges internes, en ch. */
-const PROGRESSION_COLUMN_CONTROLS_CH = 5;
+/** Bouton timeline + marges (pastille incluse dans le libellé). */
+const PROGRESSION_COLUMN_CONTROLS_CH = 2.5;
 /** Largeur de la colonne Progression (badge + bouton timeline). */
 const PROGRESSION_COLUMN_WIDTH = `${PROGRESSION_LABEL_MAX_LENGTH + PROGRESSION_COLUMN_CONTROLS_CH}ch`;
 type SortDirection = "asc" | "desc";
@@ -402,14 +402,6 @@ function computeColumnStyle(widthCh: number) {
   return { width: `${widthCh}ch` };
 }
 
-function getStatutColumnCharWidth(column: RightColumnDef) {
-  const longestStatus = STATUT_OPTIONS.reduce(
-    (max, option) => Math.max(max, option.label.length + 3),
-    "En attente".length,
-  );
-  return Math.max(column.label.length, longestStatus, 10);
-}
-
 function computeRightColumnStyle(column: RightColumnDef) {
   if (column.variant === "progression") {
     return {
@@ -422,10 +414,9 @@ function computeRightColumnStyle(column: RightColumnDef) {
     return { minWidth: DEFAULT_RELANCE_COLUMN_MIN_WIDTH };
   }
 
-  const charWidth = getStatutColumnCharWidth(column);
   return {
-    minWidth: DEFAULT_STATUT_COLUMN_MIN_WIDTH,
-    width: `${charWidth + RIGHT_COLUMN_WIDTH_PAD_CH}ch`,
+    minWidth: STATUT_COLUMN_WIDTH,
+    width: STATUT_COLUMN_WIDTH,
   };
 }
 
@@ -564,55 +555,55 @@ const STATUT_OPTIONS: StatutOption[] = [
     value: "",
     label: "En attente",
     emoji: "🕒",
-    bubbleClassName: "bg-white/[0.12] text-white/85 ring-white/20",
+    bubbleClassName: "bg-white/25 text-white ring-white/45",
   },
   {
     value: "paye",
     label: "Payé",
     emoji: "✅",
-    bubbleClassName: "bg-emerald-500/35 text-emerald-100 ring-emerald-300/60",
+    bubbleClassName: "bg-emerald-400/55 text-emerald-50 ring-emerald-300/80",
   },
   {
     value: "aucune_reponse",
     label: "Aucune réponse",
     emoji: "📭",
-    bubbleClassName: "bg-slate-400/25 text-slate-100 ring-slate-200/35",
+    bubbleClassName: "bg-slate-300/40 text-slate-50 ring-slate-200/55",
   },
   {
     value: "promesse",
     label: "Promesse",
     emoji: "⏳",
-    bubbleClassName: "bg-sky-500/30 text-sky-100 ring-sky-300/45",
+    bubbleClassName: "bg-sky-400/55 text-sky-50 ring-sky-300/75",
   },
   {
     value: "delai",
     label: "Délai",
     emoji: "📅",
-    bubbleClassName: "bg-indigo-500/32 text-indigo-100 ring-indigo-300/45",
+    bubbleClassName: "bg-indigo-400/55 text-indigo-50 ring-indigo-300/75",
   },
   {
     value: "partiel",
     label: "Partiel",
     emoji: "💸",
-    bubbleClassName: "bg-amber-400/32 text-amber-100 ring-amber-300/45",
+    bubbleClassName: "bg-amber-400/55 text-amber-50 ring-amber-300/75",
   },
   {
     value: "litige",
     label: "Litige",
     emoji: "⚠️",
-    bubbleClassName: "bg-orange-500/35 text-orange-100 ring-orange-300/45",
+    bubbleClassName: "bg-orange-400/55 text-orange-50 ring-orange-300/75",
   },
   {
     value: "refus",
     label: "Refus",
     emoji: "❌",
-    bubbleClassName: "bg-rose-500/35 text-rose-100 ring-rose-300/45",
+    bubbleClassName: "bg-rose-400/55 text-rose-50 ring-rose-300/75",
   },
   {
     value: "injoignable",
     label: "Injoignable",
     emoji: "📵",
-    bubbleClassName: "bg-fuchsia-500/35 text-fuchsia-100 ring-fuchsia-300/45",
+    bubbleClassName: "bg-fuchsia-400/55 text-fuchsia-50 ring-fuchsia-300/75",
   },
 ];
 
@@ -622,10 +613,14 @@ function getStatutOption(status: PaymentStatus) {
 
 function StatutCell({
   status,
+  note,
   onChange,
+  onNoteChange,
 }: {
   status: PaymentStatus;
+  note: string;
   onChange: (status: PaymentStatus) => void;
+  onNoteChange: (note: string) => void;
 }) {
   const current = getStatutOption(status);
   const statusLabel = current?.label ?? "En attente";
@@ -633,27 +628,34 @@ function StatutCell({
   const statusBubbleClassName =
     current?.bubbleClassName ??
     "bg-white/[0.1] text-white/90 ring-white/20";
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
-  const [menuPosition, setMenuPosition] = useState<{
+  const hasNote = note.trim().length > 0;
+
+  const statusButtonRef = useRef<HTMLButtonElement>(null);
+  const noteButtonRef = useRef<HTMLButtonElement>(null);
+  const statusMenuRef = useRef<HTMLDivElement>(null);
+  const notePopoverRef = useRef<HTMLDivElement>(null);
+  const noteTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const [statusMenuOpen, setStatusMenuOpen] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [statusMenuPosition, setStatusMenuPosition] = useState<{
     top: number;
     left: number;
     maxHeight: number;
   } | null>(null);
 
   useEffect(() => {
-    if (!open || !buttonRef.current) return;
+    if (!statusMenuOpen || !statusButtonRef.current) return;
 
     function updatePosition() {
-      if (!buttonRef.current) return;
-      const rect = buttonRef.current.getBoundingClientRect();
+      if (!statusButtonRef.current) return;
+      const rect = statusButtonRef.current.getBoundingClientRect();
       const preferredMaxHeight = Math.min(
         window.innerHeight * 0.7,
         STATUT_MENU_PREFERRED_MAX_HEIGHT_PX,
       );
 
-      setMenuPosition(
+      setStatusMenuPosition(
         computeAnchoredDropdownPosition(
           rect,
           STATUT_MENU_WIDTH_PX,
@@ -663,14 +665,14 @@ function StatutCell({
     }
 
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") setStatusMenuOpen(false);
     }
 
     function handlePointerDown(event: MouseEvent | TouchEvent) {
       const target = event.target as Node;
-      if (buttonRef.current?.contains(target)) return;
-      if (menuRef.current?.contains(target)) return;
-      setOpen(false);
+      if (statusButtonRef.current?.contains(target)) return;
+      if (statusMenuRef.current?.contains(target)) return;
+      setStatusMenuOpen(false);
     }
 
     updatePosition();
@@ -687,80 +689,154 @@ function StatutCell({
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("touchstart", handlePointerDown);
     };
-  }, [open]);
+  }, [statusMenuOpen]);
+
+  useEffect(() => {
+    if (!noteOpen) return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setNoteOpen(false);
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+
+    const focusTimer = window.setTimeout(() => {
+      noteTextareaRef.current?.focus();
+      const length = noteTextareaRef.current?.value.length ?? 0;
+      noteTextareaRef.current?.setSelectionRange(length, length);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(focusTimer);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [noteOpen]);
 
   return (
-    <>
+    <div className="flex w-full items-center justify-center gap-1">
       <button
-        ref={buttonRef}
+        ref={statusButtonRef}
         type="button"
-        onClick={() => setOpen((value) => !value)}
-        aria-label="Changer le statut de paiement"
-        aria-expanded={open}
-        className="inline-flex w-full items-center gap-1.5 rounded-md px-0.5 py-0.5 text-white transition-all hover:bg-white/[0.05]"
+        onClick={() => {
+          setNoteOpen(false);
+          setStatusMenuOpen((value) => !value);
+        }}
+        title={statusLabel}
+        aria-label={`Statut : ${statusLabel}. Cliquer pour changer.`}
+        aria-expanded={statusMenuOpen}
+        aria-haspopup="menu"
+        className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-base ring-1 transition-all hover:scale-105 hover:brightness-110 ${statusBubbleClassName} ${
+          statusMenuOpen ? "ring-2 ring-violet-300/50" : ""
+        }`}
       >
-        <span
-          className={`inline-flex min-w-0 flex-1 items-center justify-center gap-1 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[13px] font-semibold ring-1 ${statusBubbleClassName}`}
-        >
-          <span aria-hidden>{statusEmoji}</span>
-          <span className="truncate">{statusLabel}</span>
-        </span>
-        <svg
-          className="h-4 w-4 shrink-0 text-brand-muted/90"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          aria-hidden="true"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" />
-        </svg>
+        <span aria-hidden>{statusEmoji}</span>
       </button>
 
-      {open && menuPosition && typeof document !== "undefined"
+      <button
+        ref={noteButtonRef}
+        type="button"
+        onClick={() => {
+          setStatusMenuOpen(false);
+          setNoteOpen((value) => !value);
+        }}
+        title={hasNote ? note : "Ajouter une note"}
+        aria-label={hasNote ? "Modifier la note" : "Ajouter une note"}
+        aria-expanded={noteOpen}
+        aria-haspopup="dialog"
+        className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-base ring-1 transition-all hover:scale-105 ${
+          hasNote
+            ? "bg-rose-500/30 text-rose-50 ring-rose-400/55"
+            : "bg-white/[0.08] text-white/80 ring-white/15 hover:bg-white/[0.12]"
+        } ${noteOpen ? (hasNote ? "ring-2 ring-rose-300/55" : "ring-2 ring-white/30") : ""}`}
+      >
+        <span aria-hidden>{hasNote ? "🚩" : "🗒️"}</span>
+      </button>
+
+      {statusMenuOpen && statusMenuPosition && typeof document !== "undefined"
         ? createPortal(
             <div
-              ref={menuRef}
+              ref={statusMenuRef}
               role="menu"
               style={{
-                top: menuPosition.top,
-                left: menuPosition.left,
-                maxHeight: menuPosition.maxHeight,
+                top: statusMenuPosition.top,
+                left: statusMenuPosition.left,
+                maxHeight: statusMenuPosition.maxHeight,
               }}
               className="fixed z-[111] min-w-[13.75rem] space-y-1 overflow-y-auto rounded-xl border border-white/10 bg-brand-card p-2 shadow-xl shadow-black/50"
             >
-                {STATUT_OPTIONS.map((option) => {
-                  const selected = option.value === status;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      role="menuitem"
-                      disabled={selected}
-                      onClick={() => {
-                        onChange(option.value);
-                        setOpen(false);
-                      }}
-                      className={`flex w-full items-center justify-start rounded-lg px-2 py-1.5 text-left transition-colors ${
-                        selected
-                          ? "cursor-not-allowed opacity-45"
-                          : "hover:bg-white/5"
-                      }`}
+              {STATUT_OPTIONS.map((option) => {
+                const selected = option.value === status;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="menuitem"
+                    disabled={selected}
+                    onClick={() => {
+                      onChange(option.value);
+                      setStatusMenuOpen(false);
+                    }}
+                    className={`flex w-full items-center justify-start rounded-lg px-2 py-1.5 text-left transition-colors ${
+                      selected
+                        ? "cursor-not-allowed opacity-45"
+                        : "hover:bg-white/5"
+                    }`}
+                  >
+                    <span
+                      className={`inline-flex w-full items-center gap-1 whitespace-nowrap rounded-md px-2.5 py-1.5 text-sm font-semibold ring-1 ${option.bubbleClassName}`}
                     >
-                      <span
-                        className={`inline-flex w-full items-center gap-1 whitespace-nowrap rounded-md px-2.5 py-1.5 text-sm font-semibold ring-1 ${option.bubbleClassName}`}
-                      >
-                        <span aria-hidden>{option.emoji}</span>
-                        <span>{option.label}</span>
-                      </span>
-                    </button>
-                  );
-                })}
+                      <span aria-hidden>{option.emoji}</span>
+                      <span>{option.label}</span>
+                    </span>
+                  </button>
+                );
+              })}
             </div>,
             document.body,
           )
         : null}
-    </>
+
+      {noteOpen && typeof document !== "undefined"
+        ? createPortal(
+            <div className="fixed inset-0 z-[111] flex items-center justify-center p-4">
+              <button
+                type="button"
+                aria-label="Fermer la note"
+                onClick={() => setNoteOpen(false)}
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              />
+              <div
+                ref={notePopoverRef}
+                role="dialog"
+                aria-modal="true"
+                aria-label="Note"
+                className="relative z-10 w-full max-w-sm rounded-2xl border border-white/10 bg-brand-card p-5 shadow-2xl shadow-black/50"
+              >
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-white">Note</p>
+                  <button
+                    type="button"
+                    onClick={() => setNoteOpen(false)}
+                    aria-label="Fermer"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-lg leading-none text-brand-muted transition-colors hover:bg-white/10 hover:text-white"
+                  >
+                    ×
+                  </button>
+                </div>
+                <textarea
+                  ref={noteTextareaRef}
+                  value={note}
+                  onChange={(event) => onNoteChange(event.target.value)}
+                  placeholder="Écrire une note…"
+                  rows={4}
+                  className="w-full resize-none rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-sm text-white/90 placeholder:text-brand-muted/65 focus:border-rose-400/45 focus:outline-none focus:ring-1 focus:ring-rose-400/30"
+                />
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+    </div>
   );
 }
 
@@ -808,6 +884,7 @@ type RightTableColumnProps = {
   deliveries: RelanceDeliveryRow[];
   simulateRelances: boolean;
   onStatusChange: (rowIndex: number, status: PaymentStatus) => void;
+  onStatusNoteChange?: (rowIndex: number, note: string) => void;
   expandForRecovery?: boolean;
   onOpenProgressTimeline?: (rowIndex: number) => void;
 };
@@ -821,6 +898,7 @@ function RightTableColumn({
   deliveries,
   simulateRelances,
   onStatusChange,
+  onStatusNoteChange,
   expandForRecovery = false,
   onOpenProgressTimeline,
 }: RightTableColumnProps) {
@@ -885,7 +963,11 @@ function RightTableColumn({
             {isDataRow && column.variant === "statut" ? (
               <StatutCell
                 status={status}
+                note={row?.values[STATUT_NOTE_FIELD_ID] ?? ""}
                 onChange={(nextStatus) => onStatusChange(rowIndex, nextStatus)}
+                onNoteChange={(nextNote) =>
+                  onStatusNoteChange?.(rowIndex, nextNote)
+                }
               />
             ) : isDataRow && column.variant === "progression" ? (
               recovery ? null : (
@@ -1546,6 +1628,10 @@ export function TableauGrid({
     );
   }
 
+  function handleStatusNoteChange(rowIndex: number, note: string) {
+    handleCellChange(rowIndex, STATUT_NOTE_FIELD_ID, note);
+  }
+
   function sortRowsByColumn(
     sourceRows: ClientRow[],
     column: ColumnDef,
@@ -1774,6 +1860,7 @@ export function TableauGrid({
                   deliveries={deliveries}
                   simulateRelances={simulateRelances}
                   onStatusChange={handleStatusChange}
+                  onStatusNoteChange={handleStatusNoteChange}
                 />
               ))}
             </div>

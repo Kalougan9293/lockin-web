@@ -411,6 +411,8 @@ export type PaymentStatus =
   | "injoignable";
 
 export const STATUT_COLUMN_ID = "statut";
+/** Note libre liée au statut (stockée dans `values`, pas une colonne séparée). */
+export const STATUT_NOTE_FIELD_ID = "note";
 export const PROGRESSION_COLUMN_ID = "progression";
 
 export function isRowPaid(row: ClientRow): boolean {
